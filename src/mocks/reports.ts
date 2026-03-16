@@ -1,0 +1,58 @@
+import type { Report } from '../types';
+
+export const MOCK_REPORTS: Report[] = [
+  {
+    id: '1',
+    title: '월간 거래 보고서',
+    description: '2024년 1월 거래 내역 및 통계 분석',
+    icon: 'ri-file-chart-line',
+    date: '2024-01-15',
+    type: '거래',
+    status: '완료',
+  },
+  {
+    id: '2',
+    title: '사용자 활동 분석',
+    description: '사용자 행동 패턴 및 참여도 분석',
+    icon: 'ri-user-search-line',
+    date: '2024-01-14',
+    type: '분석',
+    status: '진행중',
+  },
+  {
+    id: '3',
+    title: '시스템 성능 보고서',
+    description: '서버 성능 및 응답 시간 모니터링',
+    icon: 'ri-dashboard-line',
+    date: '2024-01-13',
+    type: '시스템',
+    status: '완료',
+  },
+  {
+    id: '4',
+    title: '주식 시장 동향',
+    description: '주요 종목 분석 및 시장 트렌드',
+    icon: 'ri-stock-line',
+    date: '2024-01-12',
+    type: '시장',
+    status: '완료',
+  },
+  {
+    id: '5',
+    title: '보안 감사 보고서',
+    description: '시스템 보안 점검 및 취약점 분석',
+    icon: 'ri-shield-check-line',
+    date: '2024-01-11',
+    type: '보안',
+    status: '검토중',
+  },
+  {
+    id: '6',
+    title: '분기별 재무 보고서',
+    description: 'Q1 재무 현황 및 예산 집행 내역',
+    icon: 'ri-money-dollar-circle-line',
+    date: '2024-01-10',
+    type: '재무',
+    status: '완료',
+  },
+];
