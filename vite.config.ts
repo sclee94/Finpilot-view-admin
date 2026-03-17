@@ -72,10 +72,10 @@ export default defineConfig({
     outDir: "out",
     rollupOptions: {
       output: {
-        entryFileNames: "js/[name]-[hash].js",
-        chunkFileNames: "js/[name]-[hash].js",
+        entryFileNames: "assets/JS/[name]-[hash].js",
+        chunkFileNames: "assets/JS/[name]-[hash].js",
         assetFileNames: (assetInfo) => {
-          if (assetInfo.name?.endsWith(".css")) return "css/[name]-[hash][extname]";
+          if (assetInfo.name?.endsWith(".css")) return "assets/CSS/[name]-[hash][extname]";
           return "assets/[name]-[hash][extname]";
         },
       },
