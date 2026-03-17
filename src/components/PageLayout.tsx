@@ -12,9 +12,9 @@ export default function PageLayout({ children }: PageLayoutProps) {
   return (
     <div className="flex h-screen bg-zinc-950">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <Header onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 overflow-y-auto bg-zinc-950 p-6">
+        <main className="flex-1 overflow-y-auto bg-zinc-950 p-3 sm:p-6">
           {children}
         </main>
       </div>

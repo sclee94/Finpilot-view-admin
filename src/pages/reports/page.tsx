@@ -111,9 +111,9 @@ function DateTripleFilter({ label, field, value, onChange }: DateTripleFilterPro
   ], [field, year, month]);
 
   return (
-    <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3">
-      <i className="ri-calendar-line text-zinc-500 text-lg"></i>
-      <span className="text-base text-zinc-400 mr-1 font-medium">{label}</span>
+    <div className="flex flex-wrap items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2">
+      <i className="ri-calendar-line text-zinc-500 text-base"></i>
+      <span className="text-sm text-zinc-400 font-medium">{label}</span>
       <SelectDropdown label="" value={year} options={years} onChange={(v) => onChange(v === 'all' ? INIT_DATE : { year: v, month: 'all', day: 'all' })} />
       <SelectDropdown label="" value={month} options={months} onChange={(v) => onChange(v === 'all' ? { ...value, month: 'all', day: 'all' } : { ...value, month: v })} disabled={year === 'all'} />
       <SelectDropdown label="" value={day} options={days} onChange={(v) => onChange({ ...value, day: v })} disabled={year === 'all' || month === 'all'} />
@@ -220,90 +220,90 @@ export default function ReportsPage() {
         </div>
 
         {/* 요약 카드 */}
-        <div className="flex gap-4 items-stretch">
+        <div className="flex flex-col xl:flex-row gap-4">
           {/* 앞 3개 카드 */}
-          <div className="flex flex-col gap-3 flex-shrink-0 self-stretch">
+          <div className="flex flex-row sm:flex-col xl:flex-col gap-3 xl:w-52 xl:shrink-0">
             {[
               { label: '전체 거래', value: `${summary.total}건`, icon: 'ri-list-check-2', color: 'text-zinc-300', bg: 'bg-zinc-800/60' },
               { label: '체결 완료', value: `${summary.settled}건`, icon: 'ri-checkbox-circle-line', color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
               { label: '대기 중', value: `${summary.pending}건`, icon: 'ri-time-line', color: 'text-amber-400', bg: 'bg-amber-500/10' },
             ].map((card) => (
-              <div key={card.label} className={`${card.bg} border border-zinc-800 rounded-xl px-6 py-4 flex items-center gap-4 w-56 flex-1 min-h-0`}>
-                <div className="w-12 h-12 flex items-center justify-center rounded-xl bg-zinc-800 shrink-0">
-                  <i className={`${card.icon} text-2xl ${card.color}`}></i>
+              <div key={card.label} className={`${card.bg} border border-zinc-800 rounded-xl px-4 py-3 flex items-center gap-3 flex-1 xl:flex-none`}>
+                <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-zinc-800 shrink-0">
+                  <i className={`${card.icon} text-xl ${card.color}`}></i>
                 </div>
-                <div>
-                  <p className="text-base text-zinc-500 leading-tight">{card.label}</p>
-                  <p className={`text-3xl font-bold ${card.color} mt-1`}>{card.value}</p>
+                <div className="min-w-0">
+                  <p className="text-xs text-zinc-500 leading-tight">{card.label}</p>
+                  <p className={`text-xl sm:text-2xl font-bold ${card.color} mt-0.5`}>{card.value}</p>
                 </div>
               </div>
             ))}
           </div>
 
           {/* 전체 총액 큰 카드 */}
-          <div className="flex-1 bg-teal-500/10 border border-teal-500/30 rounded-xl p-5 flex flex-col justify-between">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-9 h-9 flex items-center justify-center rounded-lg bg-teal-500/20 shrink-0">
-                <i className="ri-money-dollar-circle-line text-lg text-teal-400"></i>
+          <div className="flex-1 bg-teal-500/10 border border-teal-500/30 rounded-xl p-4 sm:p-5 flex flex-col justify-between">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-teal-500/20 shrink-0">
+                <i className="ri-money-dollar-circle-line text-base text-teal-400"></i>
               </div>
-              <span className="text-lg font-bold text-teal-300 tracking-wide">전체 총액</span>
+              <span className="text-base font-bold text-teal-300 tracking-wide">전체 총액</span>
             </div>
 
-            <div className="flex gap-3 flex-1">
-              {/* 왼쪽: 총 체결 수익 (전체 높이) */}
-              <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-4 flex flex-col justify-center items-center w-56 shrink-0 gap-3">
+            <div className="flex flex-col sm:flex-row gap-3 flex-1">
+              {/* 총 체결 수익 */}
+              <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-4 flex flex-col justify-center items-center sm:w-44 xl:w-48 sm:shrink-0 gap-2">
                 <div className="flex items-center gap-2">
-                  <i className={`${summary.profit >= 0 ? 'ri-arrow-up-circle-line text-sky-400' : 'ri-arrow-down-circle-line text-rose-400'} text-lg`}></i>
-                  <span className="text-base text-zinc-500">총 체결 수익</span>
+                  <i className={`${summary.profit >= 0 ? 'ri-arrow-up-circle-line text-sky-400' : 'ri-arrow-down-circle-line text-rose-400'} text-base`}></i>
+                  <span className="text-sm text-zinc-500">총 체결 수익</span>
                 </div>
                 <div className="text-center">
-                  <p className={`text-3xl font-bold ${summary.profit >= 0 ? 'text-sky-400' : 'text-rose-400'}`}>
+                  <p className={`text-2xl font-bold ${summary.profit >= 0 ? 'text-sky-400' : 'text-rose-400'}`}>
                     {summary.profit >= 0 ? '+' : ''}₩{formatAmt(summary.profit)}
                   </p>
-                  <p className="text-sm text-zinc-600 mt-1.5">매도 체결 - 매수 체결</p>
+                  <p className="text-xs text-zinc-600 mt-1">매도 체결 - 매수 체결</p>
                 </div>
               </div>
 
               {/* 오른쪽 2x2 그리드 */}
               <div className="grid grid-cols-2 gap-3 flex-1">
                 {/* 총 체결 매수 금액 */}
-                <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <i className="ri-arrow-down-circle-line text-teal-400 text-lg"></i>
-                    <span className="text-base text-zinc-500">총 체결 매수 금액</span>
+                <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-3">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <i className="ri-arrow-down-circle-line text-teal-400 text-sm"></i>
+                    <span className="text-xs text-zinc-500 truncate">총 체결 매수</span>
                   </div>
-                  <p className="text-2xl font-bold text-teal-400">₩{formatAmt(summary.totalBuyAmt)}</p>
-                  <p className="text-sm text-zinc-600 mt-1.5">{filtered.filter((t) => t.tradeType === '매수').length}건 합산</p>
+                  <p className="text-lg font-bold text-teal-400">₩{formatAmt(summary.totalBuyAmt)}</p>
+                  <p className="text-xs text-zinc-600 mt-1">{filtered.filter((t) => t.tradeType === '매수').length}건 합산</p>
                 </div>
 
                 {/* 총 매매 금액 */}
-                <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <i className="ri-exchange-line text-zinc-400 text-lg"></i>
-                    <span className="text-base text-zinc-500">총 매매 금액</span>
+                <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-3">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <i className="ri-exchange-line text-zinc-400 text-sm"></i>
+                    <span className="text-xs text-zinc-500 truncate">총 매매 금액</span>
                   </div>
-                  <p className="text-2xl font-bold text-zinc-100">₩{formatAmt(summary.totalTradeAmt)}</p>
-                  <p className="text-sm text-zinc-600 mt-1.5">{filtered.length}건 합산</p>
+                  <p className="text-lg font-bold text-zinc-100">₩{formatAmt(summary.totalTradeAmt)}</p>
+                  <p className="text-xs text-zinc-600 mt-1">{filtered.length}건 합산</p>
                 </div>
 
                 {/* 총 체결 매도 금액 */}
-                <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <i className="ri-arrow-up-circle-line text-rose-400 text-lg"></i>
-                    <span className="text-base text-zinc-500">총 체결 매도 금액</span>
+                <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-3">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <i className="ri-arrow-up-circle-line text-rose-400 text-sm"></i>
+                    <span className="text-xs text-zinc-500 truncate">총 체결 매도</span>
                   </div>
-                  <p className="text-2xl font-bold text-rose-400">₩{formatAmt(summary.totalSellAmt)}</p>
-                  <p className="text-sm text-zinc-600 mt-1.5">{filtered.filter((t) => t.tradeType === '매도').length}건 합산</p>
+                  <p className="text-lg font-bold text-rose-400">₩{formatAmt(summary.totalSellAmt)}</p>
+                  <p className="text-xs text-zinc-600 mt-1">{filtered.filter((t) => t.tradeType === '매도').length}건 합산</p>
                 </div>
 
                 {/* 체결 총액 */}
-                <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <i className="ri-checkbox-circle-line text-emerald-400 text-lg"></i>
-                    <span className="text-base text-zinc-500">체결 총액</span>
+                <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-3">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <i className="ri-checkbox-circle-line text-emerald-400 text-sm"></i>
+                    <span className="text-xs text-zinc-500 truncate">체결 총액</span>
                   </div>
-                  <p className="text-2xl font-bold text-emerald-400">₩{formatAmt(summary.settledAmt)}</p>
-                  <p className="text-sm text-zinc-600 mt-1.5">{summary.settled}건 체결</p>
+                  <p className="text-lg font-bold text-emerald-400">₩{formatAmt(summary.settledAmt)}</p>
+                  <p className="text-xs text-zinc-600 mt-1">{summary.settled}건 체결</p>
                 </div>
               </div>
             </div>
@@ -313,14 +313,14 @@ export default function ReportsPage() {
         {/* 필터 + 검색 */}
         <div className="space-y-4">
           {/* 1행: 상태/유형/시장 필터 */}
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             {/* 상태 필터 */}
-            <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-xl p-2">
+            <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-xl p-1.5">
               {STATUS_FILTERS.map((f) => (
                 <button
                   key={f.id}
                   onClick={() => { setStatusFilter(f.id); setPage(1); }}
-                  className={`px-5 py-2.5 rounded-lg text-base font-medium transition-colors whitespace-nowrap cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap cursor-pointer ${
                     statusFilter === f.id
                       ? 'bg-teal-500 text-zinc-950'
                       : 'text-zinc-400 hover:text-zinc-200'
@@ -332,12 +332,12 @@ export default function ReportsPage() {
             </div>
 
             {/* 유형 필터 */}
-            <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-xl p-2">
+            <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-xl p-1.5">
               {TYPE_FILTERS.map((f) => (
                 <button
                   key={f.id}
                   onClick={() => { setTypeFilter(f.id); setPage(1); }}
-                  className={`px-5 py-2.5 rounded-lg text-base font-medium transition-colors whitespace-nowrap cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap cursor-pointer ${
                     typeFilter === f.id
                       ? 'bg-teal-500 text-zinc-950'
                       : 'text-zinc-400 hover:text-zinc-200'
@@ -349,12 +349,12 @@ export default function ReportsPage() {
             </div>
 
             {/* 시장 필터 */}
-            <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-xl p-2">
+            <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-xl p-1.5">
               {MARKET_FILTERS.map((f) => (
                 <button
                   key={f.id}
                   onClick={() => { setMarketFilter(f.id); setPage(1); }}
-                  className={`px-5 py-2.5 rounded-lg text-base font-medium transition-colors whitespace-nowrap cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap cursor-pointer ${
                     marketFilter === f.id
                       ? 'bg-teal-500 text-zinc-950'
                       : 'text-zinc-400 hover:text-zinc-200'
@@ -365,19 +365,17 @@ export default function ReportsPage() {
               ))}
             </div>
 
-            <span className="text-base text-zinc-500 whitespace-nowrap">총 {filtered.length}건</span>
+            <span className="text-sm text-zinc-500 whitespace-nowrap">총 {filtered.length}건</span>
           </div>
 
           {/* 2행: 신청날짜 + 확정날짜 + 검색창 */}
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-3">
             <DateTripleFilter
               label="신청날짜"
               field="applyDate"
               value={applyDate}
               onChange={(v) => { setApplyDate(v); setPage(1); }}
             />
-
-            <div className="w-px h-8 bg-zinc-700"></div>
 
             <DateTripleFilter
               label="확정날짜"
@@ -386,24 +384,22 @@ export default function ReportsPage() {
               onChange={(v) => { setConfirmDate(v); setPage(1); }}
             />
 
-            <div className="w-px h-8 bg-zinc-700"></div>
-
             {/* 검색창 */}
-            <div className="relative flex items-center bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3">
+            <div className="relative flex items-center bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 flex-1 min-w-[200px]">
               <i className="ri-search-line text-zinc-500 text-lg mr-2.5"></i>
               <input
                 type="text"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                 placeholder="종목명, 작성자..."
-                className="bg-transparent text-base text-zinc-200 placeholder-zinc-600 focus:outline-none w-52"
+                className="bg-transparent text-base text-zinc-200 placeholder-zinc-600 focus:outline-none w-full"
               />
             </div>
           </div>
         </div>
 
         {/* 게시판 테이블 */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden overflow-x-auto">
           {/* 테이블 헤더 */}
           <div className="grid grid-cols-[40px_1.8fr_0.8fr_0.9fr_0.7fr_1.1fr_0.7fr_1.3fr_0.7fr_1.4fr_1.4fr] text-xs font-semibold text-zinc-500 uppercase tracking-wide px-4 py-3 border-b border-zinc-800 bg-zinc-800/40">
             <button

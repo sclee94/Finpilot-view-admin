@@ -8,7 +8,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
 
   return (
     <div className="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-[480px] p-10" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6 sm:p-10" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-8">
           <h2 className="text-xl font-semibold text-slate-800">프로필</h2>
           <button onClick={onClose} className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer rounded-lg hover:bg-slate-100 transition-colors">

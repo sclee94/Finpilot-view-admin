@@ -47,22 +47,22 @@ export default function Pagination({
   };
 
   return (
-    <div className={`flex items-center justify-between ${className}`}>
+    <div className={`flex items-center justify-between gap-2 ${className}`}>
       <button
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
-        className="px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-300 rounded-lg hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap cursor-pointer"
+        className="px-3 py-2 bg-zinc-900 border border-zinc-800 text-zinc-300 rounded-lg hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap cursor-pointer text-sm"
       >
         이전
       </button>
-      
-      <div className="flex gap-2">
+
+      <div className="flex flex-wrap justify-center gap-1.5">
         {getPageNumbers().map((page, index) => (
           typeof page === 'number' ? (
             <button
               key={index}
               onClick={() => onPageChange(page)}
-              className={`w-10 h-10 rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
+              className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg transition-colors whitespace-nowrap cursor-pointer text-sm ${
                 currentPage === page
                   ? 'bg-teal-500 text-white font-semibold'
                   : 'bg-zinc-900 border border-zinc-800 text-zinc-300 hover:bg-zinc-800'
@@ -71,17 +71,17 @@ export default function Pagination({
               {page}
             </button>
           ) : (
-            <span key={index} className="w-10 h-10 flex items-center justify-center text-zinc-600">
+            <span key={index} className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center text-zinc-600 text-sm">
               {page}
             </span>
           )
         ))}
       </div>
-      
+
       <button
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
-        className="px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-300 rounded-lg hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap cursor-pointer"
+        className="px-3 py-2 bg-zinc-900 border border-zinc-800 text-zinc-300 rounded-lg hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap cursor-pointer text-sm"
       >
         다음
       </button>

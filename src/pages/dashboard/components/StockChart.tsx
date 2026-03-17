@@ -91,9 +91,9 @@ export default function StockChart({ selectedMetric = 'volume' }: StockChartProp
 
   return (
     <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-6">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
         <h2 className="text-lg font-bold text-zinc-100 transition-all">{title}</h2>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {periods.map((p) => (
             <button
               key={p}
