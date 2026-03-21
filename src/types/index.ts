@@ -1,11 +1,25 @@
+// Spring Boot ApiResponse<T> 공통 응답 래퍼 (ResponseCode 기반)
+export interface ApiResponse<T> {
+  status: number;    // ResponseCode.status (200/201=성공, 4xx/5xx=실패)
+  message: string;   // ResponseCode.message
+  data: T;
+}
+
+/**
+ * Spring Boot UserDTO 매핑
+ * permission: 1=일반유저, 99=관리자, 100=최고관리자
+ * status:     1=활성, 0=비활성, -1=블랙
+ */
 export interface User {
-  id: number;
-  name: string;
+  userUid: string;
+  userName: string;
   email: string;
-  role: 'admin' | 'user';
-  status: 'active' | 'inactive' | 'blocked';
-  lastLogin: string;
-  joinDate: string;
+  userPhone?: string;
+  permission: number;
+  status: number;
+  loginToken?: string;
+  loginDate?: string;
+  createdAt?: string;
 }
 
 export interface Stock {

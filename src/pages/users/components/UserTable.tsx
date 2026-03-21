@@ -1,31 +1,33 @@
 import { useState, useCallback } from 'react';
 import type { User } from '../../../types';
-import { ROLES, STATUS } from '../../../constants';
+import { PERMISSIONS, STATUS } from '../../../constants';
 import SearchInput from '../../../components/SearchInput';
 import Badge from '../../../components/Badge';
 import Modal from '../../../components/Modal';
 import Pagination from '../../../components/Pagination';
 import UserModal from './UserModal';
+import UserDetailModal from './UserDetailModal';
 import { useTableFilter } from '../../../hooks/useTableFilter';
 
 interface UserTableProps {
   users: User[];
   onUpdateUser: (user: User) => void;
-  onDeleteUser: (id: number) => void;
+  onDeleteUser: (userUid: string) => void;
 }
 
 export default function UserTable({ users, onUpdateUser, onDeleteUser }: UserTableProps) {
-  const [roleFilter, setRoleFilter] = useState('all');
+  const [permissionFilter, setPermissionFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [detailUser, setDetailUser] = useState<User | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
 
   const filterFn = useCallback((user: User) => {
-    const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-    const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
-    return matchesRole && matchesStatus;
-  }, [roleFilter, statusFilter]);
+    const matchesPermission = permissionFilter === 'all' || user.permission === Number(permissionFilter);
+    const matchesStatus = statusFilter === 'all' || user.status === Number(statusFilter);
+    return matchesPermission && matchesStatus;
+  }, [permissionFilter, statusFilter]);
 
   const {
     searchTerm,
@@ -36,19 +38,23 @@ export default function UserTable({ users, onUpdateUser, onDeleteUser }: UserTab
     totalPages,
   } = useTableFilter({
     data: users,
-    searchFields: ['name', 'email'],
+    searchFields: ['userName', 'email'],
     filterFn,
     itemsPerPage: 10,
   });
 
+  const handleRowClick = (user: User) => {
+    setDetailUser(user);
+  };
+
   const handleEdit = (user: User) => {
     setSelectedUser(user);
-    setIsModalOpen(true);
+    setIsEditModalOpen(true);
   };
 
   const handleSave = (updatedUser: User) => {
     onUpdateUser(updatedUser);
-    setIsModalOpen(false);
+    setIsEditModalOpen(false);
     setSelectedUser(null);
   };
 
@@ -58,28 +64,32 @@ export default function UserTable({ users, onUpdateUser, onDeleteUser }: UserTab
 
   const handleDeleteConfirm = () => {
     if (deleteTarget) {
-      onDeleteUser(deleteTarget.id);
+      onDeleteUser(deleteTarget.userUid);
       setDeleteTarget(null);
     }
   };
 
-  const getRoleBadgeVariant = (role: string) => {
-    return role === ROLES.ADMIN ? 'info' : 'default';
+  const getPermissionBadgeVariant = (permission: number) => {
+    if (permission === PERMISSIONS.SUPER_ADMIN) return 'danger';
+    if (permission === PERMISSIONS.ADMIN) return 'info';
+    return 'default';
   };
 
-  const getStatusBadgeVariant = (status: string): 'success' | 'danger' | 'warning' => {
+  const getStatusBadgeVariant = (status: number): 'success' | 'danger' | 'warning' => {
     if (status === STATUS.ACTIVE) return 'success';
     if (status === STATUS.BLOCKED) return 'danger';
     return 'warning';
   };
 
-  const getRoleLabel = (role: string) => {
-    return role === ROLES.ADMIN ? '관리자' : '일반 사용자';
+  const getPermissionLabel = (permission: number) => {
+    if (permission === PERMISSIONS.SUPER_ADMIN) return '최고 관리자';
+    if (permission === PERMISSIONS.ADMIN) return '관리자';
+    return '일반 사용자';
   };
 
-  const getStatusLabel = (status: string) => {
+  const getStatusLabel = (status: number) => {
     if (status === STATUS.ACTIVE) return '활성';
-    if (status === STATUS.BLOCKED) return '차단';
+    if (status === STATUS.BLOCKED) return '블랙';
     return '비활성';
   };
 
@@ -94,13 +104,14 @@ export default function UserTable({ users, onUpdateUser, onDeleteUser }: UserTab
         />
 
         <select
-          value={roleFilter}
-          onChange={(e) => setRoleFilter(e.target.value)}
+          value={permissionFilter}
+          onChange={(e) => setPermissionFilter(e.target.value)}
           className="px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm text-zinc-300 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
         >
           <option value="all">모든 역할</option>
-          <option value={ROLES.ADMIN}>관리자</option>
-          <option value={ROLES.USER}>일반 사용자</option>
+          <option value={PERMISSIONS.USER}>일반 사용자</option>
+          <option value={PERMISSIONS.ADMIN}>관리자</option>
+          <option value={PERMISSIONS.SUPER_ADMIN}>최고 관리자</option>
         </select>
 
         <select
@@ -111,7 +122,7 @@ export default function UserTable({ users, onUpdateUser, onDeleteUser }: UserTab
           <option value="all">모든 상태</option>
           <option value={STATUS.ACTIVE}>활성</option>
           <option value={STATUS.INACTIVE}>비활성</option>
-          <option value={STATUS.BLOCKED}>차단</option>
+          <option value={STATUS.BLOCKED}>블랙</option>
         </select>
       </div>
 
@@ -120,24 +131,29 @@ export default function UserTable({ users, onUpdateUser, onDeleteUser }: UserTab
           <table className="w-full">
             <thead>
               <tr className="bg-zinc-800/60 border-b border-zinc-800">
-                <th className="px-6 py-4 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">ID</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">UID</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">이름</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">이메일</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">역할</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">상태</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">가입일</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">최근 로그인</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">작업</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800">
               {paginatedUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-zinc-800/50 transition-colors">
-                  <td className="px-6 py-4 text-sm text-zinc-500">{user.id}</td>
-                  <td className="px-6 py-4 text-sm font-medium text-zinc-200">{user.name}</td>
+                <tr
+                  key={user.userUid}
+                  onClick={() => handleRowClick(user)}
+                  className="hover:bg-zinc-800/50 transition-colors cursor-pointer"
+                >
+                  <td className="px-6 py-4 text-sm text-zinc-500">{user.userUid}</td>
+                  <td className="px-6 py-4 text-sm font-medium text-zinc-200">{user.userName}</td>
                   <td className="px-6 py-4 text-sm text-zinc-400">{user.email}</td>
                   <td className="px-6 py-4">
-                    <Badge variant={getRoleBadgeVariant(user.role)}>
-                      {getRoleLabel(user.role)}
+                    <Badge variant={getPermissionBadgeVariant(user.permission)}>
+                      {getPermissionLabel(user.permission)}
                     </Badge>
                   </td>
                   <td className="px-6 py-4">
@@ -145,9 +161,10 @@ export default function UserTable({ users, onUpdateUser, onDeleteUser }: UserTab
                       {getStatusLabel(user.status)}
                     </Badge>
                   </td>
-                  <td className="px-6 py-4 text-sm text-zinc-400">{user.joinDate}</td>
+                  <td className="px-6 py-4 text-sm text-zinc-400">{user.createdAt ?? '-'}</td>
+                  <td className="px-6 py-4 text-sm text-zinc-400">{user.loginDate ?? '-'}</td>
                   <td className="px-6 py-4">
-                    <div className="flex gap-2">
+                    <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => handleEdit(user)}
                         className="w-8 h-8 flex items-center justify-center text-teal-400 hover:bg-teal-500/15 rounded-lg transition-colors cursor-pointer"
@@ -179,17 +196,29 @@ export default function UserTable({ users, onUpdateUser, onDeleteUser }: UserTab
         />
       )}
 
-      {isModalOpen && selectedUser && (
+      {/* 상세 정보 팝업 */}
+      {detailUser && (
+        <UserDetailModal
+          user={detailUser}
+          onClose={() => setDetailUser(null)}
+          onEdit={handleEdit}
+          onDelete={handleDeleteClick}
+        />
+      )}
+
+      {/* 수정 팝업 */}
+      {isEditModalOpen && selectedUser && (
         <UserModal
           user={selectedUser}
           onClose={() => {
-            setIsModalOpen(false);
+            setIsEditModalOpen(false);
             setSelectedUser(null);
           }}
           onSave={handleSave}
         />
       )}
 
+      {/* 삭제 확인 팝업 */}
       <Modal
         isOpen={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
@@ -203,7 +232,7 @@ export default function UserTable({ users, onUpdateUser, onDeleteUser }: UserTab
             <h2 className="text-lg font-semibold text-zinc-100">회원 탈퇴</h2>
           </div>
           <p className="text-sm text-zinc-400 leading-relaxed">
-            <span className="text-zinc-200 font-medium">{deleteTarget?.name}</span> 회원을 탈퇴시키겠습니까?<br />
+            <span className="text-zinc-200 font-medium">{deleteTarget?.userName}</span> 회원을 탈퇴시키겠습니까?<br />
             이 작업은 되돌릴 수 없습니다.
           </p>
           <div className="flex gap-3 justify-end">

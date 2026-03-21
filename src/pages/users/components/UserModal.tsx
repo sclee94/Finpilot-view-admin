@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { User } from '../../../types';
-import { ROLES, STATUS } from '../../../constants';
+import { PERMISSIONS, STATUS } from '../../../constants';
 import Modal from '../../../components/Modal';
 
 interface UserModalProps {
@@ -11,13 +11,13 @@ interface UserModalProps {
 
 export default function UserModal({ user, onClose, onSave }: UserModalProps) {
   const [formData, setFormData] = useState<User>(user || {
-    id: 0,
-    name: '',
+    userUid: '',
+    userName: '',
     email: '',
-    role: 'user',
-    status: 'active',
-    lastLogin: '',
-    joinDate: new Date().toISOString().split('T')[0],
+    userPhone: '',
+    permission: PERMISSIONS.USER,
+    status: STATUS.ACTIVE,
+    createdAt: new Date().toISOString().split('T')[0],
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -35,8 +35,8 @@ export default function UserModal({ user, onClose, onSave }: UserModalProps) {
           <label className="block text-sm font-medium text-zinc-400 mb-2">이름</label>
           <input
             type="text"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            value={formData.userName}
+            onChange={(e) => setFormData({ ...formData, userName: e.target.value })}
             className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
             required
           />
@@ -54,14 +54,26 @@ export default function UserModal({ user, onClose, onSave }: UserModalProps) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-zinc-400 mb-2">역할</label>
+          <label className="block text-sm font-medium text-zinc-400 mb-2">전화번호</label>
+          <input
+            type="tel"
+            value={formData.userPhone ?? ''}
+            onChange={(e) => setFormData({ ...formData, userPhone: e.target.value })}
+            placeholder="010-0000-0000"
+            className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-zinc-400 mb-2">권한</label>
           <select
-            value={formData.role}
-            onChange={(e) => setFormData({ ...formData, role: e.target.value as 'admin' | 'user' })}
+            value={formData.permission}
+            onChange={(e) => setFormData({ ...formData, permission: Number(e.target.value) })}
             className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
           >
-            <option value={ROLES.USER}>일반 사용자</option>
-            <option value={ROLES.ADMIN}>관리자</option>
+            <option value={PERMISSIONS.USER}>일반 사용자</option>
+            <option value={PERMISSIONS.ADMIN}>관리자</option>
+            <option value={PERMISSIONS.SUPER_ADMIN}>최고 관리자</option>
           </select>
         </div>
 
@@ -69,12 +81,12 @@ export default function UserModal({ user, onClose, onSave }: UserModalProps) {
           <label className="block text-sm font-medium text-zinc-400 mb-2">상태</label>
           <select
             value={formData.status}
-            onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'inactive' | 'blocked' })}
+            onChange={(e) => setFormData({ ...formData, status: Number(e.target.value) })}
             className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
           >
             <option value={STATUS.ACTIVE}>활성</option>
             <option value={STATUS.INACTIVE}>비활성</option>
-            <option value={STATUS.BLOCKED}>차단</option>
+            <option value={STATUS.BLOCKED}>블랙</option>
           </select>
         </div>
 

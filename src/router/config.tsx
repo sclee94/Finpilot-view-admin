@@ -6,6 +6,7 @@ import Users from "../pages/users/page";
 import Stocks from "../pages/stocks/page";
 import Reports from "../pages/reports/page";
 import Settings from "../pages/settings/page";
+import Strategy from "../pages/strategy/page";
 import Logs from "../pages/logs/page";
 
 const routes: RouteObject[] = [
@@ -36,6 +37,10 @@ const routes: RouteObject[] = [
   {
     path: "/settings",
     element: <Settings />,
+  },
+  {
+    path: "/strategy",
+    element: <Strategy />,
   },
   {
     path: "/logs",

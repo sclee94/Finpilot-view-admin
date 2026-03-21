@@ -1,16 +1,18 @@
 import type { User } from '../types';
 
+// permission: 1=일반유저, 99=관리자, 100=최고관리자
+// status:     1=활성, 0=비활성, -1=블랙
 export const MOCK_USERS: User[] = [
-  { id: 1, name: '김민준', email: 'minjun.kim@example.com', role: 'admin', status: 'active', lastLogin: '2025-01-10', joinDate: '2023-03-15' },
-  { id: 2, name: '이서연', email: 'seoyeon.lee@example.com', role: 'user', status: 'active', lastLogin: '2025-01-09', joinDate: '2023-05-22' },
-  { id: 3, name: '박지호', email: 'jiho.park@example.com', role: 'user', status: 'inactive', lastLogin: '2024-12-20', joinDate: '2023-07-01' },
-  { id: 4, name: '최수아', email: 'sua.choi@example.com', role: 'user', status: 'active', lastLogin: '2025-01-08', joinDate: '2023-08-14' },
-  { id: 5, name: '정도윤', email: 'doyun.jung@example.com', role: 'admin', status: 'active', lastLogin: '2025-01-10', joinDate: '2022-11-30' },
-  { id: 6, name: '강하은', email: 'haeun.kang@example.com', role: 'user', status: 'active', lastLogin: '2025-01-07', joinDate: '2024-01-05' },
-  { id: 7, name: '윤시우', email: 'siwoo.yoon@example.com', role: 'user', status: 'inactive', lastLogin: '2024-11-15', joinDate: '2024-02-18' },
-  { id: 8, name: '임나연', email: 'nayeon.lim@example.com', role: 'user', status: 'active', lastLogin: '2025-01-06', joinDate: '2024-03-22' },
-  { id: 9, name: '한준서', email: 'junseo.han@example.com', role: 'user', status: 'active', lastLogin: '2025-01-05', joinDate: '2024-04-10' },
-  { id: 10, name: '오채원', email: 'chaewon.oh@example.com', role: 'user', status: 'inactive', lastLogin: '2024-10-30', joinDate: '2024-05-03' },
-  { id: 11, name: '신예준', email: 'yejun.shin@example.com', role: 'user', status: 'active', lastLogin: '2025-01-04', joinDate: '2024-06-17' },
-  { id: 12, name: '배소율', email: 'soyul.bae@example.com', role: 'admin', status: 'active', lastLogin: '2025-01-10', joinDate: '2022-09-08' },
+  { userUid: 'u001', userName: '김민준', email: 'minjun.kim@example.com', permission: 99, status: 1, loginDate: '2025-01-10', createdAt: '2023-03-15' },
+  { userUid: 'u002', userName: '이서연', email: 'seoyeon.lee@example.com', permission: 1, status: 1, loginDate: '2025-01-09', createdAt: '2023-05-22' },
+  { userUid: 'u003', userName: '박지호', email: 'jiho.park@example.com', permission: 1, status: 0, loginDate: '2024-12-20', createdAt: '2023-07-01' },
+  { userUid: 'u004', userName: '최수아', email: 'sua.choi@example.com', permission: 1, status: 1, loginDate: '2025-01-08', createdAt: '2023-08-14' },
+  { userUid: 'u005', userName: '정도윤', email: 'doyun.jung@example.com', permission: 99, status: 1, loginDate: '2025-01-10', createdAt: '2022-11-30' },
+  { userUid: 'u006', userName: '강하은', email: 'haeun.kang@example.com', permission: 1, status: 1, loginDate: '2025-01-07', createdAt: '2024-01-05' },
+  { userUid: 'u007', userName: '윤시우', email: 'siwoo.yoon@example.com', permission: 1, status: 0, loginDate: '2024-11-15', createdAt: '2024-02-18' },
+  { userUid: 'u008', userName: '임나연', email: 'nayeon.lim@example.com', permission: 1, status: 1, loginDate: '2025-01-06', createdAt: '2024-03-22' },
+  { userUid: 'u009', userName: '한준서', email: 'junseo.han@example.com', permission: 1, status: 1, loginDate: '2025-01-05', createdAt: '2024-04-10' },
+  { userUid: 'u010', userName: '오채원', email: 'chaewon.oh@example.com', permission: 1, status: -1, loginDate: '2024-10-30', createdAt: '2024-05-03' },
+  { userUid: 'u011', userName: '신예준', email: 'yejun.shin@example.com', permission: 1, status: 1, loginDate: '2025-01-04', createdAt: '2024-06-17' },
+  { userUid: 'u012', userName: '배소율', email: 'soyul.bae@example.com', permission: 100, status: 1, loginDate: '2025-01-10', createdAt: '2022-09-08' },
 ];

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { MENU_ITEMS } from '../../../constants';
 import ProfileModal from './ProfileModal';
+import { authStorage } from '../../../utils/auth';
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -14,12 +15,17 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
 
+  const loginUser = authStorage.get();
+  const isRegularUser = loginUser?.permission === 1;
+  const visibleMenuItems = MENU_ITEMS.filter(item => !item.adminOnly || !isRegularUser);
+
   const handleNavigation = (path: string) => {
     navigate(path);
     if (typeof onClose === 'function') onClose();
   };
 
   const handleLogout = () => {
+    authStorage.clear();
     setAccountMenuOpen(false);
     navigate('/');
   };
@@ -33,7 +39,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
         />
       )}
 
-      <ProfileModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} />
+      <ProfileModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} user={loginUser} />
       
       <aside
         className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-zinc-900 border-r border-zinc-800 transform transition-transform duration-300 ease-in-out ${
@@ -44,7 +50,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           {/* 로고 영역 */}
           <div className="flex flex-col items-center justify-center h-20 border-b border-zinc-800 px-4">
             <button
-              onClick={() => handleNavigation('/dashboard')}
+              onClick={() => handleNavigation(isRegularUser ? '/reports' : '/dashboard')}
               className="flex flex-col items-center cursor-pointer hover:opacity-80 transition-opacity"
             >
               <img
@@ -58,7 +64,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
 
           {/* 네비게이션 */}
           <nav className="flex-1 overflow-y-auto py-4">
-            {MENU_ITEMS.map((item) => (
+            {visibleMenuItems.map((item) => (
               <button
                 key={item.path}
                 onClick={() => handleNavigation(item.path)}
@@ -109,8 +115,8 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                 <i className="ri-user-line text-teal-400 text-lg"></i>
               </div>
               <div className="ml-2.5 flex-1 text-left min-w-0">
-                <p className="text-sm font-medium text-zinc-200 truncate">관리자</p>
-                <p className="text-xs text-zinc-500 truncate">admin@stock.com</p>
+                <p className="text-sm font-medium text-zinc-200 truncate">{loginUser?.userName ?? '관리자'}</p>
+                <p className="text-xs text-zinc-500 truncate">{loginUser?.email ?? '-'}</p>
               </div>
               <div className="w-6 h-6 flex items-center justify-center shrink-0">
                 <i className={`ri-arrow-${accountMenuOpen ? 'down' : 'up'}-s-line text-zinc-500 text-lg`}></i>
