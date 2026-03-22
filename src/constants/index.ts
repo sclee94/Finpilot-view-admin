@@ -4,6 +4,7 @@ export const MENU_ITEMS = [
   { path: '/reports',   icon: 'ri-exchange-line',     label: '거래현황',  adminOnly: false },
   { path: '/strategy',  icon: 'ri-settings-3-line',   label: '전략 설정', adminOnly: false },
   { path: '/logs',      icon: 'ri-file-list-line',    label: '로그',      adminOnly: true  },
+  { path: '/testlog',   icon: 'ri-test-tube-line',    label: '테스트 로그', adminOnly: false },
 ];
 
 export const LOG_LEVELS = {

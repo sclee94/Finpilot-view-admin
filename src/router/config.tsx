@@ -8,6 +8,7 @@ import Reports from "../pages/reports/page";
 import Settings from "../pages/settings/page";
 import Strategy from "../pages/strategy/page";
 import Logs from "../pages/logs/page";
+import TestLog from "../pages/testlog/page";
 
 const routes: RouteObject[] = [
   {
@@ -45,6 +46,10 @@ const routes: RouteObject[] = [
   {
     path: "/logs",
     element: <Logs />,
+  },
+  {
+    path: "/testlog",
+    element: <TestLog />,
   },
   {
     path: "*",

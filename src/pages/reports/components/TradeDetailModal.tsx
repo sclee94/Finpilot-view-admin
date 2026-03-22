@@ -1,15 +1,10 @@
 import { Trade } from '../../../mocks/trades';
+import { MARKET_STYLE, TRADE_STATUS_STYLE, TRADE_TYPE_STYLE } from '../../../constants/tradeStyles';
 
 interface TradeDetailModalProps {
   trade: Trade | null;
   onClose: () => void;
 }
-
-const MARKET_STYLE: Record<string, string> = {
-  '코스피': 'bg-sky-500/15 text-sky-400',
-  '코스닥': 'bg-violet-500/15 text-violet-400',
-  '나스닥': 'bg-orange-500/15 text-orange-400',
-};
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -61,20 +56,12 @@ export default function TradeDetailModal({ trade, onClose }: TradeDetailModalPro
                 </span>
               </Field>
               <Field label="거래 유형">
-                <span className={`inline-block px-3 py-1 text-xs font-bold rounded-full ${
-                  trade.tradeType === '매수'
-                    ? 'bg-teal-500/15 text-teal-400'
-                    : 'bg-rose-500/15 text-rose-400'
-                }`}>
+                <span className={`inline-block px-3 py-1 text-xs font-bold rounded-full ${TRADE_TYPE_STYLE[trade.tradeType] ?? 'bg-zinc-700 text-zinc-400'}`}>
                   {trade.tradeType}
                 </span>
               </Field>
               <Field label="상태">
-                <span className={`inline-block px-2.5 py-1 text-xs font-medium rounded-full ${
-                  trade.status === '체결' ? 'bg-emerald-500/15 text-emerald-400' :
-                  trade.status === '대기' ? 'bg-amber-500/15 text-amber-400' :
-                  'bg-zinc-700 text-zinc-400'
-                }`}>
+                <span className={`inline-block px-2.5 py-1 text-xs font-medium rounded-full ${TRADE_STATUS_STYLE[trade.status] ?? 'bg-zinc-700 text-zinc-400'}`}>
                   {trade.status}
                 </span>
               </Field>

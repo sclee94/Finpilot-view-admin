@@ -1,7 +1,7 @@
 import type { User } from '../../../types';
-import { PERMISSIONS, STATUS } from '../../../constants';
 import Modal from '../../../components/Modal';
 import Badge from '../../../components/Badge';
+import { getPermissionLabel, getPermissionBadgeVariant, getStatusLabel, getStatusBadgeVariant } from '../../../utils/userHelpers';
 
 interface UserDetailModalProps {
   user: User | null;
@@ -9,30 +9,6 @@ interface UserDetailModalProps {
   onEdit: (user: User) => void;
   onDelete: (user: User) => void;
 }
-
-const getPermissionLabel = (permission: number) => {
-  if (permission === PERMISSIONS.SUPER_ADMIN) return '최고 관리자';
-  if (permission === PERMISSIONS.ADMIN) return '관리자';
-  return '일반 사용자';
-};
-
-const getPermissionBadgeVariant = (permission: number) => {
-  if (permission === PERMISSIONS.SUPER_ADMIN) return 'danger' as const;
-  if (permission === PERMISSIONS.ADMIN) return 'info' as const;
-  return 'default' as const;
-};
-
-const getStatusLabel = (status: number) => {
-  if (status === STATUS.ACTIVE) return '활성';
-  if (status === STATUS.BLOCKED) return '블랙';
-  return '비활성';
-};
-
-const getStatusBadgeVariant = (status: number) => {
-  if (status === STATUS.ACTIVE) return 'success' as const;
-  if (status === STATUS.BLOCKED) return 'danger' as const;
-  return 'warning' as const;
-};
 
 export default function UserDetailModal({ user, onClose, onEdit, onDelete }: UserDetailModalProps) {
   if (!user) return null;

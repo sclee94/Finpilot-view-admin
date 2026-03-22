@@ -1,21 +1,5 @@
 import { MOCK_TRADES } from '../../../mocks/trades';
-
-const STATUS_STYLE: Record<string, string> = {
-  '체결': 'bg-emerald-500/15 text-emerald-400',
-  '대기': 'bg-amber-500/15 text-amber-400',
-  '취소': 'bg-zinc-700 text-zinc-400',
-};
-
-const TYPE_STYLE: Record<string, string> = {
-  '매수': 'bg-teal-500/15 text-teal-400',
-  '매도': 'bg-rose-500/15 text-rose-400',
-};
-
-const MARKET_STYLE: Record<string, string> = {
-  '코스피': 'text-sky-400',
-  '코스닥': 'text-violet-400',
-  '나스닥': 'text-orange-400',
-};
+import { MARKET_TEXT_STYLE, TRADE_STATUS_STYLE, TRADE_TYPE_STYLE } from '../../../constants/tradeStyles';
 
 export default function RecentTrades() {
   const trades = MOCK_TRADES.slice(0, 6);
@@ -55,11 +39,11 @@ export default function RecentTrades() {
                   <p className="text-zinc-500 mt-0.5">{trade.stockCode}</p>
                 </td>
                 <td className="px-4 py-3 text-zinc-300">{trade.author}</td>
-                <td className={`px-4 py-3 font-medium ${MARKET_STYLE[trade.market] ?? 'text-zinc-400'}`}>
+                <td className={`px-4 py-3 font-medium ${MARKET_TEXT_STYLE[trade.market] ?? 'text-zinc-400'}`}>
                   {trade.market}
                 </td>
                 <td className="px-4 py-3">
-                  <span className={`inline-block px-2 py-0.5 rounded-full font-bold ${TYPE_STYLE[trade.tradeType]}`}>
+                  <span className={`inline-block px-2 py-0.5 rounded-full font-bold ${TRADE_TYPE_STYLE[trade.tradeType]}`}>
                     {trade.tradeType}
                   </span>
                 </td>
@@ -73,7 +57,7 @@ export default function RecentTrades() {
                   ₩{trade.totalAmount.toLocaleString()}
                 </td>
                 <td className="px-4 py-3 text-center">
-                  <span className={`inline-block px-2 py-0.5 rounded-full font-medium ${STATUS_STYLE[trade.status] ?? 'bg-zinc-700 text-zinc-400'}`}>
+                  <span className={`inline-block px-2 py-0.5 rounded-full font-medium ${TRADE_STATUS_STYLE[trade.status] ?? 'bg-zinc-700 text-zinc-400'}`}>
                     {trade.status}
                   </span>
                 </td>

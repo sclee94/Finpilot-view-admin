@@ -5,9 +5,11 @@ import SearchInput from '../../../components/SearchInput';
 import Badge from '../../../components/Badge';
 import Modal from '../../../components/Modal';
 import Pagination from '../../../components/Pagination';
+import FilterSelect from '../../../components/FilterSelect';
 import UserModal from './UserModal';
 import UserDetailModal from './UserDetailModal';
 import { useTableFilter } from '../../../hooks/useTableFilter';
+import { getPermissionLabel, getPermissionBadgeVariant, getStatusLabel, getStatusBadgeVariant } from '../../../utils/userHelpers';
 
 interface UserTableProps {
   users: User[];
@@ -69,30 +71,6 @@ export default function UserTable({ users, onUpdateUser, onDeleteUser }: UserTab
     }
   };
 
-  const getPermissionBadgeVariant = (permission: number) => {
-    if (permission === PERMISSIONS.SUPER_ADMIN) return 'danger';
-    if (permission === PERMISSIONS.ADMIN) return 'info';
-    return 'default';
-  };
-
-  const getStatusBadgeVariant = (status: number): 'success' | 'danger' | 'warning' => {
-    if (status === STATUS.ACTIVE) return 'success';
-    if (status === STATUS.BLOCKED) return 'danger';
-    return 'warning';
-  };
-
-  const getPermissionLabel = (permission: number) => {
-    if (permission === PERMISSIONS.SUPER_ADMIN) return '최고 관리자';
-    if (permission === PERMISSIONS.ADMIN) return '관리자';
-    return '일반 사용자';
-  };
-
-  const getStatusLabel = (status: number) => {
-    if (status === STATUS.ACTIVE) return '활성';
-    if (status === STATUS.BLOCKED) return '블랙';
-    return '비활성';
-  };
-
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-4">
@@ -103,27 +81,19 @@ export default function UserTable({ users, onUpdateUser, onDeleteUser }: UserTab
           className="flex-1 min-w-[200px]"
         />
 
-        <select
-          value={permissionFilter}
-          onChange={(e) => setPermissionFilter(e.target.value)}
-          className="px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm text-zinc-300 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-        >
+        <FilterSelect value={permissionFilter} onChange={(e) => setPermissionFilter(e.target.value)}>
           <option value="all">모든 역할</option>
           <option value={PERMISSIONS.USER}>일반 사용자</option>
           <option value={PERMISSIONS.ADMIN}>관리자</option>
           <option value={PERMISSIONS.SUPER_ADMIN}>최고 관리자</option>
-        </select>
+        </FilterSelect>
 
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm text-zinc-300 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-        >
+        <FilterSelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
           <option value="all">모든 상태</option>
           <option value={STATUS.ACTIVE}>활성</option>
           <option value={STATUS.INACTIVE}>비활성</option>
           <option value={STATUS.BLOCKED}>블랙</option>
-        </select>
+        </FilterSelect>
       </div>
 
       <div className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden">

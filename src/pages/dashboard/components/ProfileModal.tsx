@@ -1,18 +1,12 @@
 import { useState } from 'react';
 import type { User } from '../../../types';
-import { PERMISSIONS } from '../../../constants';
+import { getPermissionLabel } from '../../../utils/userHelpers';
 
 interface ProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: User | null;
 }
-
-const getPermissionLabel = (permission?: number) => {
-  if (permission === PERMISSIONS.SUPER_ADMIN) return '최고 관리자';
-  if (permission === PERMISSIONS.ADMIN) return '관리자';
-  return '일반 사용자';
-};
 
 export default function ProfileModal({ isOpen, onClose, user }: ProfileModalProps) {
   const [newPassword, setNewPassword] = useState('');
