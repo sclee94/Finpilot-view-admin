@@ -1,3 +1,5 @@
+import { memo } from 'react';
+
 interface StatsCardProps {
   title: string;
   value: string;
@@ -10,7 +12,7 @@ interface StatsCardProps {
   onClick?: () => void;
 }
 
-export default function StatsCard({ title, value, change, trend, icon, dateLabel, subValues, isSelected, onClick }: StatsCardProps) {
+const StatsCard = memo(function StatsCard({ title, value, change, trend, icon, dateLabel, subValues, isSelected, onClick }: StatsCardProps) {
   return (
     <div
       onClick={onClick}
@@ -23,24 +25,16 @@ export default function StatsCard({ title, value, change, trend, icon, dateLabel
       }`}
     >
       <div className="flex items-center justify-between mb-4">
-        <div className={`w-12 h-12 flex items-center justify-center rounded-xl ${
-          trend === 'up' ? 'bg-teal-500/15' : 'bg-red-500/15'
-        }`}>
-          <i className={`${icon} text-2xl ${
-            trend === 'up' ? 'text-teal-400' : 'text-red-400'
-          }`}></i>
+        <div className={`w-12 h-12 flex items-center justify-center rounded-xl ${trend === 'up' ? 'bg-teal-500/15' : 'bg-red-500/15'}`}>
+          <i className={`${icon} text-2xl ${trend === 'up' ? 'text-teal-400' : 'text-red-400'}`}></i>
         </div>
         <div className="flex flex-col items-end gap-0.5">
           {change && (
-            <span className={`text-sm font-medium ${
-              trend === 'up' ? 'text-teal-400' : 'text-red-400'
-            }`}>
+            <span className={`text-sm font-medium ${trend === 'up' ? 'text-teal-400' : 'text-red-400'}`}>
               {change}
             </span>
           )}
-          {dateLabel && (
-            <span className="text-xs text-zinc-500">{dateLabel}</span>
-          )}
+          {dateLabel && <span className="text-xs text-zinc-500">{dateLabel}</span>}
         </div>
       </div>
       <h3 className="text-sm text-zinc-500 mb-1">{title}</h3>
@@ -56,4 +50,6 @@ export default function StatsCard({ title, value, change, trend, icon, dateLabel
       )}
     </div>
   );
-}
+});
+
+export default StatsCard;

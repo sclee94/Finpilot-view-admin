@@ -5,6 +5,10 @@ import { authStorage } from '../../utils/auth';
 
 type ModalType = 'signup' | 'findId' | 'findPw' | null;
 
+const SIGNUP_INIT  = { userName: '', email: '', password: '', passwordConfirm: '', userPhone: '' };
+const FIND_ID_INIT = { userName: '', userPhone: '' };
+const FIND_PW_INIT = { userName: '', email: '', userPhone: '' };
+
 export default function Home() {
   const navigate = useNavigate();
 
@@ -14,51 +18,51 @@ export default function Home() {
   const [saveCredentials, setSaveCredentials] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
-
-  // 저장된 아이디/비밀번호 불러오기
-  useEffect(() => {
-    const saved = localStorage.getItem('savedCredentials');
-    if (saved) {
-      const { email: savedEmail, password: savedPassword } = JSON.parse(saved);
-      setEmail(savedEmail ?? '');
-      setPassword(savedPassword ?? '');
-      setSaveCredentials(true);
-    }
-  }, []);
-
-  // 알림 팝업
   const [alertMessage, setAlertMessage] = useState('');
 
   // 모달
   const [activeModal, setActiveModal] = useState<ModalType>(null);
 
   // 회원가입
-  const [signupForm, setSignupForm] = useState({ userName: '', email: '', password: '', passwordConfirm: '', userPhone: '' });
+  const [signupForm, setSignupForm] = useState(SIGNUP_INIT);
   const [signupError, setSignupError] = useState('');
   const [signupLoading, setSignupLoading] = useState(false);
   const [signupSuccess, setSignupSuccess] = useState(false);
 
   // 아이디 찾기
-  const [findIdForm, setFindIdForm] = useState({ userName: '', userPhone: '' });
+  const [findIdForm, setFindIdForm] = useState(FIND_ID_INIT);
   const [findIdResult, setFindIdResult] = useState('');
   const [findIdError, setFindIdError] = useState('');
   const [findIdLoading, setFindIdLoading] = useState(false);
 
   // 비밀번호 찾기
-  const [findPwForm, setFindPwForm] = useState({ userName: '', email: '', userPhone: '' });
+  const [findPwForm, setFindPwForm] = useState(FIND_PW_INIT);
   const [findPwResult, setFindPwResult] = useState('');
   const [findPwError, setFindPwError] = useState('');
   const [findPwLoading, setFindPwLoading] = useState(false);
 
+  // 저장된 아이디/비밀번호 불러오기
+  useEffect(() => {
+    const saved = localStorage.getItem('savedCredentials');
+    if (saved) {
+      try {
+        const { email: savedEmail, password: savedPassword } = JSON.parse(saved);
+        setEmail(savedEmail ?? '');
+        setPassword(savedPassword ?? '');
+        setSaveCredentials(true);
+      } catch { /* ignore */ }
+    }
+  }, []);
+
   const closeModal = () => {
     setActiveModal(null);
-    setSignupForm({ userName: '', email: '', password: '', passwordConfirm: '', userPhone: '' });
+    setSignupForm(SIGNUP_INIT);
     setSignupError('');
     setSignupSuccess(false);
-    setFindIdForm({ userName: '', userPhone: '' });
+    setFindIdForm(FIND_ID_INIT);
     setFindIdResult('');
     setFindIdError('');
-    setFindPwForm({ userName: '', email: '', userPhone: '' });
+    setFindPwForm(FIND_PW_INIT);
     setFindPwResult('');
     setFindPwError('');
   };
@@ -69,7 +73,6 @@ export default function Home() {
     setLoginLoading(true);
     try {
       const res = await login({ email, password });
-      console.log('[login response]', res);
       const isSuccess = res.status !== undefined
         ? res.status < 400
         : (res as unknown as { result?: boolean }).result === true;
@@ -86,8 +89,7 @@ export default function Home() {
       // 일반 사용자는 거래현황, 관리자 이상은 대시보드로 이동
       const isRegularUser = res.data.permission === 1;
       navigate(isRegularUser ? '/reports' : '/dashboard');
-    } catch (error) {
-      console.error('[login error]', error);
+    } catch {
       setAlertMessage('서버 연결에 실패했습니다.');
     } finally {
       setLoginLoading(false);

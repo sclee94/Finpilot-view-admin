@@ -21,7 +21,7 @@ export default function Dashboard() {
             const metric = METRIC_MAP[index];
             return (
               <StatsCard
-                key={index}
+                key={stat.title}
                 title={stat.title}
                 value={stat.value}
                 icon={stat.icon}

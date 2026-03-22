@@ -1,3 +1,5 @@
+import { memo, useMemo } from 'react';
+
 interface PaginationProps {
   currentPage: number;
   totalPages: number;
@@ -5,46 +7,38 @@ interface PaginationProps {
   className?: string;
 }
 
-export default function Pagination({ 
-  currentPage, 
-  totalPages, 
+const Pagination = memo(function Pagination({
+  currentPage,
+  totalPages,
   onPageChange,
-  className = ""
+  className = '',
 }: PaginationProps) {
-  const getPageNumbers = () => {
+  const pageNumbers = useMemo(() => {
     const pages: (number | string)[] = [];
     const maxVisible = 5;
-    
+
     if (totalPages <= maxVisible) {
-      for (let i = 1; i <= totalPages; i++) {
-        pages.push(i);
-      }
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else if (currentPage <= 3) {
+      for (let i = 1; i <= 4; i++) pages.push(i);
+      pages.push('...');
+      pages.push(totalPages);
+    } else if (currentPage >= totalPages - 2) {
+      pages.push(1);
+      pages.push('...');
+      for (let i = totalPages - 3; i <= totalPages; i++) pages.push(i);
     } else {
-      if (currentPage <= 3) {
-        for (let i = 1; i <= 4; i++) {
-          pages.push(i);
-        }
-        pages.push('...');
-        pages.push(totalPages);
-      } else if (currentPage >= totalPages - 2) {
-        pages.push(1);
-        pages.push('...');
-        for (let i = totalPages - 3; i <= totalPages; i++) {
-          pages.push(i);
-        }
-      } else {
-        pages.push(1);
-        pages.push('...');
-        pages.push(currentPage - 1);
-        pages.push(currentPage);
-        pages.push(currentPage + 1);
-        pages.push('...');
-        pages.push(totalPages);
-      }
+      pages.push(1);
+      pages.push('...');
+      pages.push(currentPage - 1);
+      pages.push(currentPage);
+      pages.push(currentPage + 1);
+      pages.push('...');
+      pages.push(totalPages);
     }
-    
+
     return pages;
-  };
+  }, [currentPage, totalPages]);
 
   return (
     <div className={`flex items-center justify-between gap-2 ${className}`}>
@@ -57,10 +51,10 @@ export default function Pagination({
       </button>
 
       <div className="flex flex-wrap justify-center gap-1.5">
-        {getPageNumbers().map((page, index) => (
+        {pageNumbers.map((page, index) =>
           typeof page === 'number' ? (
             <button
-              key={index}
+              key={page}
               onClick={() => onPageChange(page)}
               className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg transition-colors whitespace-nowrap cursor-pointer text-sm ${
                 currentPage === page
@@ -71,11 +65,14 @@ export default function Pagination({
               {page}
             </button>
           ) : (
-            <span key={index} className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center text-zinc-600 text-sm">
+            <span
+              key={`ellipsis-${index}`}
+              className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center text-zinc-600 text-sm"
+            >
               {page}
             </span>
           )
-        ))}
+        )}
       </div>
 
       <button
@@ -87,4 +84,6 @@ export default function Pagination({
       </button>
     </div>
   );
-}
+});
+
+export default Pagination;

@@ -7,8 +7,8 @@ import { MOCK_STOCKS } from '../../mocks/stocks';
 export default function Stocks() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
-  const handleAddStock = (data: { name: string; symbol: string; price: number }) => {
-    console.log('New stock:', data);
+  const handleAddStock = (_data: { name: string; symbol: string; price: number }) => {
+    // TODO: API 연동 후 구현
   };
 
   return (

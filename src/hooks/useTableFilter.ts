@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 
 interface UseTableFilterOptions<T> {
   data: T[];
@@ -16,27 +16,24 @@ export function useTableFilter<T>({
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
 
-  // 검색어 또는 필터 변경 시 페이지를 1로 리셋
-  // filterFn은 호출 측에서 useCallback으로 안정화해야 불필요한 리셋을 방지할 수 있음
+  // searchFields 배열을 ref로 안정화 — 매 렌더마다 새 배열이 넘어와도 useMemo가 재실행되지 않도록
+  const searchFieldsRef = useRef(searchFields);
+  searchFieldsRef.current = searchFields;
+
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, filterFn]);
 
   const filteredData = useMemo(() => {
     return data.filter((item) => {
-      const matchesSearch = searchFields.some((field) => {
+      const matchesSearch = searchFieldsRef.current.some((field) => {
         const value = item[field];
-        if (typeof value === 'string') {
-          return value.toLowerCase().includes(searchTerm.toLowerCase());
-        }
-        return false;
+        return typeof value === 'string' && value.toLowerCase().includes(searchTerm.toLowerCase());
       });
-
       const matchesFilter = filterFn ? filterFn(item) : true;
-
       return matchesSearch && matchesFilter;
     });
-  }, [data, searchTerm, searchFields, filterFn]);
+  }, [data, searchTerm, filterFn]);
 
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;

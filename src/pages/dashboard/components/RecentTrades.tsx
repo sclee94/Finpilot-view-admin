@@ -1,8 +1,11 @@
+import { memo } from 'react';
 import { MOCK_TRADES } from '../../../mocks/trades';
 import { MARKET_TEXT_STYLE, TRADE_STATUS_STYLE, TRADE_TYPE_STYLE } from '../../../constants/tradeStyles';
 
-export default function RecentTrades() {
-  const trades = MOCK_TRADES.slice(0, 6);
+const RECENT_TRADES = MOCK_TRADES.slice(0, 6);
+
+const RecentTrades = memo(function RecentTrades() {
+  const trades = RECENT_TRADES;
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-2xl">
@@ -68,4 +71,6 @@ export default function RecentTrades() {
       </div>
     </div>
   );
-}
+});
+
+export default RecentTrades;

@@ -13,15 +13,11 @@ async function request<T>(method: HttpMethod, endpoint: string, body?: unknown):
     options.body = JSON.stringify(body);
   }
 
-  console.log(`[API] ${method} ${API_BASE_URL}${endpoint}`, body ?? '');
-
   const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
 
   const data = await response.json().catch(() => {
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   });
-
-  console.log(`[API] response`, data);
 
   return data as T;
 }

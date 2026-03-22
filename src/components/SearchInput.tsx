@@ -1,3 +1,5 @@
+import { memo } from 'react';
+
 interface SearchInputProps {
   value: string;
   onChange: (value: string) => void;
@@ -5,11 +7,11 @@ interface SearchInputProps {
   className?: string;
 }
 
-export default function SearchInput({ 
-  value, 
-  onChange, 
-  placeholder = "검색...",
-  className = ""
+const SearchInput = memo(function SearchInput({
+  value,
+  onChange,
+  placeholder = '검색...',
+  className = '',
 }: SearchInputProps) {
   return (
     <div className={`relative ${className}`}>
@@ -23,4 +25,6 @@ export default function SearchInput({
       />
     </div>
   );
-}
+});
+
+export default SearchInput;
