@@ -80,6 +80,24 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             ))}
           </nav>
 
+          {/* 스크롤 버튼 */}
+          <div className="flex flex-col gap-1 px-3 pb-2">
+            <button
+              onClick={() => document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' })}
+              className="flex items-center justify-center py-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
+              title="맨 위로"
+            >
+              <i className="ri-arrow-up-line text-base"></i>
+            </button>
+            <button
+              onClick={() => { const m = document.querySelector('main'); if (m) m.scrollTo({ top: m.scrollHeight, behavior: 'smooth' }); }}
+              className="flex items-center justify-center py-1.5 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
+              title="맨 아래로"
+            >
+              <i className="ri-arrow-down-line text-base"></i>
+            </button>
+          </div>
+
           {/* 계정 영역 */}
           <div className="border-t border-zinc-800 p-3 relative">
             {/* 드롭업 메뉴 */}
