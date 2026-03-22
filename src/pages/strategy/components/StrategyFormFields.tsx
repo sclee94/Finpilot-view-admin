@@ -2,8 +2,8 @@ import type { NumVal } from '../strategyTypes';
 
 export function Section({ title, icon, children }: { title: string; icon: string; children: React.ReactNode }) {
   return (
-    <div className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden">
-      <div className="flex items-center gap-2 px-6 py-4 border-b border-zinc-800 bg-zinc-800/40">
+    <div className="bg-zinc-900 rounded-xl border border-zinc-800">
+      <div className="flex items-center gap-2 px-6 py-4 border-b border-zinc-800 bg-zinc-800/40 rounded-t-xl">
         <i className={`${icon} text-teal-400 text-xl`}></i>
         <h2 className="text-lg font-semibold text-zinc-200">{title}</h2>
       </div>
@@ -18,9 +18,9 @@ export function FieldLabel({ label, desc }: { label: string; desc: string }) {
       <span className="text-lg font-medium text-zinc-300">{label}</span>
       <span className="relative group/tip">
         <i className="ri-information-line text-zinc-400 hover:text-teal-400 text-base cursor-help transition-colors"></i>
-        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-80 px-4 py-3 bg-zinc-700 border border-zinc-600 text-zinc-100 text-lg rounded-lg shadow-xl opacity-0 group-hover/tip:opacity-100 transition-opacity pointer-events-none z-50 whitespace-normal leading-relaxed">
+        <span className="absolute bottom-full left-0 mb-2 w-max px-4 py-3 bg-zinc-700 border border-zinc-600 text-zinc-100 text-lg rounded-lg shadow-xl opacity-0 group-hover/tip:opacity-100 transition-opacity pointer-events-none z-[200] whitespace-nowrap leading-relaxed">
           {desc}
-          <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-700"></span>
+          <span className="absolute top-full left-4 border-4 border-transparent border-t-zinc-700"></span>
         </span>
       </span>
     </div>

@@ -43,7 +43,33 @@ export interface BoardItem {
   title:  string;
   symbol: string;
   date:   string;
+  isUse:  number;   // 1: 적용 중, 0: 미적용
   params: StrategyParams;
+}
+
+// Spring Boot StrategyConfigDTO 매핑
+export interface StrategyConfigDTO {
+  userUid?:          string;
+  id?:               number;
+  title?:            string;
+  symbol?:           string;
+  initialCapital?:   number;
+  riskPerTrade?:     number;
+  usePrevBarSignal?: boolean;
+  adxThreshold?:     number;
+  adxPersist?:       number;
+  rsiLongEntry?:     number;
+  rsiShortEntry?:    number;
+  atrSlMult?:        number;
+  atrTpMult?:        number;
+  minHoldBars?:      number;
+  slCooldownBars?:   number;
+  consecSlLimit?:    number;
+  maxDdStop?:        number;
+  commission?:       number;
+  slippage?:         number;
+  isUse?:            number;
+  createdAt?:        string;
 }
 
 export const EMPTY_CUSTOM: CustomFormParams = {
@@ -91,15 +117,65 @@ export const SYMBOL_OPTIONS = [
   { value: '005930.KS', label: '삼성전자 (005930.KS)' },
 ];
 
-export const BOARD_KEY   = 'strategyBoard';
 export const APPLIED_KEY = 'strategyApplied';
 
-export function loadBoard(): BoardItem[] {
-  try {
-    const saved = localStorage.getItem(BOARD_KEY);
-    if (saved) return JSON.parse(saved);
-  } catch { /* ignore */ }
-  return [];
+/** DTO → BoardItem 변환 */
+export function dtoToBoardItem(dto: StrategyConfigDTO): BoardItem {
+  return {
+    id:     dto.id!,
+    title:  dto.title ?? '',
+    symbol: dto.symbol ?? '',
+    date:   dto.createdAt ?? '',
+    isUse:  dto.isUse ?? 0,
+    params: {
+      symbol:              dto.symbol ?? '',
+      adx_threshold:       dto.adxThreshold ?? 0,
+      adx_persist:         dto.adxPersist ?? 0,
+      rsi_long_entry:      dto.rsiLongEntry ?? 0,
+      rsi_short_entry:     dto.rsiShortEntry ?? 0,
+      atr_sl_mult:         dto.atrSlMult ?? 0,
+      atr_tp_mult:         dto.atrTpMult ?? 0,
+      min_hold_bars:       dto.minHoldBars ?? 0,
+      sl_cooldown_bars:    dto.slCooldownBars ?? 0,
+      consec_sl_limit:     dto.consecSlLimit ?? 0,
+      max_dd_stop:         dto.maxDdStop ?? 0,
+      commission:          dto.commission ?? 0,
+      slippage:            dto.slippage ?? 0,
+      risk_per_trade:      dto.riskPerTrade ?? 0,
+      use_prev_bar_signal: dto.usePrevBarSignal ?? false,
+      initial_capital:     dto.initialCapital ?? 0,
+    },
+  };
+}
+
+/** StrategyParams + 메타 → DTO 변환 */
+export function strategyToDto(
+  params: StrategyParams,
+  title: string,
+  userUid: string,
+  id?: number,
+): StrategyConfigDTO {
+  return {
+    userUid,
+    ...(id !== undefined && { id }),
+    title,
+    symbol:           params.symbol,
+    initialCapital:   params.initial_capital,
+    riskPerTrade:     params.risk_per_trade,
+    usePrevBarSignal: params.use_prev_bar_signal,
+    adxThreshold:     params.adx_threshold,
+    adxPersist:       params.adx_persist,
+    rsiLongEntry:     params.rsi_long_entry,
+    rsiShortEntry:    params.rsi_short_entry,
+    atrSlMult:        params.atr_sl_mult,
+    atrTpMult:        params.atr_tp_mult,
+    minHoldBars:      params.min_hold_bars,
+    slCooldownBars:   params.sl_cooldown_bars,
+    consecSlLimit:    params.consec_sl_limit,
+    maxDdStop:        params.max_dd_stop,
+    commission:       params.commission,
+    slippage:         params.slippage,
+  };
 }
 
 export function toStrategyParams(form: CustomFormParams): StrategyParams | null {

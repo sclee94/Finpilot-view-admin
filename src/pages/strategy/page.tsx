@@ -1,12 +1,14 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import PageLayout from '../../components/PageLayout';
 import { apiClient } from '../../api/apiClient';
-import type { ApiResponse } from '../../types';
+import { authStorage } from '../../utils/auth';
+import type { ApiResponse } from '../../types/index';
 import {
-  type CustomFormParams, type BoardItem,
-  EMPTY_CUSTOM, DEFAULT_PARAMS,
-  BOARD_KEY, APPLIED_KEY,
-  loadBoard, toStrategyParams,
+  type CustomFormParams,
+  type BoardItem,
+  type StrategyConfigDTO,
+  EMPTY_CUSTOM, DEFAULT_PARAMS, APPLIED_KEY,
+  dtoToBoardItem, strategyToDto, toStrategyParams,
 } from './strategyTypes';
 import CustomParamForm from './components/CustomParamForm';
 import ReadOnlyParamForm from './components/ReadOnlyParamForm';
@@ -25,15 +27,33 @@ export default function Strategy() {
   const [saved, setSaved] = useState(false);
 
   // 게시판
-  const [board, setBoard] = useState<BoardItem[]>(loadBoard);
+  const [board, setBoard] = useState<BoardItem[]>([]);
+  const [boardLoading, setBoardLoading] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [appliedItem, setAppliedItemState] = useState<BoardItem | null>(null);
-  const setAppliedItem = (item: BoardItem | null) => {
-    setAppliedItemState(item);
-    if (item) localStorage.setItem(APPLIED_KEY, JSON.stringify(item));
-    else localStorage.removeItem(APPLIED_KEY);
-    window.dispatchEvent(new CustomEvent('strategyAppliedChanged', { detail: item }));
-  };
+
+  const setAppliedItem = useCallback(async (item: BoardItem | null) => {
+    const userUid = authStorage.get()?.userUid;
+    if (!userUid) return;
+    try {
+      // 기존 적용 항목 해제
+      if (appliedItem && (!item || appliedItem.id !== item.id)) {
+        await apiClient.put<ApiResponse<StrategyConfigDTO>>('/strategy/updateStrategyConfig', {
+          id: appliedItem.id, userUid, isUse: 0,
+        });
+      }
+      // 새 항목 적용
+      if (item) {
+        await apiClient.put<ApiResponse<StrategyConfigDTO>>('/strategy/updateStrategyConfig', {
+          id: item.id, userUid, isUse: 1,
+        });
+      }
+      setAppliedItemState(item);
+      if (item) localStorage.setItem(APPLIED_KEY, JSON.stringify(item));
+      else localStorage.removeItem(APPLIED_KEY);
+      window.dispatchEvent(new CustomEvent('strategyAppliedChanged', { detail: item }));
+    } catch { /* silent */ }
+  }, [appliedItem]);
 
   // 추천 탭
   const [recommended, setRecommended] = useState<StrategyParams>(DEFAULT_PARAMS);
@@ -41,6 +61,28 @@ export default function Strategy() {
   const [recError, setRecError] = useState<string | null>(null);
   const [recTitle, setRecTitle] = useState('');
   const [recSaved, setRecSaved] = useState(false);
+
+  // 저장된 전략 목록 조회 (isUse === 1 항목을 적용 상태로 자동 동기화)
+  const refreshBoard = useCallback(async (uid: string) => {
+    const res = await apiClient.post<ApiResponse<StrategyConfigDTO[]>>(
+      '/strategy/getStrategyConfigList',
+      { userUid: uid },
+    );
+    const items = res.data ? res.data.map(dtoToBoardItem) : [];
+    setBoard(items);
+    const applied = items.find(b => b.isUse === 1) ?? null;
+    setAppliedItemState(applied);
+    if (applied) localStorage.setItem(APPLIED_KEY, JSON.stringify(applied));
+    else localStorage.removeItem(APPLIED_KEY);
+    window.dispatchEvent(new CustomEvent('strategyAppliedChanged', { detail: applied }));
+  }, []);
+
+  useEffect(() => {
+    const userUid = authStorage.get()?.userUid;
+    if (!userUid) return;
+    setBoardLoading(true);
+    refreshBoard(userUid).finally(() => setBoardLoading(false));
+  }, [refreshBoard]);
 
   const fetchRecommended = useCallback(() => {
     setRecLoading(true);
@@ -64,23 +106,29 @@ export default function Strategy() {
 
   const isFormComplete = toStrategyParams(params) !== null;
 
-  const handleSave = () => {
+  // 저장 (신규: insert / 기존 선택 중: update)
+  const handleSave = async () => {
     if (!title.trim()) return;
     const converted = toStrategyParams(params);
     if (!converted) return;
-    const newItem: BoardItem = {
-      id:     Date.now(),
-      title:  title.trim(),
-      symbol: converted.symbol,
-      date:   new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }),
-      params: converted,
-    };
-    const updated = [newItem, ...board];
-    setBoard(updated);
-    localStorage.setItem(BOARD_KEY, JSON.stringify(updated));
-    setSelectedId(newItem.id);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    const userUid = authStorage.get()?.userUid;
+    if (!userUid) return;
+
+    try {
+      if (selectedId !== null) {
+        // 기존 설정 수정
+        const dto = strategyToDto(converted, title.trim(), userUid, selectedId);
+        await apiClient.put<ApiResponse<StrategyConfigDTO>>('/strategy/updateStrategyConfig', dto);
+      } else {
+        // 신규 등록
+        const dto = strategyToDto(converted, title.trim(), userUid);
+        const res = await apiClient.post<ApiResponse<StrategyConfigDTO>>('/strategy/insertStrategyConfig', dto);
+        if (res.data?.id) setSelectedId(res.data.id);
+      }
+      await refreshBoard(userUid);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch { /* silent */ }
   };
 
   const handleReset = () => {
@@ -97,17 +145,24 @@ export default function Strategy() {
     setActiveTab('custom');
   };
 
-  const handleDeleteBoard = (id: number, e: React.MouseEvent) => {
+  const handleDeleteBoard = async (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    const updated = board.filter(b => b.id !== id);
-    setBoard(updated);
-    localStorage.setItem(BOARD_KEY, JSON.stringify(updated));
-    if (selectedId === id) { setSelectedId(null); setTitle(''); }
-    if (appliedItem?.id === id) {
-      setAppliedItemState(null);
-      localStorage.removeItem(APPLIED_KEY);
-      window.dispatchEvent(new CustomEvent('strategyAppliedChanged', { detail: null }));
-    }
+    const userUid = authStorage.get()?.userUid;
+    if (!userUid) return;
+
+    try {
+      await apiClient.delete<ApiResponse<StrategyConfigDTO>>(
+        '/strategy/deleteStrategyConfig',
+        { id, userUid },
+      );
+      setBoard(prev => prev.filter(b => b.id !== id));
+      if (selectedId === id) { setSelectedId(null); setTitle(''); }
+      if (appliedItem?.id === id) {
+        setAppliedItemState(null);
+        localStorage.removeItem(APPLIED_KEY);
+        window.dispatchEvent(new CustomEvent('strategyAppliedChanged', { detail: null }));
+      }
+    } catch { /* silent */ }
   };
 
   const handleApplyRecommended = () => {
@@ -117,22 +172,21 @@ export default function Strategy() {
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const handleRecSave = () => {
+  // 추천 전략 저장 (항상 신규 insert)
+  const handleRecSave = async () => {
     if (!recTitle.trim()) return;
-    const newItem: BoardItem = {
-      id:     Date.now(),
-      title:  recTitle.trim(),
-      symbol: recommended.symbol,
-      date:   new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }),
-      params: { ...recommended },
-    };
-    const updated = [newItem, ...board];
-    setBoard(updated);
-    localStorage.setItem(BOARD_KEY, JSON.stringify(updated));
-    setSelectedId(newItem.id);
-    setRecTitle('');
-    setRecSaved(true);
-    setTimeout(() => setRecSaved(false), 2000);
+    const userUid = authStorage.get()?.userUid;
+    if (!userUid) return;
+
+    const dto = strategyToDto(recommended, recTitle.trim(), userUid);
+    try {
+      const res = await apiClient.post<ApiResponse<StrategyConfigDTO>>('/strategy/insertStrategyConfig', dto);
+      if (res.data?.id) setSelectedId(res.data.id);
+      await refreshBoard(userUid);
+      setRecTitle('');
+      setRecSaved(true);
+      setTimeout(() => setRecSaved(false), 2000);
+    } catch { /* silent */ }
   };
 
   return (
@@ -168,13 +222,20 @@ export default function Strategy() {
                   className={`px-4 py-2 text-base font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed ${
                     saved ? 'bg-green-600 text-white' : 'bg-teal-500 hover:bg-teal-400 text-white'
                   }`}>
-                  {saved ? <><i className="ri-check-line mr-1.5"></i>저장됨</> : <><i className="ri-save-line mr-1.5"></i>저장</>}
+                  {saved ? <><i className="ri-check-line mr-1.5"></i>저장됨</> : <><i className="ri-save-line mr-1.5"></i>{selectedId !== null ? '수정' : '저장'}</>}
                 </button>
               </div>
               <CustomParamForm params={params} onChange={set} />
             </div>
-            <BoardPanel board={board} selectedId={selectedId} appliedItem={appliedItem}
-              onClickItem={handleBoardClick} onDeleteItem={handleDeleteBoard} onApplyItem={setAppliedItem} />
+            <BoardPanel
+              board={board}
+              selectedId={selectedId}
+              appliedItem={appliedItem}
+              loading={boardLoading}
+              onClickItem={handleBoardClick}
+              onDeleteItem={handleDeleteBoard}
+              onApplyItem={setAppliedItem}
+            />
           </div>
         )}
 
@@ -220,8 +281,15 @@ export default function Strategy() {
                 <ReadOnlyParamForm params={recommended} />
               )}
             </div>
-            <BoardPanel board={board} selectedId={selectedId} appliedItem={appliedItem}
-              onClickItem={handleBoardClick} onDeleteItem={handleDeleteBoard} onApplyItem={setAppliedItem} />
+            <BoardPanel
+              board={board}
+              selectedId={selectedId}
+              appliedItem={appliedItem}
+              loading={boardLoading}
+              onClickItem={handleBoardClick}
+              onDeleteItem={handleDeleteBoard}
+              onApplyItem={setAppliedItem}
+            />
           </div>
         )}
       </div>

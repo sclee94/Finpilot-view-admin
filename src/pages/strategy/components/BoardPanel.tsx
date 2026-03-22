@@ -5,6 +5,7 @@ interface BoardPanelProps {
   board: BoardItem[];
   selectedId: number | null;
   appliedItem: BoardItem | null;
+  loading?: boolean;
   onClickItem: (item: BoardItem) => void;
   onDeleteItem: (id: number, e: React.MouseEvent) => void;
   onApplyItem: (item: BoardItem | null) => void;
@@ -147,7 +148,7 @@ function ParamDetailModal({ item, onClose }: { item: BoardItem; onClose: () => v
   );
 }
 
-export default function BoardPanel({ board, selectedId, appliedItem, onClickItem, onDeleteItem, onApplyItem }: BoardPanelProps) {
+export default function BoardPanel({ board, selectedId, appliedItem, loading, onClickItem, onDeleteItem, onApplyItem }: BoardPanelProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<BoardItem | null>(null);
 
@@ -238,7 +239,12 @@ export default function BoardPanel({ board, selectedId, appliedItem, onClickItem
           </div>
         )}
 
-        {board.length === 0 ? (
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-12 text-zinc-600">
+            <i className="ri-loader-4-line animate-spin text-3xl mb-2"></i>
+            <p className="text-sm">불러오는 중...</p>
+          </div>
+        ) : board.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-zinc-600">
             <i className="ri-file-list-3-line text-3xl mb-2"></i>
             <p className="text-sm">저장된 설정이 없습니다</p>
