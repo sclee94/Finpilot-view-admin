@@ -106,7 +106,7 @@ export default function Strategy() {
 
   const isFormComplete = toStrategyParams(params) !== null;
 
-  // 저장 (신규: insert / 기존 선택 중: update)
+  // 저장 (항상 신규 insert)
   const handleSave = async () => {
     if (!title.trim()) return;
     const converted = toStrategyParams(params);
@@ -115,16 +115,9 @@ export default function Strategy() {
     if (!userUid) return;
 
     try {
-      if (selectedId !== null) {
-        // 기존 설정 수정
-        const dto = strategyToDto(converted, title.trim(), userUid, selectedId);
-        await apiClient.put<ApiResponse<StrategyConfigDTO>>('/strategy/updateStrategyConfig', dto);
-      } else {
-        // 신규 등록
-        const dto = strategyToDto(converted, title.trim(), userUid);
-        const res = await apiClient.post<ApiResponse<StrategyConfigDTO>>('/strategy/insertStrategyConfig', dto);
-        if (res.data?.id) setSelectedId(res.data.id);
-      }
+      const dto = strategyToDto(converted, title.trim(), userUid);
+      const res = await apiClient.post<ApiResponse<StrategyConfigDTO>>('/strategy/insertStrategyConfig', dto);
+      if (res.data?.id) setSelectedId(res.data.id);
       await refreshBoard(userUid);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -139,7 +132,7 @@ export default function Strategy() {
   };
 
   const handleBoardClick = (item: BoardItem) => {
-    setSelectedId(item.id);
+    setSelectedId(null);
     setParams(item.params as unknown as CustomFormParams);
     setTitle(item.title);
     setActiveTab('custom');
@@ -222,7 +215,7 @@ export default function Strategy() {
                   className={`px-4 py-2 text-base font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed ${
                     saved ? 'bg-green-600 text-white' : 'bg-teal-500 hover:bg-teal-400 text-white'
                   }`}>
-                  {saved ? <><i className="ri-check-line mr-1.5"></i>저장됨</> : <><i className="ri-save-line mr-1.5"></i>{selectedId !== null ? '수정' : '저장'}</>}
+                  {saved ? <><i className="ri-check-line mr-1.5"></i>저장됨</> : <><i className="ri-save-line mr-1.5"></i>저장</>}
                 </button>
               </div>
               <CustomParamForm params={params} onChange={set} />
