@@ -239,7 +239,7 @@ export default function Strategy() {
       <div className="space-y-6">
 
         {/* 헤더 */}
-        <h1 className="text-2xl font-bold text-white">전략 설정</h1>
+        <h1 className="text-3xl font-bold text-white">전략 설정</h1>
 
         {/* 탭 */}
         <div className="flex bg-zinc-800 rounded-lg p-1 gap-1 w-fit">
@@ -263,18 +263,18 @@ export default function Strategy() {
                   value={title}
                   onChange={e => { setTitle(e.target.value); setSaved(false); }}
                   placeholder="설정 제목을 입력하세요"
-                  className="flex-1 px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                  className="flex-1 px-4 py-2 bg-zinc-800 border border-zinc-600 rounded-lg text-base text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                 />
                 <button
                   onClick={handleReset}
-                  className="px-4 py-2 text-sm bg-zinc-800 text-zinc-300 hover:bg-zinc-700 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+                  className="px-4 py-2 text-base bg-zinc-800 text-zinc-300 hover:bg-zinc-700 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
                 >
                   <i className="ri-refresh-line mr-1.5"></i>초기화
                 </button>
                 <button
                   onClick={handleSave}
                   disabled={!title.trim() || !isFormComplete}
-                  className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed ${
+                  className={`px-4 py-2 text-base font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed ${
                     saved ? 'bg-green-600 text-white' : 'bg-teal-500 hover:bg-teal-400 text-white'
                   }`}
                 >
@@ -314,25 +314,25 @@ export default function Strategy() {
                   value={recTitle}
                   onChange={e => { setRecTitle(e.target.value); setRecSaved(false); }}
                   placeholder="저장할 설정 제목을 입력하세요"
-                  className="flex-1 px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                  className="flex-1 px-4 py-2 bg-zinc-800 border border-zinc-600 rounded-lg text-base text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                 />
                 <button
                   onClick={fetchRecommended}
                   disabled={recLoading}
-                  className="px-4 py-2 text-sm bg-zinc-800 text-zinc-300 hover:bg-zinc-700 rounded-lg transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
+                  className="px-4 py-2 text-base bg-zinc-800 text-zinc-300 hover:bg-zinc-700 rounded-lg transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
                 >
                   <i className={`ri-refresh-line mr-1.5 ${recLoading ? 'animate-spin' : ''}`}></i>새로고침
                 </button>
                 <button
                   onClick={handleApplyRecommended}
-                  className="px-4 py-2 text-sm font-semibold bg-zinc-700 hover:bg-zinc-600 text-zinc-200 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+                  className="px-4 py-2 text-base font-semibold bg-zinc-700 hover:bg-zinc-600 text-zinc-200 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
                 >
                   <i className="ri-download-line mr-1.5"></i>커스텀에 적용
                 </button>
                 <button
                   onClick={handleRecSave}
                   disabled={!recTitle.trim()}
-                  className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed ${
+                  className={`px-4 py-2 text-base font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed ${
                     recSaved ? 'bg-green-600 text-white' : 'bg-teal-500 hover:bg-teal-400 text-white'
                   }`}
                 >
@@ -542,13 +542,14 @@ const PARAM_SUMMARY_ROWS: { label: string; key: keyof StrategyParams; format?: (
 
 function BoardPanel({ board, selectedId, appliedItem, onClickItem, onDeleteItem, onApplyItem }: BoardPanelProps) {
   const [modalOpen, setModalOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<BoardItem | null>(null);
   return (
     <div className="min-w-0">
       <div className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden sticky top-6">
         <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-800 bg-zinc-800/40">
           <i className="ri-list-check text-teal-400"></i>
-          <h2 className="text-sm font-semibold text-zinc-200">저장된 설정</h2>
-          <span className="ml-auto text-xs text-zinc-500">{board.length}개</span>
+          <h2 className="text-base font-semibold text-zinc-200">저장된 설정</h2>
+          <span className="ml-auto text-sm text-zinc-500">{board.length}개</span>
         </div>
 
         {/* 적용된 설정 요약 */}
@@ -562,7 +563,7 @@ function BoardPanel({ board, selectedId, appliedItem, onClickItem, onDeleteItem,
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <i className="ri-check-double-line text-teal-400 text-base"></i>
-                <span className="text-sm font-semibold text-teal-300">{appliedItem.title}</span>
+                <span className="text-base font-semibold text-teal-300">{appliedItem.title}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-zinc-500 opacity-0 group-hover/summary:opacity-100 transition-opacity">
@@ -587,68 +588,105 @@ function BoardPanel({ board, selectedId, appliedItem, onClickItem, onDeleteItem,
                     : String(val);
                 return (
                   <div key={key} className="flex items-center justify-between">
-                    <span className="text-xs text-zinc-500">{label}</span>
-                    <span className="text-xs font-medium text-zinc-200">{display}</span>
+                    <span className="text-sm text-zinc-500">{label}</span>
+                    <span className="text-sm font-medium text-zinc-200">{display}</span>
                   </div>
                 );
               })}
               <div className="flex items-center justify-between col-span-2">
-                <span className="text-xs text-zinc-500">이전 봉 신호</span>
-                <span className="text-xs font-medium text-zinc-200">{appliedItem.params.use_prev_bar_signal ? 'ON' : 'OFF'}</span>
+                <span className="text-sm text-zinc-500">이전 봉 신호</span>
+                <span className="text-sm font-medium text-zinc-200">{appliedItem.params.use_prev_bar_signal ? 'ON' : 'OFF'}</span>
               </div>
             </div>
           </div>
           </>
         )}
 
+        {/* 삭제 확인 팝업 */}
+        {deleteTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6" onClick={() => setDeleteTarget(null)}>
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <div className="relative z-10 bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center shrink-0">
+                  <i className="ri-delete-bin-line text-red-400 text-lg"></i>
+                </div>
+                <div>
+                  <p className="text-base font-semibold text-zinc-100">설정 삭제</p>
+                  <p className="text-sm text-zinc-400 mt-0.5">이 설정을 삭제하시겠습니까?</p>
+                </div>
+              </div>
+              <div className="bg-zinc-800 rounded-lg px-4 py-2.5">
+                <p className="text-sm font-medium text-zinc-200">{deleteTarget.title}</p>
+                <p className="text-xs text-zinc-500 mt-0.5">{deleteTarget.symbol} · {deleteTarget.date}</p>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => setDeleteTarget(null)}
+                  className="flex-1 py-2.5 text-sm font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition-colors cursor-pointer"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={e => { onDeleteItem(deleteTarget.id, e as unknown as React.MouseEvent); setDeleteTarget(null); }}
+                  className="flex-1 py-2.5 text-sm font-semibold bg-red-500 hover:bg-red-400 text-white rounded-lg transition-colors cursor-pointer"
+                >
+                  삭제
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {board.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-zinc-600">
             <i className="ri-file-list-3-line text-3xl mb-2"></i>
-            <p className="text-xs">저장된 설정이 없습니다</p>
+            <p className="text-sm">저장된 설정이 없습니다</p>
           </div>
         ) : (
           <div className="divide-y divide-zinc-800">
-            <div className="grid grid-cols-[2rem_1fr_4.5rem_4rem_3rem] px-3 py-2 text-xs font-semibold text-zinc-500 bg-zinc-800/30">
+            <div className="grid grid-cols-[2rem_1fr_4.5rem_4rem_3rem_3rem] px-3 py-2 text-sm font-semibold text-zinc-500 bg-zinc-800/30">
               <span>No</span>
               <span>제목</span>
               <span>종목</span>
               <span>날짜</span>
               <span className="text-center">적용</span>
+              <span className="text-center">제거</span>
             </div>
             {board.map((item, idx) => (
               <div
                 key={item.id}
                 onClick={() => onClickItem(item)}
-                className={`grid grid-cols-[2rem_1fr_4.5rem_4rem_3rem] items-center px-3 py-2.5 cursor-pointer transition-colors text-xs group ${
+                className={`grid grid-cols-[2rem_1fr_4.5rem_4rem_3rem_3rem] items-center px-3 py-2.5 cursor-pointer transition-colors text-sm ${
                   selectedId === item.id
                     ? 'bg-teal-500/10 border-l-2 border-teal-500'
                     : 'hover:bg-zinc-800/50'
                 }`}
               >
                 <span className="text-zinc-500">{board.length - idx}</span>
-                <div className="flex items-center gap-1 min-w-0">
-                  <span className={`truncate ${selectedId === item.id ? 'text-teal-300 font-medium' : 'text-zinc-300'}`}>
-                    {item.title}
-                  </span>
-                  <button
-                    onClick={e => onDeleteItem(item.id, e)}
-                    className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-opacity shrink-0"
-                  >
-                    <i className="ri-close-line"></i>
-                  </button>
-                </div>
+                <span className={`truncate ${selectedId === item.id ? 'text-teal-300 font-medium' : 'text-zinc-300'}`}>
+                  {item.title}
+                </span>
                 <span className="text-zinc-400 truncate">{item.symbol}</span>
                 <span className="text-zinc-500">{item.date.replace(/\. /g, '.').replace(/\.$/, '')}</span>
                 <div className="flex justify-center">
                   <button
                     onClick={e => { e.stopPropagation(); onApplyItem(item); }}
-                    className={`px-1.5 py-0.5 rounded text-xs font-medium transition-colors ${
+                    className={`px-1.5 py-0.5 rounded text-sm font-medium transition-colors ${
                       appliedItem?.id === item.id
                         ? 'bg-teal-500 text-white'
                         : 'bg-zinc-700 text-zinc-300 hover:bg-teal-500/80 hover:text-white'
                     }`}
                   >
                     적용
+                  </button>
+                </div>
+                <div className="flex justify-center">
+                  <button
+                    onClick={e => { e.stopPropagation(); setDeleteTarget(item); }}
+                    className="px-1.5 py-0.5 rounded text-sm font-medium bg-zinc-700 text-zinc-300 hover:bg-red-500/80 hover:text-white transition-colors"
+                  >
+                    제거
                   </button>
                 </div>
               </div>
@@ -662,7 +700,7 @@ function BoardPanel({ board, selectedId, appliedItem, onClickItem, onDeleteItem,
 
 function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors cursor-pointer ${active ? 'bg-teal-500 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}>
+    <button onClick={onClick} className={`px-4 py-1.5 text-base font-medium rounded-md transition-colors cursor-pointer ${active ? 'bg-teal-500 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}>
       {children}
     </button>
   );
@@ -673,9 +711,25 @@ function Section({ title, icon, children }: { title: string; icon: string; child
     <div className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden">
       <div className="flex items-center gap-2 px-6 py-4 border-b border-zinc-800 bg-zinc-800/40">
         <i className={`${icon} text-teal-400 text-xl`}></i>
-        <h2 className="text-base font-semibold text-zinc-200">{title}</h2>
+        <h2 className="text-lg font-semibold text-zinc-200">{title}</h2>
       </div>
       <div className="p-6">{children}</div>
+    </div>
+  );
+}
+
+/* 라벨 + 툴팁 아이콘 */
+function FieldLabel({ label, desc }: { label: string; desc: string }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="text-lg font-medium text-zinc-300">{label}</span>
+      <span className="relative group/tip">
+        <i className="ri-information-line text-zinc-400 hover:text-teal-400 text-base cursor-help transition-colors"></i>
+        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-80 px-4 py-3 bg-zinc-700 border border-zinc-600 text-zinc-100 text-lg rounded-lg shadow-xl opacity-0 group-hover/tip:opacity-100 transition-opacity pointer-events-none z-50 whitespace-normal leading-relaxed">
+          {desc}
+          <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-zinc-700"></span>
+        </span>
+      </span>
     </div>
   );
 }
@@ -686,8 +740,7 @@ function NumberField({ label, desc, value, step, min, max, isInt, onChange }: {
 }) {
   return (
     <div className="space-y-1.5">
-      <label className="block text-base font-medium text-zinc-300">{label}</label>
-      <p className="text-sm text-zinc-500">{desc}</p>
+      <FieldLabel label={label} desc={desc} />
       <input
         type="number" value={value} step={step} min={min} max={max}
         placeholder="값을 입력하세요"
@@ -697,7 +750,7 @@ function NumberField({ label, desc, value, step, min, max, isInt, onChange }: {
           const parsed = isInt ? parseInt(raw) : parseFloat(raw);
           if (!isNaN(parsed)) onChange(parsed);
         }}
-        className="w-full px-3 py-2.5 border rounded-lg text-base text-zinc-200 focus:outline-none transition-colors bg-zinc-800 border-zinc-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder-zinc-600"
+        className="w-full px-3 py-2.5 border rounded-lg text-lg text-zinc-200 focus:outline-none transition-colors bg-zinc-800 border-zinc-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder-zinc-600"
       />
     </div>
   );
@@ -706,11 +759,10 @@ function NumberField({ label, desc, value, step, min, max, isInt, onChange }: {
 function ReadOnlyNumberField({ label, desc, value }: { label: string; desc: string; value: number }) {
   return (
     <div className="space-y-1.5">
-      <label className="block text-base font-medium text-zinc-300">{label}</label>
-      <p className="text-sm text-zinc-500">{desc}</p>
+      <FieldLabel label={label} desc={desc} />
       <input
         type="number" value={value} readOnly
-        className="w-full px-3 py-2.5 border rounded-lg text-base text-zinc-400 bg-zinc-800/50 border-zinc-700/50 cursor-default focus:outline-none"
+        className="w-full px-3 py-2.5 border rounded-lg text-lg text-zinc-400 bg-zinc-800/50 border-zinc-700/50 cursor-default focus:outline-none"
       />
     </div>
   );
@@ -724,10 +776,9 @@ function SelectField({ label, desc, value, options, readOnly, withPlaceholder, o
 }) {
   return (
     <div className="space-y-1.5">
-      <label className="block text-base font-medium text-zinc-300">{label}</label>
-      <p className="text-sm text-zinc-500">{desc}</p>
+      <FieldLabel label={label} desc={desc} />
       <select value={value} disabled={readOnly} onChange={e => onChange(e.target.value)}
-        className={`w-full px-3 py-2.5 border rounded-lg text-base focus:outline-none transition-colors ${readOnly ? 'bg-zinc-800/50 border-zinc-700/50 text-zinc-400 cursor-default' : 'bg-zinc-800 border-zinc-700 text-zinc-200 focus:ring-2 focus:ring-teal-500 focus:border-transparent'}`}>
+        className={`w-full px-3 py-2.5 border rounded-lg text-lg focus:outline-none transition-colors ${readOnly ? 'bg-zinc-800/50 border-zinc-700/50 text-zinc-400 cursor-default' : 'bg-zinc-800 border-zinc-700 text-zinc-200 focus:ring-2 focus:ring-teal-500 focus:border-transparent'}`}>
         {withPlaceholder && <option value="" disabled>— 종목을 선택하세요 —</option>}
         {options.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
       </select>
@@ -740,10 +791,7 @@ function ToggleField({ label, desc, value, readOnly, onChange }: {
 }) {
   return (
     <div className="flex items-center justify-between gap-4 p-4 bg-zinc-800/50 rounded-lg border border-zinc-700/50">
-      <div>
-        <p className="text-base font-medium text-zinc-300">{label}</p>
-        <p className="text-sm text-zinc-500 mt-0.5">{desc}</p>
-      </div>
+      <FieldLabel label={label} desc={desc} />
       <button type="button" disabled={readOnly} onClick={() => !readOnly && onChange(!value)}
         className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${value ? 'bg-teal-500' : 'bg-zinc-600'} ${readOnly ? 'cursor-default opacity-70' : 'cursor-pointer'}`}>
         <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${value ? 'translate-x-5' : 'translate-x-0'}`} />
