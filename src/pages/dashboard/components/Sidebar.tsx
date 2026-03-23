@@ -17,6 +17,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
 
   const loginUser = authStorage.get();
   const isRegularUser = loginUser?.permission === 1;
+  const isRestricted = loginUser?.status === 0 || loginUser?.status === -1;
   const visibleMenuItems = MENU_ITEMS.filter(item => !item.adminOnly || !isRegularUser);
 
   const handleNavigation = (path: string) => {
@@ -67,11 +68,14 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
             {visibleMenuItems.map((item) => (
               <button
                 key={item.path}
-                onClick={() => handleNavigation(item.path)}
-                className={`w-full flex items-center px-6 py-4 text-base font-medium transition-colors whitespace-nowrap cursor-pointer ${
-                  location.pathname === item.path
-                    ? 'bg-teal-500/10 text-teal-400 border-r-4 border-teal-500'
-                    : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+                onClick={() => !isRestricted && handleNavigation(item.path)}
+                disabled={isRestricted}
+                className={`w-full flex items-center px-6 py-4 text-base font-medium transition-colors whitespace-nowrap ${
+                  isRestricted
+                    ? 'text-zinc-600 cursor-not-allowed'
+                    : location.pathname === item.path
+                      ? 'bg-teal-500/10 text-teal-400 border-r-4 border-teal-500 cursor-pointer'
+                      : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 cursor-pointer'
                 }`}
               >
                 <i className={`${item.icon} text-2xl w-9 h-9 flex items-center justify-center mr-4`}></i>

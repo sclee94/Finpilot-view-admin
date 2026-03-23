@@ -111,10 +111,9 @@ export const DEFAULT_PARAMS: StrategyParams = {
 };
 
 export const SYMBOL_OPTIONS = [
-  { value: '^KS11',     label: 'KOSPI (^KS11)' },
-  { value: '^KQ11',     label: 'KOSDAQ (^KQ11)' },
-  { value: 'NQ=F',      label: 'NASDAQ Futures (NQ=F)' },
-  { value: '005930.KS', label: '삼성전자 (005930.KS)' },
+  { value: '^KS11', label: 'KOSPI (^KS11)' },
+  { value: '^KQ11', label: 'KOSDAQ (^KQ11)' },
+  { value: 'NQ=F',  label: 'NASDAQ Futures (NQ=F)' },
 ];
 
 export const APPLIED_KEY = 'strategyApplied';

@@ -86,6 +86,11 @@ export default function Home() {
       } else {
         localStorage.removeItem('savedCredentials');
       }
+      // 비활성/블랙 상태면 이용 불가 페이지로 이동
+      if (res.data.status === 0 || res.data.status === -1) {
+        navigate('/blocked');
+        return;
+      }
       // 일반 사용자는 거래현황, 관리자 이상은 대시보드로 이동
       const isRegularUser = res.data.permission === 1;
       navigate(isRegularUser ? '/reports' : '/dashboard');

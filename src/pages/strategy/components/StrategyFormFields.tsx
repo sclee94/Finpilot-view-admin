@@ -69,7 +69,7 @@ export function SelectField({ label, desc, value, options, readOnly, withPlaceho
 }) {
   return (
     <div className="space-y-1.5">
-      <FieldLabel label={label} desc={desc} />
+      {label && <FieldLabel label={label} desc={desc} />}
       <select value={value} disabled={readOnly} onChange={e => onChange(e.target.value)}
         className={`w-full px-3 py-2.5 border rounded-lg text-lg focus:outline-none transition-colors ${readOnly ? 'bg-zinc-800/50 border-zinc-700/50 text-zinc-400 cursor-default' : 'bg-zinc-800 border-zinc-700 text-zinc-200 focus:ring-2 focus:ring-teal-500 focus:border-transparent'}`}>
         {withPlaceholder && <option value="" disabled>— 종목을 선택하세요 —</option>}

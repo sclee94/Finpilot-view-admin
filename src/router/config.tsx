@@ -9,6 +9,7 @@ import Settings from "../pages/settings/page";
 import Strategy from "../pages/strategy/page";
 import Logs from "../pages/logs/page";
 import TestLog from "../pages/testlog/page";
+import Blocked from "../pages/blocked/page";
 
 const routes: RouteObject[] = [
   {
@@ -50,6 +51,10 @@ const routes: RouteObject[] = [
   {
     path: "/testlog",
     element: <TestLog />,
+  },
+  {
+    path: "/blocked",
+    element: <Blocked />,
   },
   {
     path: "*",

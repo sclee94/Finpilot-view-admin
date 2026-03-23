@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import type { CustomFormParams } from '../strategyTypes';
 import { SYMBOL_OPTIONS } from '../strategyTypes';
-import { Section, NumberField, SelectField, ToggleField } from './StrategyFormFields';
+import { Section, NumberField, SelectField, ToggleField, FieldLabel } from './StrategyFormFields';
 
 interface CustomParamFormProps {
   params: CustomFormParams;
@@ -9,6 +10,8 @@ interface CustomParamFormProps {
 
 export default function CustomParamForm({ params, onChange }: CustomParamFormProps) {
   const set = <K extends keyof CustomFormParams>(key: K, value: CustomFormParams[K]) => onChange(key, value);
+  const [symbolMode, setSymbolMode] = useState<'dropdown' | 'direct'>('dropdown');
+
   return (
     <div className="space-y-6">
       <Section title="자본 설정" icon="ri-funds-line">
@@ -24,9 +27,40 @@ export default function CustomParamForm({ params, onChange }: CustomParamFormPro
         </div>
       </Section>
       <Section title="종목 설정" icon="ri-stock-line">
-        <SelectField label="종목" desc="백테스트 및 전략 실행 대상 종목"
-          value={params.symbol} options={SYMBOL_OPTIONS} withPlaceholder
-          onChange={v => set('symbol', v)} />
+        <div className="space-y-3">
+          <div className="flex items-center gap-1.5">
+            <FieldLabel label="종목" desc="백테스트 및 전략 실행 대상 종목" />
+            <div className="ml-auto flex bg-zinc-800 rounded-md p-0.5 gap-0.5">
+              <button
+                type="button"
+                onClick={() => { setSymbolMode('dropdown'); set('symbol', ''); }}
+                className={`px-3 py-1 text-sm rounded transition-colors cursor-pointer ${symbolMode === 'dropdown' ? 'bg-teal-500 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
+              >
+                선택
+              </button>
+              <button
+                type="button"
+                onClick={() => { setSymbolMode('direct'); set('symbol', ''); }}
+                className={`px-3 py-1 text-sm rounded transition-colors cursor-pointer ${symbolMode === 'direct' ? 'bg-teal-500 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}
+              >
+                직접입력
+              </button>
+            </div>
+          </div>
+          {symbolMode === 'dropdown' ? (
+            <SelectField label="" desc=""
+              value={params.symbol} options={SYMBOL_OPTIONS} withPlaceholder
+              onChange={v => set('symbol', v)} />
+          ) : (
+            <input
+              type="text"
+              value={params.symbol}
+              onChange={e => set('symbol', e.target.value)}
+              placeholder="종목 코드를 입력하세요 (예: 005930.KS)"
+              className="w-full px-3 py-2.5 border rounded-lg text-lg text-zinc-200 focus:outline-none transition-colors bg-zinc-800 border-zinc-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder-zinc-600"
+            />
+          )}
+        </div>
       </Section>
       <Section title="추세 지표 (ADX)" icon="ri-line-chart-line">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

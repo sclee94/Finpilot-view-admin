@@ -36,6 +36,7 @@ export default function UserTable({ users, onUpdateUser, onDeleteUser }: UserTab
     setSearchTerm,
     currentPage,
     setCurrentPage,
+    filteredData: filteredUsers,
     paginatedData: paginatedUsers,
     totalPages,
   } = useTableFilter({
@@ -44,6 +45,8 @@ export default function UserTable({ users, onUpdateUser, onDeleteUser }: UserTab
     filterFn,
     itemsPerPage: 10,
   });
+
+  const startIndex = (currentPage - 1) * 10;
 
   const handleRowClick = (user: User) => {
     setDetailUser(user);
@@ -101,7 +104,7 @@ export default function UserTable({ users, onUpdateUser, onDeleteUser }: UserTab
           <table className="w-full">
             <thead>
               <tr className="bg-zinc-800/60 border-b border-zinc-800">
-                <th className="px-6 py-4 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">UID</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">No</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">이름</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">이메일</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">역할</th>
@@ -112,13 +115,13 @@ export default function UserTable({ users, onUpdateUser, onDeleteUser }: UserTab
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800">
-              {paginatedUsers.map((user) => (
+              {paginatedUsers.map((user, index) => (
                 <tr
                   key={user.userUid}
                   onClick={() => handleRowClick(user)}
-                  className="hover:bg-zinc-800/50 transition-colors cursor-pointer"
+                  className="hover:bg-zinc-800/50 transition-colors cursor-pointer whitespace-nowrap"
                 >
-                  <td className="px-6 py-4 text-sm text-zinc-500">{user.userUid}</td>
+                  <td className="px-6 py-4 text-sm text-zinc-500">{startIndex + index + 1}</td>
                   <td className="px-6 py-4 text-sm font-medium text-zinc-200">{user.userName}</td>
                   <td className="px-6 py-4 text-sm text-zinc-400">{user.email}</td>
                   <td className="px-6 py-4">
