@@ -40,6 +40,10 @@ const PARAM_SUMMARY_ROWS: { label: string; key: keyof StrategyParams; format?: (
     { label: '수수료',        key: 'commission', format: v => `${(v * 100).toFixed(3)}%` },
     { label: '슬리피지',      key: 'slippage',   format: v => `${(v * 100).toFixed(3)}%` },
   ],
+  [
+    { label: '지표 룩백 기간', key: 'indicator_window' },
+    { label: '연간 거래일 수', key: 'trading_days_per_year' },
+  ],
 ];
 
 const MODAL_SECTIONS: { title: string; icon: string; rows: { label: string; key: keyof StrategyParams; format?: (v: number) => string }[] }[] = [
@@ -80,6 +84,13 @@ const MODAL_SECTIONS: { title: string; icon: string; rows: { label: string; key:
     rows: [
       { label: '수수료 (편도)',   key: 'commission', format: v => `${(v * 100).toFixed(3)}%` },
       { label: '슬리피지 (편도)', key: 'slippage',   format: v => `${(v * 100).toFixed(3)}%` },
+    ],
+  },
+  {
+    title: '지표 설정', icon: 'ri-bar-chart-line',
+    rows: [
+      { label: '지표 룩백 기간', key: 'indicator_window' },
+      { label: '연간 거래일 수', key: 'trading_days_per_year' },
     ],
   },
 ];

@@ -13,29 +13,33 @@ export interface StrategyParams {
   commission:          number;
   slippage:            number;
   risk_per_trade:      number;
-  use_prev_bar_signal: boolean;
-  initial_capital:     number;
+  use_prev_bar_signal:    boolean;
+  initial_capital:        number;
+  indicator_window:       number;
+  trading_days_per_year:  number;
 }
 
 export type NumVal = number | '';
 
 export interface CustomFormParams {
-  symbol:              string;
-  adx_threshold:       NumVal;
-  adx_persist:         NumVal;
-  rsi_long_entry:      NumVal;
-  rsi_short_entry:     NumVal;
-  atr_sl_mult:         NumVal;
-  atr_tp_mult:         NumVal;
-  min_hold_bars:       NumVal;
-  sl_cooldown_bars:    NumVal;
-  consec_sl_limit:     NumVal;
-  max_dd_stop:         NumVal;
-  commission:          NumVal;
-  slippage:            NumVal;
-  risk_per_trade:      NumVal;
-  use_prev_bar_signal: boolean;
-  initial_capital:     NumVal;
+  symbol:                string;
+  adx_threshold:         NumVal;
+  adx_persist:           NumVal;
+  rsi_long_entry:        NumVal;
+  rsi_short_entry:       NumVal;
+  atr_sl_mult:           NumVal;
+  atr_tp_mult:           NumVal;
+  min_hold_bars:         NumVal;
+  sl_cooldown_bars:      NumVal;
+  consec_sl_limit:       NumVal;
+  max_dd_stop:           NumVal;
+  commission:            NumVal;
+  slippage:              NumVal;
+  risk_per_trade:        NumVal;
+  use_prev_bar_signal:   boolean;
+  initial_capital:       NumVal;
+  indicator_window:      NumVal;
+  trading_days_per_year: NumVal;
 }
 
 export interface BoardItem {
@@ -66,10 +70,12 @@ export interface StrategyConfigDTO {
   slCooldownBars?:   number;
   consecSlLimit?:    number;
   maxDdStop?:        number;
-  commission?:       number;
-  slippage?:         number;
-  isUse?:            number;
-  createdAt?:        string;
+  commission?:           number;
+  slippage?:             number;
+  indicatorWindow?:      number;
+  tradingDaysPerYear?:   number;
+  isUse?:                number;
+  createdAt?:            string;
 }
 
 export const EMPTY_CUSTOM: CustomFormParams = {
@@ -87,8 +93,10 @@ export const EMPTY_CUSTOM: CustomFormParams = {
   commission:          '',
   slippage:            '',
   risk_per_trade:      '',
-  use_prev_bar_signal: false,
-  initial_capital:     '',
+  use_prev_bar_signal:   false,
+  initial_capital:       '',
+  indicator_window:      '',
+  trading_days_per_year: '',
 };
 
 export const DEFAULT_PARAMS: StrategyParams = {
@@ -106,8 +114,10 @@ export const DEFAULT_PARAMS: StrategyParams = {
   commission:          0.0002,
   slippage:            0.0001,
   risk_per_trade:      0.01,
-  use_prev_bar_signal: true,
-  initial_capital:     10000000,
+  use_prev_bar_signal:   true,
+  initial_capital:       10000000,
+  indicator_window:      14,
+  trading_days_per_year: 252,
 };
 
 export const SYMBOL_OPTIONS = [
@@ -141,8 +151,10 @@ export function dtoToBoardItem(dto: StrategyConfigDTO): BoardItem {
       commission:          dto.commission ?? 0,
       slippage:            dto.slippage ?? 0,
       risk_per_trade:      dto.riskPerTrade ?? 0,
-      use_prev_bar_signal: dto.usePrevBarSignal ?? false,
-      initial_capital:     dto.initialCapital ?? 0,
+      use_prev_bar_signal:   dto.usePrevBarSignal ?? false,
+      initial_capital:       dto.initialCapital ?? 0,
+      indicator_window:      dto.indicatorWindow ?? 14,
+      trading_days_per_year: dto.tradingDaysPerYear ?? 252,
     },
   };
 }
@@ -172,8 +184,10 @@ export function strategyToDto(
     slCooldownBars:   params.sl_cooldown_bars,
     consecSlLimit:    params.consec_sl_limit,
     maxDdStop:        params.max_dd_stop,
-    commission:       params.commission,
-    slippage:         params.slippage,
+    commission:          params.commission,
+    slippage:            params.slippage,
+    indicatorWindow:     params.indicator_window,
+    tradingDaysPerYear:  params.trading_days_per_year,
   };
 }
 
@@ -182,7 +196,7 @@ export function toStrategyParams(form: CustomFormParams): StrategyParams | null 
     'adx_threshold', 'adx_persist', 'rsi_long_entry', 'rsi_short_entry',
     'atr_sl_mult', 'atr_tp_mult', 'min_hold_bars', 'sl_cooldown_bars',
     'consec_sl_limit', 'max_dd_stop', 'commission', 'slippage',
-    'risk_per_trade', 'initial_capital',
+    'risk_per_trade', 'initial_capital', 'indicator_window', 'trading_days_per_year',
   ];
   if (!form.symbol) return null;
   for (const k of numFields) {

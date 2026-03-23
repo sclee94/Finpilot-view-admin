@@ -47,6 +47,12 @@ export default function ReadOnlyParamForm({ params }: { params: StrategyParams }
           <ReadOnlyNumberField label="슬리피지 (편도)" desc="예: 0.0001 = 0.01%" value={params.slippage} />
         </div>
       </Section>
+      <Section title="지표 설정" icon="ri-bar-chart-line">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <ReadOnlyNumberField label="지표 룩백 기간" desc="ADX/RSI/ATR 공통 룩백 기간 (봉 수)" value={params.indicator_window} />
+          <ReadOnlyNumberField label="연간 거래일 수" desc="Sharpe 비율 연간화 기준 거래일 수" value={params.trading_days_per_year} />
+        </div>
+      </Section>
     </div>
   );
 }
