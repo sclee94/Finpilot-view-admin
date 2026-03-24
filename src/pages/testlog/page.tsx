@@ -470,10 +470,11 @@ export default function TestLog() {
 
       // 1) Python 백테스트 실행
       const runRes = await apiClient.post<ApiResponse<BacktestResult>>(
-        '/finpilot/run',
+        '/finpilot/backtest/run',
         {
           userUid,
-          strategyConfigId:   appliedItem.id,
+          id:                 appliedItem.id,
+          title:              appliedItem.title,
           symbol:             p.symbol,
           adxThreshold:       p.adx_threshold,
           adxPersist:         p.adx_persist,
@@ -760,7 +761,7 @@ export default function TestLog() {
                       <td className="px-4 py-3.5 text-right">
                         <button
                           onClick={e => { e.stopPropagation(); setDeleteTarget(r); }}
-                          className="text-xs text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                          className="text-xs text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 px-3 py-1.5 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
                         >
                           제거
                         </button>
