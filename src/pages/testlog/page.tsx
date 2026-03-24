@@ -68,20 +68,65 @@ interface BacktestResult {
   mddPct:           number;
   sharpe:           number | null;
   sharpeNote:       string | null;
+  strategyTitle?:   string | null;
   createdAt:        string;
   trades?:          BacktestTrade[];
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const APPLIED_KEY = 'strategyApplied';
+interface StrategyConfigDTO {
+  id?:               number;
+  title?:            string;
+  symbol?:           string;
+  initialCapital?:   number;
+  riskPerTrade?:     number;
+  usePrevBarSignal?: boolean;
+  adxThreshold?:     number;
+  adxPersist?:       number;
+  rsiLongEntry?:     number;
+  rsiShortEntry?:    number;
+  atrSlMult?:        number;
+  atrTpMult?:        number;
+  minHoldBars?:      number;
+  slCooldownBars?:   number;
+  consecSlLimit?:    number;
+  maxDdStop?:        number;
+  commission?:       number;
+  slippage?:         number;
+  indicatorWindow?:  number;
+  tradingDaysPerYear?: number;
+  isUse?:            number;
+  createdAt?:        string;
+}
 
-function loadApplied(): BoardItem | null {
-  try {
-    const saved = localStorage.getItem(APPLIED_KEY);
-    if (saved) return JSON.parse(saved);
-  } catch { /* ignore */ }
-  return null;
+function dtoToApplied(dto: StrategyConfigDTO): BoardItem {
+  return {
+    id:     dto.id!,
+    title:  dto.title ?? '',
+    symbol: dto.symbol ?? '',
+    date:   dto.createdAt ?? '',
+    params: {
+      symbol:                dto.symbol ?? '',
+      adx_threshold:         dto.adxThreshold ?? 0,
+      adx_persist:           dto.adxPersist ?? 0,
+      rsi_long_entry:        dto.rsiLongEntry ?? 0,
+      rsi_short_entry:       dto.rsiShortEntry ?? 0,
+      atr_sl_mult:           dto.atrSlMult ?? 0,
+      atr_tp_mult:           dto.atrTpMult ?? 0,
+      min_hold_bars:         dto.minHoldBars ?? 0,
+      sl_cooldown_bars:      dto.slCooldownBars ?? 0,
+      consec_sl_limit:       dto.consecSlLimit ?? 0,
+      max_dd_stop:           dto.maxDdStop ?? 0,
+      commission:            dto.commission ?? 0,
+      slippage:              dto.slippage ?? 0,
+      risk_per_trade:        dto.riskPerTrade ?? 0,
+      use_prev_bar_signal:   dto.usePrevBarSignal ?? false,
+      initial_capital:       dto.initialCapital ?? 0,
+      indicator_window:      dto.indicatorWindow ?? 14,
+      trading_days_per_year: dto.tradingDaysPerYear ?? 252,
+    },
+  };
 }
 
 const PARAM_LABELS: { key: keyof StrategyParams; label: string; format?: (v: unknown) => string }[] = [
@@ -107,11 +152,23 @@ const PARAM_LABELS: { key: keyof StrategyParams; label: string; format?: (v: unk
 
 // ─── Trade Detail Modal ───────────────────────────────────────────────────────
 
-function TradeDetailModal({ result, onClose }: {
+function TradeDetailModal({ result, results, onClose }: {
   result:  BacktestResult;
+  results: BacktestResult[];
   onClose: () => void;
 }) {
   const trades = result.trades ?? [];
+  const [showCompare, setShowCompare] = useState(false);
+  const [compareTarget, setCompareTarget] = useState<BacktestResult | null>(null);
+
+  const COMPARE_FIELDS: { label: string; getValue: (r: BacktestResult) => string; colorFn?: (r: BacktestResult) => string }[] = [
+    { label: '총 거래', getValue: r => `${r.totalTrades}건` },
+    { label: '승률',   getValue: r => `${Number(r.winRate).toFixed(1)}%`, colorFn: () => 'text-teal-400' },
+    { label: '수익률', getValue: r => `${Number(r.returnPct) >= 0 ? '+' : ''}${Number(r.returnPct).toFixed(2)}%`,
+      colorFn: r => Number(r.returnPct) >= 0 ? 'text-teal-400' : 'text-red-400' },
+    { label: '최대 낙폭', getValue: r => `-${Number(r.mddPct).toFixed(2)}%`, colorFn: () => 'text-red-400' },
+    { label: '샤프 지수', getValue: r => r.sharpe != null ? Number(r.sharpe).toFixed(3) : '-' },
+  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6" onClick={onClose}>
@@ -132,10 +189,109 @@ function TradeDetailModal({ result, onClose }: {
               <span className="text-xs text-zinc-500">{result.createdAt}</span>
             </div>
           </div>
-          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200 transition-colors mt-0.5 cursor-pointer">
-            <i className="ri-close-line text-xl"></i>
-          </button>
+          <div className="flex items-center gap-2 mt-0.5">
+            <button
+              onClick={() => setShowCompare(v => !v)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+                showCompare ? 'bg-teal-500 text-white' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+              }`}
+            >
+              <i className="ri-bar-chart-grouped-line"></i>
+              백테스트 결과 비교하기
+            </button>
+            <button onClick={onClose} className="text-zinc-500 hover:text-zinc-200 transition-colors cursor-pointer">
+              <i className="ri-close-line text-xl"></i>
+            </button>
+          </div>
         </div>
+
+        {/* Compare Panel */}
+        {showCompare && (
+          <div className="border-b border-zinc-800 px-6 py-4 space-y-4">
+            <h3 className="text-sm font-semibold text-zinc-300">백테스트 결과 목록 ({results.length}건)</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-700 bg-zinc-800/50">
+                    <th className="text-left px-3 py-2 text-zinc-400 font-medium">전략명</th>
+                    <th className="text-left px-3 py-2 text-zinc-400 font-medium">종목</th>
+                    <th className="text-left px-3 py-2 text-zinc-400 font-medium">기간</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-800">
+                  {results.map(r => {
+                    const isCurrent = r.id === result.id;
+                    const isSelected = compareTarget?.id === r.id;
+                    return (
+                      <tr
+                        key={r.id}
+                        onClick={() => !isCurrent && setCompareTarget(isSelected ? null : r)}
+                        className={`transition-colors ${
+                          isCurrent ? 'bg-teal-500/10' :
+                          isSelected ? 'bg-blue-500/10 cursor-pointer' :
+                          'hover:bg-zinc-800/40 cursor-pointer'
+                        }`}
+                      >
+                        <td className="px-3 py-2.5 text-zinc-200">
+                          {r.strategyTitle ?? '-'}
+                          {isCurrent && <span className="ml-2 text-xs text-teal-400 font-medium">현재</span>}
+                          {isSelected && <span className="ml-2 text-xs text-blue-400 font-medium">비교 대상</span>}
+                        </td>
+                        <td className="px-3 py-2.5 text-zinc-400">{r.symbol}</td>
+                        <td className="px-3 py-2.5 text-zinc-400">
+                          {r.periodStart} ~ {r.periodEnd}
+                          <span className="text-zinc-600 ml-1">({r.periodDays}일)</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* 비교 뷰 */}
+            {compareTarget && (
+              <div className="mt-2">
+                <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center">
+                  {/* 현재 */}
+                  <div className="bg-teal-500/10 border border-teal-500/20 rounded-xl p-4">
+                    <p className="text-xs font-semibold text-teal-400 mb-3">현재 — {result.strategyTitle ?? result.symbol}</p>
+                    <div className="space-y-2.5">
+                      {COMPARE_FIELDS.map(f => (
+                        <div key={f.label} className="flex items-center justify-between">
+                          <span className="text-xs text-zinc-500">{f.label}</span>
+                          <span className={`text-sm font-semibold ${f.colorFn ? f.colorFn(result) : 'text-zinc-200'}`}>
+                            {f.getValue(result)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* VS */}
+                  <div className="flex flex-col items-center gap-1">
+                    <span className="text-xs font-bold text-zinc-500">VS</span>
+                  </div>
+
+                  {/* 비교 대상 */}
+                  <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
+                    <p className="text-xs font-semibold text-blue-400 mb-3 text-right">비교 — {compareTarget.strategyTitle ?? compareTarget.symbol}</p>
+                    <div className="space-y-2.5">
+                      {COMPARE_FIELDS.map(f => (
+                        <div key={f.label} className="flex items-center justify-between">
+                          <span className={`text-sm font-semibold ${f.colorFn ? f.colorFn(compareTarget) : 'text-zinc-200'}`}>
+                            {f.getValue(compareTarget)}
+                          </span>
+                          <span className="text-xs text-zinc-500">{f.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Summary Cards */}
         <div className="px-6 py-4 grid grid-cols-2 sm:grid-cols-4 gap-3 border-b border-zinc-800">
@@ -238,6 +394,7 @@ export default function TestLog() {
 
   const [running, setRunning] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [errorMessage, setErrorMessage] = useState('');
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [results, setResults]               = useState<BacktestResult[]>([]);
@@ -247,22 +404,28 @@ export default function TestLog() {
   const [detailLoading, setDetailLoading]       = useState(false);
   const [deleteTarget, setDeleteTarget]         = useState<BacktestResult | null>(null);
 
-  // Applied strategy sync
-  useEffect(() => {
-    setAppliedItem(loadApplied());
-
-    const handleCustom  = (e: Event) => setAppliedItem((e as CustomEvent).detail ?? null);
-    const handleStorage = (e: StorageEvent) => {
-      if (e.key === APPLIED_KEY) setAppliedItem(e.newValue ? JSON.parse(e.newValue) : null);
-    };
-
-    window.addEventListener('strategyAppliedChanged', handleCustom);
-    window.addEventListener('storage', handleStorage);
-    return () => {
-      window.removeEventListener('strategyAppliedChanged', handleCustom);
-      window.removeEventListener('storage', handleStorage);
-    };
+  // Applied strategy — API 조회
+  const fetchApplied = useCallback(async () => {
+    const userUid = authStorage.get()?.userUid;
+    if (!userUid) return;
+    try {
+      const res = await apiClient.post<ApiResponse<StrategyConfigDTO[]>>(
+        '/strategy/getStrategyConfigList',
+        { userUid },
+      );
+      const applied = (res.data ?? []).find(d => d.isUse === 1) ?? null;
+      setAppliedItem(applied ? dtoToApplied(applied) : null);
+    } catch { /* silent */ }
   }, []);
+
+  useEffect(() => {
+    fetchApplied();
+
+    // 전략 설정 탭에서 적용/해제 시 동기화
+    const handleCustom = () => fetchApplied();
+    window.addEventListener('strategyAppliedChanged', handleCustom);
+    return () => window.removeEventListener('strategyAppliedChanged', handleCustom);
+  }, [fetchApplied]);
 
   // Timer cleanup on unmount
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
@@ -333,20 +496,13 @@ export default function TestLog() {
       );
 
       if (runRes.data) {
-        // 2) 결과 + trades DB 저장 (insertBacktest: result + trades 한번에)
-        await apiClient.post<ApiResponse<BacktestResult>>(
-          '/backtest/insertBacktest',
-          {
-            ...runRes.data,
-            userUid,
-            strategyConfigId: appliedItem.id,
-          },
-        );
-
-        // 3) 목록 새로고침
-        await refreshResults(userUid);
+        setResults(prev => [runRes.data, ...prev]);
+      } else {
+        setErrorMessage(runRes.message || '백테스트 실행에 실패했습니다.');
       }
-    } catch { /* silent */ } finally {
+    } catch {
+      setErrorMessage('서버 연결에 실패했습니다.');
+    } finally {
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
       setRunning(false);
     }
@@ -390,8 +546,32 @@ export default function TestLog() {
       {selectedResult && !detailLoading && (
         <TradeDetailModal
           result={selectedResult}
+          results={results}
           onClose={() => setSelectedResult(null)}
         />
+      )}
+
+      {/* 실행 실패 팝업 */}
+      {errorMessage && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-black/50"
+          onKeyDown={e => { if (e.key === 'Enter') setErrorMessage(''); }}
+          tabIndex={-1}
+          ref={el => el?.focus()}
+        >
+          <div className="bg-zinc-800 border border-zinc-700 rounded-2xl shadow-2xl w-full max-w-xs p-6 text-center space-y-4">
+            <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mx-auto">
+              <i className="ri-error-warning-line text-red-400 text-2xl"></i>
+            </div>
+            <p className="text-sm text-zinc-200">{errorMessage}</p>
+            <button
+              onClick={() => setErrorMessage('')}
+              className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold rounded-lg transition-colors cursor-pointer"
+            >
+              확인
+            </button>
+          </div>
+        </div>
       )}
 
       {/* 로딩 오버레이 (단건 조회 중) */}
@@ -526,6 +706,7 @@ export default function TestLog() {
               <thead>
                 <tr className="border-b border-zinc-800 bg-zinc-800/50">
                   <th className="text-left px-4 py-3 text-sm font-medium text-zinc-400 w-12">No</th>
+                  <th className="text-left px-4 py-3 text-sm font-medium text-zinc-400">전략명</th>
                   <th className="text-left px-4 py-3 text-sm font-medium text-zinc-400">종목</th>
                   <th className="text-left px-4 py-3 text-sm font-medium text-zinc-400">기간</th>
                   <th className="text-right px-4 py-3 text-sm font-medium text-zinc-400">거래수</th>
@@ -540,14 +721,14 @@ export default function TestLog() {
               <tbody>
                 {resultsLoading ? (
                   <tr>
-                    <td colSpan={10} className="text-center py-16 text-zinc-500">
+                    <td colSpan={11} className="text-center py-16 text-zinc-500">
                       <i className="ri-loader-4-line animate-spin text-3xl block mb-2"></i>
                       불러오는 중...
                     </td>
                   </tr>
                 ) : results.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="text-center py-16 text-zinc-500">
+                    <td colSpan={11} className="text-center py-16 text-zinc-500">
                       <i className="ri-file-list-line text-4xl block mb-2"></i>
                       백테스트 결과가 없습니다.
                     </td>
@@ -560,6 +741,7 @@ export default function TestLog() {
                       className="border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors cursor-pointer"
                     >
                       <td className="px-4 py-3.5 text-sm text-zinc-500">{results.length - idx}</td>
+                      <td className="px-4 py-3.5 text-sm font-medium text-zinc-200">{r.strategyTitle ?? '-'}</td>
                       <td className="px-4 py-3.5 text-sm font-medium text-zinc-200">{r.symbol}</td>
                       <td className="px-4 py-3.5 text-sm text-zinc-400">
                         {r.periodStart} ~ {r.periodEnd}

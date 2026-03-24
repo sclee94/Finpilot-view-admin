@@ -236,6 +236,12 @@ export default function BoardPanel({ board, selectedId, appliedItem, loading, on
                 <p className="text-sm font-medium text-zinc-200">{deleteTarget.title}</p>
                 <p className="text-xs text-zinc-500 mt-0.5">{deleteTarget.symbol} · {deleteTarget.date}</p>
               </div>
+              <div className="flex items-start gap-2 px-3 py-2.5 bg-red-500/10 border border-red-500/20 rounded-lg">
+                <i className="ri-error-warning-line text-red-400 text-sm mt-0.5 shrink-0"></i>
+                <p className="text-xs text-red-300 leading-relaxed">
+                  해당 설정으로 실행된 백테스트 결과도 함께 삭제됩니다.
+                </p>
+              </div>
               <div className="flex gap-2 pt-1">
                 <button onClick={() => setDeleteTarget(null)}
                   className="flex-1 py-2.5 text-sm font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition-colors cursor-pointer">
@@ -286,14 +292,14 @@ export default function BoardPanel({ board, selectedId, appliedItem, loading, on
                 <span className="text-zinc-500">{item.date.replace(/\. /g, '.').replace(/\.$/, '')}</span>
                 <div className="flex justify-center">
                   <button
-                    onClick={e => { e.stopPropagation(); onApplyItem(item); }}
+                    onClick={e => { e.stopPropagation(); onApplyItem(appliedItem?.id === item.id ? null as unknown as BoardItem : item); }}
                     className={`px-1.5 py-0.5 rounded text-sm font-medium transition-colors ${
                       appliedItem?.id === item.id
-                        ? 'bg-teal-500 text-white'
+                        ? 'bg-teal-500 text-white hover:bg-red-500/80'
                         : 'bg-zinc-700 text-zinc-300 hover:bg-teal-500/80 hover:text-white'
                     }`}
                   >
-                    적용
+                    {appliedItem?.id === item.id ? '취소' : '적용'}
                   </button>
                 </div>
                 <div className="flex justify-center">

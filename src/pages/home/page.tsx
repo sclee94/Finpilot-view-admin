@@ -455,7 +455,12 @@ export default function Home() {
 
       {/* 알림 팝업 */}
       {alertMessage && (
-        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center px-4">
+        <div
+          className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center px-4"
+          onKeyDown={e => { if (e.key === 'Enter') setAlertMessage(''); }}
+          tabIndex={-1}
+          ref={el => el?.focus()}
+        >
           <div className="bg-gray-700 rounded-2xl shadow-2xl w-full max-w-xs p-6 border border-gray-600 text-center space-y-4">
             <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mx-auto">
               <i className="ri-error-warning-line text-red-400 text-2xl"></i>
