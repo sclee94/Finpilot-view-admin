@@ -17,6 +17,11 @@ export interface StrategyParams {
   initial_capital:        number;
   indicator_window:       number;
   trading_days_per_year:  number;
+  // 실전투자 전용
+  cooldown_bars_left:     number;
+  consec_sl_count:        number;
+  current_equity:         number;
+  peak_equity:            number;
 }
 
 export type NumVal = number | '';
@@ -40,6 +45,11 @@ export interface CustomFormParams {
   initial_capital:       NumVal;
   indicator_window:      NumVal;
   trading_days_per_year: NumVal;
+  // 실전투자 전용
+  cooldown_bars_left:    NumVal;
+  consec_sl_count:       NumVal;
+  current_equity:        NumVal;
+  peak_equity:           NumVal;
 }
 
 export interface BoardItem {
@@ -74,6 +84,10 @@ export interface StrategyConfigDTO {
   slippage?:             number;
   indicatorWindow?:      number;
   tradingDaysPerYear?:   number;
+  cooldownBarsLeft?:     number;
+  consecSlCount?:        number;
+  currentEquity?:        number;
+  peakEquity?:           number;
   isUse?:                number;
   createdAt?:            string;
 }
@@ -97,6 +111,10 @@ export const EMPTY_CUSTOM: CustomFormParams = {
   initial_capital:       '',
   indicator_window:      '',
   trading_days_per_year: '',
+  cooldown_bars_left:    '',
+  consec_sl_count:       '',
+  current_equity:        '',
+  peak_equity:           '',
 };
 
 export const DEFAULT_PARAMS: StrategyParams = {
@@ -118,6 +136,10 @@ export const DEFAULT_PARAMS: StrategyParams = {
   initial_capital:       10000000,
   indicator_window:      14,
   trading_days_per_year: 252,
+  cooldown_bars_left:    0,
+  consec_sl_count:       0,
+  current_equity:        1.0,
+  peak_equity:           1.0,
 };
 
 export const SYMBOL_OPTIONS = [
@@ -155,6 +177,10 @@ export function dtoToBoardItem(dto: StrategyConfigDTO): BoardItem {
       initial_capital:       dto.initialCapital ?? 0,
       indicator_window:      dto.indicatorWindow ?? 14,
       trading_days_per_year: dto.tradingDaysPerYear ?? 252,
+      cooldown_bars_left:    dto.cooldownBarsLeft ?? 0,
+      consec_sl_count:       dto.consecSlCount ?? 0,
+      current_equity:        dto.currentEquity ?? 1.0,
+      peak_equity:           dto.peakEquity ?? 1.0,
     },
   };
 }
@@ -188,6 +214,10 @@ export function strategyToDto(
     slippage:            params.slippage,
     indicatorWindow:     params.indicator_window,
     tradingDaysPerYear:  params.trading_days_per_year,
+    cooldownBarsLeft:    params.cooldown_bars_left,
+    consecSlCount:       params.consec_sl_count,
+    currentEquity:       params.current_equity,
+    peakEquity:          params.peak_equity,
   };
 }
 
@@ -197,6 +227,7 @@ export function toStrategyParams(form: CustomFormParams): StrategyParams | null 
     'atr_sl_mult', 'atr_tp_mult', 'min_hold_bars', 'sl_cooldown_bars',
     'consec_sl_limit', 'max_dd_stop', 'commission', 'slippage',
     'risk_per_trade', 'initial_capital', 'indicator_window', 'trading_days_per_year',
+    'cooldown_bars_left', 'consec_sl_count', 'current_equity', 'peak_equity',
   ];
   if (!form.symbol) return null;
   for (const k of numFields) {

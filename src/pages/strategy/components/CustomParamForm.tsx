@@ -96,10 +96,12 @@ export default function CustomParamForm({ params, onChange }: CustomParamFormPro
       </Section>
       <Section title="비용 설정" icon="ri-percent-line">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <NumberField label="수수료 (편도)" desc="예: 0.0002 = 0.02%"
-            value={params.commission} step={0.0001} onChange={v => set('commission', v)} />
-          <NumberField label="슬리피지 (편도)" desc="예: 0.0001 = 0.01%"
-            value={params.slippage} step={0.0001} onChange={v => set('slippage', v)} />
+          <NumberField label="수수료 (편도)" desc="예: 0.0002 = 0.02% · 백테스트 손익 계산 전용"
+            value={params.commission} step={0.0001} onChange={v => set('commission', v)}
+            labelExtra={<span className="ml-1.5 text-xs font-medium text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">백테스트 전용</span>} />
+          <NumberField label="슬리피지 (편도)" desc="예: 0.0001 = 0.01% · 백테스트 손익 계산 전용"
+            value={params.slippage} step={0.0001} onChange={v => set('slippage', v)}
+            labelExtra={<span className="ml-1.5 text-xs font-medium text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">백테스트 전용</span>} />
         </div>
       </Section>
       <Section title="지표 설정" icon="ri-bar-chart-line">
@@ -107,9 +109,29 @@ export default function CustomParamForm({ params, onChange }: CustomParamFormPro
           <NumberField label="지표 룩백 기간" desc="ADX/RSI/ATR 공통 룩백 기간 (봉 수)"
             value={params.indicator_window} step={1} min={5} max={50} isInt onChange={v => set('indicator_window', v)} />
           <NumberField label="연간 거래일 수" desc="Sharpe 비율 연간화 기준 거래일 수"
-            value={params.trading_days_per_year} step={1} min={100} max={365} isInt onChange={v => set('trading_days_per_year', v)} />
+            value={params.trading_days_per_year} step={1} min={100} max={365} isInt onChange={v => set('trading_days_per_year', v)}
+            labelExtra={<span className="ml-1.5 text-xs font-medium text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">백테스트 전용</span>} />
         </div>
       </Section>
+
+      {/* 실전투자 전용 */}
+      <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-4">
+        <div className="flex items-center gap-2">
+          <i className="ri-live-line text-amber-400 text-base"></i>
+          <span className="text-sm font-semibold text-amber-400">실전투자 전용</span>
+          <span className="text-xs text-zinc-500 ml-1">백테스트에는 사용되지 않습니다</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <NumberField label="쿨다운 잔여 봉 수" desc="현재 쿨다운 남은 봉 수"
+            value={params.cooldown_bars_left} step={1} min={0} isInt onChange={v => set('cooldown_bars_left', v)} />
+          <NumberField label="연속 손절 횟수" desc="현재까지 연속 손절 횟수"
+            value={params.consec_sl_count} step={1} min={0} isInt onChange={v => set('consec_sl_count', v)} />
+          <NumberField label="현재 자산" desc="실전 운용 중인 현재 자산 (배율)"
+            value={params.current_equity} step={0.01} min={0} onChange={v => set('current_equity', v)} />
+          <NumberField label="최고 자산" desc="실전 운용 중 기록된 최고 자산 (배율)"
+            value={params.peak_equity} step={0.01} min={0} onChange={v => set('peak_equity', v)} />
+        </div>
+      </div>
     </div>
   );
 }

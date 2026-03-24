@@ -12,10 +12,11 @@ export function Section({ title, icon, children }: { title: string; icon: string
   );
 }
 
-export function FieldLabel({ label, desc }: { label: string; desc: string }) {
+export function FieldLabel({ label, desc, extra }: { label: string; desc: string; extra?: React.ReactNode }) {
   return (
     <div className="flex items-center gap-1.5">
       <span className="text-lg font-medium text-zinc-300">{label}</span>
+      {extra}
       <span className="relative group/tip">
         <i className="ri-information-line text-zinc-400 hover:text-teal-400 text-base cursor-help transition-colors"></i>
         <span className="absolute bottom-full left-0 mb-2 w-max px-4 py-3 bg-zinc-700 border border-zinc-600 text-zinc-100 text-lg rounded-lg shadow-xl opacity-0 group-hover/tip:opacity-100 transition-opacity pointer-events-none z-[200] whitespace-nowrap leading-relaxed">
@@ -27,13 +28,13 @@ export function FieldLabel({ label, desc }: { label: string; desc: string }) {
   );
 }
 
-export function NumberField({ label, desc, value, step, min, max, isInt, onChange }: {
+export function NumberField({ label, desc, value, step, min, max, isInt, onChange, labelExtra }: {
   label: string; desc: string; value: NumVal; step: number; min?: number; max?: number; isInt?: boolean;
-  onChange: (v: NumVal) => void;
+  onChange: (v: NumVal) => void; labelExtra?: React.ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
-      <FieldLabel label={label} desc={desc} />
+      <FieldLabel label={label} desc={desc} extra={labelExtra} />
       <input
         type="number" value={value} step={step} min={min} max={max}
         placeholder="값을 입력하세요"
