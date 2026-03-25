@@ -50,7 +50,7 @@ export function NumberField({ label, desc, value, step, min, max, isInt, onChang
   );
 }
 
-export function ReadOnlyNumberField({ label, desc, value }: { label: string; desc: string; value: number }) {
+export function ReadOnlyNumberField({ label, desc, value }: { label: string; desc: string; value: number | '' }) {
   return (
     <div className="space-y-1.5">
       <FieldLabel label={label} desc={desc} />

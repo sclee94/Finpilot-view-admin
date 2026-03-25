@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import PageLayout from '../../components/PageLayout';
 import { apiClient } from '../../api/apiClient';
 import { authStorage } from '../../utils/auth';
@@ -7,14 +7,14 @@ import {
   type CustomFormParams,
   type BoardItem,
   type StrategyConfigDTO,
-  EMPTY_CUSTOM, DEFAULT_PARAMS, APPLIED_KEY,
+  EMPTY_CUSTOM, DEFAULT_PARAMS, APPLIED_KEY, SYMBOL_OPTIONS,
   dtoToBoardItem, strategyToDto, toStrategyParams,
 } from './strategyTypes';
 import CustomParamForm from './components/CustomParamForm';
 import ReadOnlyParamForm from './components/ReadOnlyParamForm';
 import BoardPanel from './components/BoardPanel';
 import { TabButton } from './components/StrategyFormFields';
-import type { StrategyParams } from './strategyTypes';
+import type { StrategyParams, NumVal } from './strategyTypes';
 
 type TabType = 'custom' | 'recommend';
 
@@ -56,11 +56,16 @@ export default function Strategy() {
   }, [appliedItem]);
 
   // 추천 탭
-  const [recommended, setRecommended] = useState<StrategyParams>(DEFAULT_PARAMS);
+  const [recommended, setRecommended] = useState<StrategyParams | null>(null);
   const [recLoading, setRecLoading] = useState(false);
   const [recError, setRecError] = useState<string | null>(null);
-  const [recTitle, setRecTitle] = useState('');
-  const [recSaved, setRecSaved] = useState(false);
+  const [recInput, setRecInput] = useState<{ symbol: string; initial_capital: NumVal; risk_per_trade: NumVal; use_prev_bar_signal: boolean }>({
+    symbol: '', initial_capital: '', risk_per_trade: '', use_prev_bar_signal: false,
+  });
+  const [recSymbolMode, setRecSymbolMode] = useState<'dropdown' | 'direct'>('dropdown');
+  const [recDropdownValue, setRecDropdownValue] = useState('');
+  const [recElapsed, setRecElapsed] = useState(0);
+  const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // 저장된 전략 목록 조회 (isUse === 1 항목을 적용 상태로 자동 동기화)
   const refreshBoard = useCallback(async (uid: string) => {
@@ -87,17 +92,52 @@ export default function Strategy() {
   const fetchRecommended = useCallback(() => {
     setRecLoading(true);
     setRecError(null);
-    apiClient.get<ApiResponse<StrategyParams>>('/strategy/recommend')
+    setRecElapsed(0);
+    recTimerRef.current = setInterval(() => setRecElapsed(prev => prev + 1), 1000);
+    apiClient.post<ApiResponse<StrategyParams>>('/finpilot/optimize', {
+      symbol: recInput.symbol,
+      initialCapital: Number(recInput.initial_capital),
+      riskPerTrade: Number(recInput.risk_per_trade),
+      usePrevBarSignal: recInput.use_prev_bar_signal,
+    }, 5 * 60 * 1000)
       .then(res => {
         if (res && typeof res.status === 'number' && res.status < 400 && res.data) {
-          setRecommended(res.data);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const d = res.data as any;
+          setRecommended({
+            symbol:               d.symbol ?? recInput.symbol,
+            adx_threshold:        d.adxThreshold,
+            adx_persist:          d.adxPersist,
+            rsi_long_entry:       d.rsiLongEntry,
+            rsi_short_entry:      d.rsiShortEntry,
+            atr_sl_mult:          d.atrSlMult,
+            atr_tp_mult:          d.atrTpMult,
+            min_hold_bars:        d.minHoldBars,
+            sl_cooldown_bars:     d.slCooldownBars,
+            consec_sl_limit:      d.consecSlLimit,
+            max_dd_stop:          d.maxDdStop,
+            commission:           d.commission,
+            slippage:             d.slippage,
+            risk_per_trade:       d.riskPerTrade,
+            use_prev_bar_signal:  d.usePrevBarSignal,
+            initial_capital:      d.initialCapital,
+            indicator_window:     d.indicatorWindow,
+            trading_days_per_year: d.tradingDaysPerYear,
+            cooldown_bars_left:   d.cooldownBarsLeft ?? 0,
+            consec_sl_count:      d.consecSlCount ?? 0,
+            current_equity:       d.currentEquity ?? 0,
+            peak_equity:          d.peakEquity ?? 0,
+          });
         } else {
           setRecError(res?.message || '알 수 없는 오류가 발생했습니다.');
         }
       })
-      .catch(() => setRecError('서버 연결에 실패했습니다.'))
-      .finally(() => setRecLoading(false));
-  }, []);
+      .catch((err: unknown) => setRecError(err instanceof Error ? err.message : '서버 연결에 실패했습니다.'))
+      .finally(() => {
+        setRecLoading(false);
+        if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
+      });
+  }, [recInput]);
 
   const set = <K extends keyof CustomFormParams>(key: K, value: CustomFormParams[K]) => {
     setParams(prev => ({ ...prev, [key]: value }));
@@ -158,28 +198,15 @@ export default function Strategy() {
     } catch { /* silent */ }
   };
 
+  const isRecInputComplete = !!recInput.symbol && recInput.initial_capital !== '' && recInput.risk_per_trade !== '';
+  const isRecComplete = !!recommended && isRecInputComplete;
+
   const handleApplyRecommended = () => {
+    if (!recommended || !isRecComplete) return;
     setParams(recommended as unknown as CustomFormParams);
     setActiveTab('custom');
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
-  };
-
-  // 추천 전략 저장 (항상 신규 insert)
-  const handleRecSave = async () => {
-    if (!recTitle.trim()) return;
-    const userUid = authStorage.get()?.userUid;
-    if (!userUid) return;
-
-    const dto = strategyToDto(recommended, recTitle.trim(), userUid);
-    try {
-      const res = await apiClient.post<ApiResponse<StrategyConfigDTO>>('/strategy/insertStrategyConfig', dto);
-      if (res.data?.id) setSelectedId(res.data.id);
-      await refreshBoard(userUid);
-      setRecTitle('');
-      setRecSaved(true);
-      setTimeout(() => setRecSaved(false), 2000);
-    } catch { /* silent */ }
   };
 
   return (
@@ -236,41 +263,101 @@ export default function Strategy() {
           <div className="grid grid-cols-2 gap-6 items-start">
             <div className="min-w-0 space-y-6">
               <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={recTitle}
-                  onChange={e => { setRecTitle(e.target.value); setRecSaved(false); }}
-                  placeholder="저장할 설정 제목을 입력하세요"
-                  className="flex-1 px-4 py-2 bg-zinc-800 border border-zinc-600 rounded-lg text-base text-zinc-100 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                />
-                <button onClick={fetchRecommended} disabled={recLoading}
-                  className="px-4 py-2 text-base bg-zinc-800 text-zinc-300 hover:bg-zinc-700 rounded-lg transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50">
-                  <i className={`ri-refresh-line mr-1.5 ${recLoading ? 'animate-spin' : ''}`}></i>새로고침
+                <button onClick={fetchRecommended} disabled={recLoading || !isRecInputComplete}
+                  className="px-4 py-2 text-base bg-zinc-800 text-zinc-300 hover:bg-zinc-700 rounded-lg transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
+                  <i className={`ri-magic-line mr-1.5 ${recLoading ? 'animate-spin' : ''}`}></i>추천받기
                 </button>
-                <button onClick={handleApplyRecommended}
-                  className="px-4 py-2 text-base font-semibold bg-zinc-700 hover:bg-zinc-600 text-zinc-200 rounded-lg transition-colors cursor-pointer whitespace-nowrap">
+                <button onClick={handleApplyRecommended} disabled={!isRecComplete}
+                  className="px-4 py-2 text-base font-semibold bg-zinc-700 hover:bg-zinc-600 text-zinc-200 rounded-lg transition-colors cursor-pointer whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed">
                   <i className="ri-download-line mr-1.5"></i>커스텀에 적용
                 </button>
-                <button onClick={handleRecSave} disabled={!recTitle.trim()}
-                  className={`px-4 py-2 text-base font-semibold rounded-lg transition-colors cursor-pointer whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed ${
-                    recSaved ? 'bg-green-600 text-white' : 'bg-teal-500 hover:bg-teal-400 text-white'
-                  }`}>
-                  {recSaved ? <><i className="ri-check-line mr-1.5"></i>저장됨</> : <><i className="ri-save-line mr-1.5"></i>저장</>}
-                </button>
+              </div>
+
+              {/* 최적화 입력값 */}
+              <div className="bg-zinc-900 rounded-xl border border-zinc-800">
+                <div className="flex items-center gap-2 px-6 py-4 border-b border-zinc-800 bg-zinc-800/40 rounded-t-xl">
+                  <i className="ri-settings-3-line text-teal-400 text-xl"></i>
+                  <h2 className="text-lg font-semibold text-zinc-200">최적화 입력값</h2>
+                  <span className="text-red-400 text-sm ml-1">* 필수 입력</span>
+                </div>
+                <div className="p-6 space-y-4">
+                  {/* 종목 */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-lg font-medium text-zinc-300">종목 <span className="text-red-400">*</span></span>
+                      <div className="ml-auto flex bg-zinc-800 rounded-md p-0.5 gap-0.5">
+                        <button type="button"
+                          onClick={() => { setRecSymbolMode('dropdown'); setRecDropdownValue(''); setRecInput(p => ({ ...p, symbol: '' })); }}
+                          className={`px-3 py-1 text-sm rounded transition-colors cursor-pointer ${recSymbolMode === 'dropdown' ? 'bg-teal-500 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}>
+                          선택
+                        </button>
+                        <button type="button"
+                          onClick={() => { setRecSymbolMode('direct'); setRecInput(p => ({ ...p, symbol: '' })); }}
+                          className={`px-3 py-1 text-sm rounded transition-colors cursor-pointer ${recSymbolMode === 'direct' ? 'bg-teal-500 text-white' : 'text-zinc-400 hover:text-zinc-200'}`}>
+                          직접입력
+                        </button>
+                      </div>
+                    </div>
+                    {recSymbolMode === 'dropdown' ? (
+                      <select value={recDropdownValue}
+                        onChange={e => { setRecDropdownValue(e.target.value); setRecInput(p => ({ ...p, symbol: e.target.value })); }}
+                        className="w-full px-3 py-2.5 border rounded-lg text-lg focus:outline-none transition-colors bg-zinc-800 border-zinc-700 text-zinc-200 focus:ring-2 focus:ring-teal-500 focus:border-transparent">
+                        <option value="" disabled>— 종목을 선택하세요 —</option>
+                        {SYMBOL_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                      </select>
+                    ) : (
+                      <input type="text" value={recInput.symbol}
+                        onChange={e => setRecInput(p => ({ ...p, symbol: e.target.value }))}
+                        placeholder="종목 코드를 입력하세요 (예: 005930.KS)"
+                        className="w-full px-3 py-2.5 border rounded-lg text-lg text-zinc-200 focus:outline-none transition-colors bg-zinc-800 border-zinc-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder-zinc-600" />
+                    )}
+                  </div>
+                  {/* 자본금 / 위험비율 */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <span className="text-lg font-medium text-zinc-300">초기 자본금 (원) <span className="text-red-400">*</span></span>
+                      <input type="number" value={recInput.initial_capital} step={1000000} min={0}
+                        placeholder="값을 입력하세요"
+                        onChange={e => { const v = e.target.value; setRecInput(p => ({ ...p, initial_capital: v === '' ? '' : (parseInt(v) || '') })); }}
+                        className="w-full px-3 py-2.5 border rounded-lg text-lg text-zinc-200 focus:outline-none transition-colors bg-zinc-800 border-zinc-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder-zinc-600" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <span className="text-lg font-medium text-zinc-300">거래당 위험 비율 <span className="text-red-400">*</span></span>
+                      <input type="number" value={recInput.risk_per_trade} step={0.001} min={0}
+                        placeholder="값을 입력하세요"
+                        onChange={e => { const v = e.target.value; setRecInput(p => ({ ...p, risk_per_trade: v === '' ? '' : (parseFloat(v) || '') })); }}
+                        className="w-full px-3 py-2.5 border rounded-lg text-lg text-zinc-200 focus:outline-none transition-colors bg-zinc-800 border-zinc-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder-zinc-600" />
+                    </div>
+                  </div>
+                  {/* 이전 봉 신호 사용 */}
+                  <div className="flex items-center justify-between gap-4 p-4 bg-zinc-800/50 rounded-lg border border-zinc-700/50">
+                    <span className="text-lg font-medium text-zinc-300">이전 봉 신호 사용</span>
+                    <button type="button"
+                      onClick={() => setRecInput(p => ({ ...p, use_prev_bar_signal: !p.use_prev_bar_signal }))}
+                      className={`relative w-11 h-6 rounded-full transition-colors shrink-0 cursor-pointer ${recInput.use_prev_bar_signal ? 'bg-teal-500' : 'bg-zinc-600'}`}>
+                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${recInput.use_prev_bar_signal ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {recError && (
                 <div className="flex items-center gap-2 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-lg">
                   <i className="ri-error-warning-line text-red-400"></i>
-                  <p className="text-sm text-red-400">{recError} — 기본 추천값을 표시합니다.</p>
+                  <p className="text-sm text-red-400">{recError}</p>
                 </div>
               )}
 
               {recLoading ? (
-                <div className="flex items-center justify-center h-48 text-zinc-500">
-                  <i className="ri-loader-4-line animate-spin text-2xl mr-2"></i>추천값 불러오는 중...
+                <div className="flex flex-col items-center justify-center h-48 gap-3 bg-zinc-900 rounded-xl border border-zinc-800">
+                  <i className="ri-loader-4-line animate-spin text-teal-400 text-4xl"></i>
+                  <p className="text-zinc-300 font-medium">최적화 분석 중...</p>
+                  <p className="text-zinc-500 text-sm">
+                    경과 시간: {String(Math.floor(recElapsed / 60)).padStart(2, '0')}:{String(recElapsed % 60).padStart(2, '0')}
+                    &nbsp;/ 최대 5분 소요될 수 있습니다
+                  </p>
                 </div>
-              ) : (
+              ) : recommended && (
                 <ReadOnlyParamForm params={recommended} />
               )}
             </div>

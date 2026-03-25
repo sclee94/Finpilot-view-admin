@@ -615,7 +615,7 @@ export default function TestLog() {
       )}
 
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold text-zinc-100">전략 테스트</h1>
+        <h1 className="text-2xl font-bold text-zinc-100">백테스트</h1>
 
         {/* Applied Strategy Card */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
