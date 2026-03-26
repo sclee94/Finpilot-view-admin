@@ -3,8 +3,9 @@ export const MENU_ITEMS = [
   { path: '/users',     icon: 'ri-user-line',         label: '사용자',    adminOnly: true  },
   { path: '/reports',   icon: 'ri-exchange-line',     label: '거래현황',  adminOnly: false },
   { path: '/strategy',  icon: 'ri-settings-3-line',   label: '전략 설정', adminOnly: false },
-  { path: '/testlog',   icon: 'ri-test-tube-line',    label: '백테스트', adminOnly: false },
-  { path: '/logs',      icon: 'ri-file-list-line',    label: '로그',      adminOnly: true  },
+  { path: '/testlog',   icon: 'ri-test-tube-line',    label: '백테스트',  adminOnly: false },
+  { path: '/live',      icon: 'ri-live-line',          label: '실전투자',  adminOnly: false },
+  { path: '/logs',      icon: 'ri-file-list-line',     label: '로그',      adminOnly: true  },
 ];
 
 export const LOG_LEVELS = {

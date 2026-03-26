@@ -46,7 +46,14 @@ const PARAM_SUMMARY_ROWS: { label: string; key: keyof StrategyParams; format?: (
   ],
 ];
 
-const MODAL_SECTIONS: { title: string; icon: string; rows: { label: string; key: keyof StrategyParams; format?: (v: number) => string }[] }[] = [
+const LIVE_SUMMARY_ROWS: { label: string; key: keyof StrategyParams; format?: (v: number) => string }[] = [
+  { label: '쿨다운 잔여 봉',  key: 'cooldown_bars_left' },
+  { label: '연속 손절 횟수',  key: 'consec_sl_count' },
+  { label: '현재 자산',       key: 'current_equity',  format: v => v.toFixed(6) },
+  { label: '최고 자산',       key: 'peak_equity',     format: v => v.toFixed(6) },
+];
+
+const MODAL_SECTIONS: { title: string; icon: string; isLive?: boolean; rows: { label: string; key: keyof StrategyParams; format?: (v: number) => string }[] }[] = [
   {
     title: '자본 설정', icon: 'ri-funds-line',
     rows: [
@@ -93,6 +100,15 @@ const MODAL_SECTIONS: { title: string; icon: string; rows: { label: string; key:
       { label: '연간 거래일 수', key: 'trading_days_per_year' },
     ],
   },
+  {
+    title: '실전투자 전용', icon: 'ri-live-line', isLive: true,
+    rows: [
+      { label: '쿨다운 잔여 봉',  key: 'cooldown_bars_left' },
+      { label: '연속 손절 횟수',  key: 'consec_sl_count' },
+      { label: '현재 자산',       key: 'current_equity',  format: v => v.toFixed(6) },
+      { label: '최고 자산',       key: 'peak_equity',     format: v => v.toFixed(6) },
+    ],
+  },
 ];
 
 function ParamDetailModal({ item, onClose }: { item: BoardItem; onClose: () => void }) {
@@ -133,23 +149,33 @@ function ParamDetailModal({ item, onClose }: { item: BoardItem; onClose: () => v
 
         <div className="px-6 pb-6 pt-3 space-y-4">
           {MODAL_SECTIONS.map(section => (
-            <div key={section.title} className="bg-zinc-800/50 rounded-xl border border-zinc-700/50 overflow-hidden">
-              <div className="flex items-center gap-2 px-5 py-3.5 border-b border-zinc-700/50">
-                <i className={`${section.icon} text-teal-400 text-lg`}></i>
-                <span className="text-base font-semibold text-zinc-200">{section.title}</span>
+            <div
+              key={section.title}
+              className={`rounded-xl border overflow-hidden ${
+                section.isLive
+                  ? 'bg-amber-500/5 border-amber-500/30'
+                  : 'bg-zinc-800/50 border-zinc-700/50'
+              }`}
+            >
+              <div className={`flex items-center gap-2 px-5 py-3.5 border-b ${section.isLive ? 'border-amber-500/30' : 'border-zinc-700/50'}`}>
+                <i className={`${section.icon} text-lg ${section.isLive ? 'text-amber-400' : 'text-teal-400'}`}></i>
+                <span className={`text-base font-semibold ${section.isLive ? 'text-amber-300' : 'text-zinc-200'}`}>{section.title}</span>
+                {section.isLive && (
+                  <span className="text-xs text-amber-500/70 ml-1">백테스트에는 사용되지 않습니다</span>
+                )}
               </div>
-              <div className="grid grid-cols-2 divide-x divide-zinc-700/50">
+              <div className={`grid grid-cols-2 divide-x ${section.isLive ? 'divide-amber-500/20' : 'divide-zinc-700/50'}`}>
                 {section.rows.map(({ label, key, format }, i) => {
                   const val = item.params[key] as number;
                   const display = format ? format(val) : String(val);
                   return (
-                    <div key={key} className={`flex items-center justify-between px-5 py-4 ${i >= 2 ? 'border-t border-zinc-700/50' : ''}`}>
+                    <div key={key} className={`flex items-center justify-between px-5 py-4 ${i >= 2 ? `border-t ${section.isLive ? 'border-amber-500/20' : 'border-zinc-700/50'}` : ''}`}>
                       <span className="text-base text-zinc-400">{label}</span>
-                      <span className="text-base font-semibold text-zinc-100">{display}</span>
+                      <span className={`text-base font-semibold ${section.isLive ? 'text-amber-100' : 'text-zinc-100'}`}>{display}</span>
                     </div>
                   );
                 })}
-                {section.rows.length % 2 !== 0 && <div className="border-t border-zinc-700/50" />}
+                {section.rows.length % 2 !== 0 && <div className={`border-t ${section.isLive ? 'border-amber-500/20' : 'border-zinc-700/50'}`} />}
               </div>
             </div>
           ))}
@@ -213,6 +239,25 @@ export default function BoardPanel({ board, selectedId, appliedItem, loading, on
                 <div className="flex items-center justify-between col-span-2">
                   <span className="text-sm text-zinc-500">이전 봉 신호</span>
                   <span className="text-sm font-medium text-zinc-200">{appliedItem.params.use_prev_bar_signal ? 'ON' : 'OFF'}</span>
+                </div>
+              </div>
+              {/* 실전투자 전용 */}
+              <div className="mt-3 pt-3 border-t border-amber-500/20">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <i className="ri-live-line text-amber-400 text-xs"></i>
+                  <span className="text-xs font-semibold text-amber-400">실전투자 전용</span>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                  {LIVE_SUMMARY_ROWS.map(({ label, key, format }) => {
+                    const val = appliedItem.params[key] as number;
+                    const display = format ? format(val) : String(val);
+                    return (
+                      <div key={key} className="flex items-center justify-between">
+                        <span className="text-sm text-zinc-500">{label}</span>
+                        <span className="text-sm font-medium text-amber-200">{display}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>

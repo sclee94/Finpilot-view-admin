@@ -111,10 +111,10 @@ export const EMPTY_CUSTOM: CustomFormParams = {
   initial_capital:       '',
   indicator_window:      '',
   trading_days_per_year: '',
-  cooldown_bars_left:    '',
-  consec_sl_count:       '',
-  current_equity:        '',
-  peak_equity:           '',
+  cooldown_bars_left:    0,
+  consec_sl_count:       0,
+  current_equity:        1,
+  peak_equity:           1,
 };
 
 export const DEFAULT_PARAMS: StrategyParams = {
