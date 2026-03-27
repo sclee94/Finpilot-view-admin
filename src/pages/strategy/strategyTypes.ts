@@ -45,11 +45,6 @@ export interface CustomFormParams {
   initial_capital:       NumVal;
   indicator_window:      NumVal;
   trading_days_per_year: NumVal;
-  // 실전투자 전용
-  cooldown_bars_left:    NumVal;
-  consec_sl_count:       NumVal;
-  current_equity:        NumVal;
-  peak_equity:           NumVal;
 }
 
 export interface BoardItem {
@@ -111,10 +106,6 @@ export const EMPTY_CUSTOM: CustomFormParams = {
   initial_capital:       '',
   indicator_window:      '',
   trading_days_per_year: '',
-  cooldown_bars_left:    0,
-  consec_sl_count:       0,
-  current_equity:        1,
-  peak_equity:           1,
 };
 
 export const DEFAULT_PARAMS: StrategyParams = {
@@ -214,10 +205,6 @@ export function strategyToDto(
     slippage:            params.slippage,
     indicatorWindow:     params.indicator_window,
     tradingDaysPerYear:  params.trading_days_per_year,
-    cooldownBarsLeft:    params.cooldown_bars_left,
-    consecSlCount:       params.consec_sl_count,
-    currentEquity:       params.current_equity,
-    peakEquity:          params.peak_equity,
   };
 }
 
@@ -227,11 +214,16 @@ export function toStrategyParams(form: CustomFormParams): StrategyParams | null 
     'atr_sl_mult', 'atr_tp_mult', 'min_hold_bars', 'sl_cooldown_bars',
     'consec_sl_limit', 'max_dd_stop', 'commission', 'slippage',
     'risk_per_trade', 'initial_capital', 'indicator_window', 'trading_days_per_year',
-    'cooldown_bars_left', 'consec_sl_count', 'current_equity', 'peak_equity',
   ];
   if (!form.symbol) return null;
   for (const k of numFields) {
     if (form[k] === '') return null;
   }
-  return form as unknown as StrategyParams;
+  return {
+    ...form,
+    cooldown_bars_left: 0,
+    consec_sl_count:    0,
+    current_equity:     1.0,
+    peak_equity:        1.0,
+  } as unknown as StrategyParams;
 }

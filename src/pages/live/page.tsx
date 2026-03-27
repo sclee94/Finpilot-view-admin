@@ -5,12 +5,17 @@ import { authStorage } from '../../utils/auth';
 import type { ApiResponse } from '../../types/index';
 import type { StrategyConfigDTO, BoardItem } from '../strategy/strategyTypes';
 import { dtoToBoardItem } from '../strategy/strategyTypes';
+import { getSymbolName } from '../../constants/symbolNames';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface LiveStatus {
-  id:               number;
+  id:               string;
   strategyConfigId: number;
+  mode:             'LIVE' | 'PAPER';
+  symbol:           string;
+  active:           number;
+  strategyConfig:   { id: number; title: string } | null;
   currentPosition:  'NONE' | 'LONG' | 'SHORT';
   barsHeld:         number;
   stopPrice:        number | null;
@@ -63,10 +68,27 @@ function positionBadge(pos: LiveStatus['currentPosition']) {
 
 export default function Live() {
   const [appliedItem, setAppliedItem] = useState<BoardItem | null>(null);
-  const [investing, setInvesting]     = useState(false);
-  const [liveStatus, setLiveStatus]   = useState<LiveStatus | null>(null);
+  const [investing, setInvesting]       = useState(false);
+  const [sessionList, setSessionList]   = useState<LiveStatus[]>([]);
   const [statusLoading, setStatusLoading] = useState(false);
   const [errorMessage, setErrorMessage]   = useState('');
+
+  // 투자 모드 (기본값 없음)
+  const [investMode, setInvestMode] = useState<'LIVE' | 'PAPER' | null>(null);
+
+  // 진행 섹션 탭
+  const [sessionTab, setSessionTab] = useState<'LIVE' | 'PAPER'>('LIVE');
+
+  // 중지/재실행/삭제 확인 팝업
+  const [confirmAction, setConfirmAction] = useState<{ id: string; type: 'stop' | 'resume' | 'delete' } | null>(null);
+
+  // 실전투자 전용 입력값 (기본값 0)
+  const [liveParams, setLiveParams] = useState({
+    cooldownBarsLeft: 0,
+    consecSlCount:    0,
+    currentEquity:    0,
+    peakEquity:       0,
+  });
 
   // Applied strategy — API 조회
   const fetchApplied = useCallback(async () => {
@@ -89,15 +111,17 @@ export default function Live() {
     return () => window.removeEventListener('strategyAppliedChanged', handleCustom);
   }, [fetchApplied]);
 
-  // 현재 섹션 상태 조회
-  const fetchLiveStatus = useCallback(async (strategyConfigId: number) => {
+  // 진행 세션 목록 조회
+  const fetchSessionList = useCallback(async () => {
+    const userUid = authStorage.get()?.userUid;
+    if (!userUid) return;
     setStatusLoading(true);
     try {
-      const res = await apiClient.post<ApiResponse<LiveStatus>>(
-        '/live/getStatus',
-        { strategyConfigId },
+      const res = await apiClient.post<ApiResponse<LiveStatus[]>>(
+        '/trade/getTradingSessionList',
+        { userUid },
       );
-      setLiveStatus(res.data ?? null);
+      setSessionList(res.data ?? []);
     } catch { /* silent */ } finally {
       setStatusLoading(false);
     }
@@ -105,46 +129,28 @@ export default function Live() {
 
   // 투자하기
   const handleInvest = async () => {
-    if (!appliedItem || investing) return;
+    if (!appliedItem || investing || !investMode) return;
     const userUid = authStorage.get()?.userUid;
     if (!userUid) return;
 
     setInvesting(true);
     setErrorMessage('');
     try {
-      const p = appliedItem.params;
       const res = await apiClient.post<ApiResponse<LiveStatus>>(
-        '/trade/execute',
+        '/trade/insertTradingSession',
         {
           userUid,
-          id:                 appliedItem.id,
-          title:              appliedItem.title,
-          symbol:             p.symbol,
-          adxThreshold:       p.adx_threshold,
-          adxPersist:         p.adx_persist,
-          rsiLongEntry:       p.rsi_long_entry,
-          rsiShortEntry:      p.rsi_short_entry,
-          atrSlMult:          p.atr_sl_mult,
-          atrTpMult:          p.atr_tp_mult,
-          minHoldBars:        p.min_hold_bars,
-          slCooldownBars:     p.sl_cooldown_bars,
-          consecSlLimit:      p.consec_sl_limit,
-          maxDdStop:          p.max_dd_stop,
-          commission:         p.commission,
-          slippage:           p.slippage,
-          riskPerTrade:       p.risk_per_trade,
-          usePrevBarSignal:   p.use_prev_bar_signal,
-          initialCapital:     p.initial_capital,
-          indicatorWindow:    p.indicator_window,
-          tradingDaysPerYear: p.trading_days_per_year,
-          cooldownBarsLeft:   p.cooldown_bars_left,
-          consecSlCount:      p.consec_sl_count,
-          currentEquity:      p.current_equity,
-          peakEquity:         p.peak_equity,
+          strategyConfigId: appliedItem.id,
+          symbol:           appliedItem.params.symbol,
+          mode:             investMode,
+          cooldownBarsLeft: liveParams.cooldownBarsLeft,
+          consecSlCount:    liveParams.consecSlCount,
+          currentEquity:    liveParams.currentEquity,
+          peakEquity:       liveParams.peakEquity,
         },
       );
       if (res.data) {
-        setLiveStatus(res.data);
+        await fetchSessionList();
       } else {
         setErrorMessage(res.message || '투자 시작에 실패했습니다.');
       }
@@ -155,17 +161,96 @@ export default function Live() {
     }
   };
 
-  // 적용된 전략이 바뀌면 상태 새로 조회
+  // 마운트 시 진행 세션 목록 조회
   useEffect(() => {
-    if (appliedItem) {
-      fetchLiveStatus(appliedItem.id);
-    } else {
-      setLiveStatus(null);
+    fetchSessionList();
+  }, [fetchSessionList]);
+
+  // 세션 중지 (active: 0)
+  const handleStopSession = async (id: string) => {
+    try {
+      await apiClient.put('/trade/updateTradingSession', { id, active: 0 });
+      await fetchSessionList();
+    } catch {
+      setErrorMessage('세션 중지에 실패했습니다.');
     }
-  }, [appliedItem, fetchLiveStatus]);
+  };
+
+  // 세션 재실행 (active: 1)
+  const handleResumeSession = async (id: string) => {
+    try {
+      await apiClient.put('/trade/updateTradingSession', { id, active: 1 });
+      await fetchSessionList();
+    } catch {
+      setErrorMessage('세션 재실행에 실패했습니다.');
+    }
+  };
+
+  // 세션 삭제
+  const handleDeleteSession = async (id: string) => {
+    try {
+      await apiClient.delete('/trade/deleteTradingSession', { id });
+      await fetchSessionList();
+    } catch {
+      setErrorMessage('세션 삭제에 실패했습니다.');
+    }
+  };
 
   return (
     <PageLayout>
+      {/* 중지/재실행 확인 팝업 */}
+      {confirmAction && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-black/50">
+          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                confirmAction.type === 'stop' ? 'bg-amber-500/20' : confirmAction.type === 'resume' ? 'bg-teal-500/20' : 'bg-red-500/20'
+              }`}>
+                <i className={`text-lg ${
+                  confirmAction.type === 'stop' ? 'ri-stop-line text-amber-400' : confirmAction.type === 'resume' ? 'ri-play-line text-teal-400' : 'ri-delete-bin-line text-red-400'
+                }`}></i>
+              </div>
+              <div>
+                <p className="text-base font-semibold text-zinc-100">
+                  세션 {confirmAction.type === 'stop' ? '중지' : confirmAction.type === 'resume' ? '재실행' : '삭제'}
+                </p>
+                <p className="text-sm text-zinc-400 mt-0.5">
+                  {confirmAction.type === 'stop'
+                    ? '해당 세션을 중지하시겠습니까?'
+                    : confirmAction.type === 'resume'
+                    ? '해당 세션을 재실행하시겠습니까?'
+                    : '해당 세션을 삭제하시겠습니까?'}
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => setConfirmAction(null)}
+                className="flex-1 py-2.5 text-sm font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg transition-colors cursor-pointer"
+              >
+                취소
+              </button>
+              <button
+                onClick={async () => {
+                  const { id, type } = confirmAction;
+                  setConfirmAction(null);
+                  if (type === 'stop') await handleStopSession(id);
+                  else if (type === 'resume') await handleResumeSession(id);
+                  else await handleDeleteSession(id);
+                }}
+                className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-colors cursor-pointer text-white ${
+                  confirmAction.type === 'stop' ? 'bg-amber-500 hover:bg-amber-400'
+                  : confirmAction.type === 'resume' ? 'bg-teal-500 hover:bg-teal-400'
+                  : 'bg-red-500 hover:bg-red-400'
+                }`}
+              >
+                {confirmAction.type === 'stop' ? '중지' : confirmAction.type === 'resume' ? '재실행' : '삭제'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 오류 팝업 */}
       {errorMessage && (
         <div
@@ -222,15 +307,30 @@ export default function Live() {
                   <span className="text-xs text-amber-500/60 ml-1">백테스트에는 사용되지 않습니다</span>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {LIVE_PARAM_LABELS.map(({ key, label, format }) => {
-                    const val = appliedItem.params[key];
-                    return (
-                      <div key={key} className="bg-amber-500/10 rounded-xl px-4 py-3">
-                        <p className="text-xs text-amber-500/70 mb-1">{label}</p>
-                        <p className="text-sm font-semibold text-amber-200">{format ? format(val) : String(val)}</p>
-                      </div>
-                    );
-                  })}
+                  {([
+                    { key: 'cooldownBarsLeft', label: '쿨다운 잔여 봉',  step: 1,    isInt: true },
+                    { key: 'consecSlCount',    label: '연속 손절 횟수',  step: 1,    isInt: true },
+                    { key: 'currentEquity',    label: '현재 자산',       step: 0.01, isInt: false },
+                    { key: 'peakEquity',       label: '최고 자산',       step: 0.01, isInt: false },
+                  ] as const).map(({ key, label, step, isInt }) => (
+                    <div key={key} className="bg-amber-500/10 rounded-xl px-4 py-3">
+                      <p className="text-xs text-amber-500/70 mb-1.5">{label}</p>
+                      <input
+                        type="number"
+                        value={liveParams[key]}
+                        step={step}
+                        min={0}
+                        onChange={e => {
+                          const v = e.target.value;
+                          setLiveParams(prev => ({
+                            ...prev,
+                            [key]: isInt ? (parseInt(v) || 0) : (parseFloat(v) || 0),
+                          }));
+                        }}
+                        className="w-full bg-amber-500/10 border border-amber-500/30 rounded-lg px-2 py-1 text-sm font-semibold text-amber-200 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                      />
+                    </div>
+                  ))}
                 </div>
               </div>
             </>
@@ -241,13 +341,38 @@ export default function Live() {
             </div>
           )}
 
+          {/* 투자 모드 선택 */}
+          <div className="flex items-center gap-3 mb-4">
+            <span className="text-sm font-medium text-zinc-400">투자 모드</span>
+            <div className="flex bg-zinc-800 rounded-lg p-1 gap-1">
+              <button
+                type="button"
+                onClick={() => setInvestMode('LIVE')}
+                className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-colors cursor-pointer ${
+                  investMode === 'LIVE' ? 'bg-amber-500 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                <i className="ri-live-line mr-1.5"></i>실전투자
+              </button>
+              <button
+                type="button"
+                onClick={() => setInvestMode('PAPER')}
+                className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-colors cursor-pointer ${
+                  investMode === 'PAPER' ? 'bg-amber-500 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                <i className="ri-test-tube-line mr-1.5"></i>모의투자
+              </button>
+            </div>
+          </div>
+
           <button
             onClick={handleInvest}
-            disabled={!appliedItem || investing}
+            disabled={!appliedItem || investing || !investMode}
             className={`flex items-center gap-2 px-6 py-3 rounded-xl text-base font-semibold transition-colors ${
-              !appliedItem || investing
+              !appliedItem || investing || !investMode
                 ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
-                : 'bg-amber-500 hover:bg-amber-400 text-white cursor-pointer'
+                : 'bg-teal-500 hover:bg-teal-400 text-white cursor-pointer'
             }`}
           >
             {investing
@@ -257,101 +382,133 @@ export default function Live() {
           </button>
         </div>
 
-        {/* 현재 섹션 */}
-        {(liveStatus || statusLoading) && (
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-            <div className="flex items-center justify-between mb-5">
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-semibold text-zinc-200">현재 섹션</h2>
-                {liveStatus && (
-                  <span className="flex items-center gap-1.5 text-xs text-zinc-500">
-                    <i className="ri-time-line"></i>
-                    15분마다 업데이트
-                  </span>
-                )}
+        {/* 진행 섹션 */}
+        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-3">
+              <h2 className="text-lg font-semibold text-zinc-200">진행 섹션</h2>
+              <div className="flex bg-zinc-800 rounded-lg p-1 gap-1">
+                {(['LIVE', 'PAPER'] as const).map(tab => {
+                  const count = sessionList.filter(s => s.mode === tab).length;
+                  return (
+                    <button
+                      key={tab}
+                      onClick={() => setSessionTab(tab)}
+                      className={`px-3 py-1 text-sm font-semibold rounded-md transition-colors cursor-pointer ${
+                        sessionTab === tab ? 'bg-amber-500 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                      }`}
+                    >
+                      {tab === 'LIVE' ? '실전투자' : '모의투자'}
+                      <span className={`ml-1.5 text-xs ${sessionTab === tab ? 'text-amber-100' : 'text-zinc-600'}`}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
-              {liveStatus && (
-                <button
-                  onClick={() => appliedItem && fetchLiveStatus(appliedItem.id)}
-                  className="text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
-                  title="새로고침"
-                >
-                  <i className={`ri-refresh-line ${statusLoading ? 'animate-spin' : ''}`}></i>
-                </button>
-              )}
             </div>
-
-            {statusLoading && !liveStatus ? (
-              <div className="flex items-center justify-center py-10">
-                <i className="ri-loader-4-line animate-spin text-teal-400 text-3xl"></i>
-              </div>
-            ) : liveStatus ? (
-              <div className="space-y-4">
-                {/* 포지션 + 보유 봉 */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="bg-zinc-800 rounded-xl px-4 py-3">
-                    <p className="text-xs text-zinc-500 mb-1.5">현재 포지션</p>
-                    {positionBadge(liveStatus.currentPosition)}
-                  </div>
-                  <div className="bg-zinc-800 rounded-xl px-4 py-3">
-                    <p className="text-xs text-zinc-500 mb-1">보유 봉 수</p>
-                    <p className="text-sm font-semibold text-zinc-200">{liveStatus.barsHeld}</p>
-                  </div>
-                  <div className="bg-zinc-800 rounded-xl px-4 py-3">
-                    <p className="text-xs text-zinc-500 mb-1">손절가 (Stop)</p>
-                    <p className="text-sm font-semibold text-zinc-200">
-                      {liveStatus.stopPrice != null ? liveStatus.stopPrice.toLocaleString() : '-'}
-                    </p>
-                  </div>
-                  <div className="bg-zinc-800 rounded-xl px-4 py-3">
-                    <p className="text-xs text-zinc-500 mb-1">익절가 (TP)</p>
-                    <p className="text-sm font-semibold text-zinc-200">
-                      {liveStatus.tpPrice != null ? liveStatus.tpPrice.toLocaleString() : '-'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* 리스크 관리 상태 */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="bg-zinc-800 rounded-xl px-4 py-3">
-                    <p className="text-xs text-zinc-500 mb-1">쿨다운 잔여 봉</p>
-                    <p className={`text-sm font-semibold ${liveStatus.cooldownBarsLeft > 0 ? 'text-amber-400' : 'text-zinc-200'}`}>
-                      {liveStatus.cooldownBarsLeft}
-                    </p>
-                  </div>
-                  <div className="bg-zinc-800 rounded-xl px-4 py-3">
-                    <p className="text-xs text-zinc-500 mb-1">연속 손절 횟수</p>
-                    <p className={`text-sm font-semibold ${liveStatus.consecSlCount > 0 ? 'text-red-400' : 'text-zinc-200'}`}>
-                      {liveStatus.consecSlCount}
-                    </p>
-                  </div>
-                  <div className="bg-zinc-800 rounded-xl px-4 py-3">
-                    <p className="text-xs text-zinc-500 mb-1">현재 자산</p>
-                    <p className={`text-sm font-semibold ${liveStatus.currentEquity >= 1 ? 'text-teal-400' : 'text-red-400'}`}>
-                      {liveStatus.currentEquity.toFixed(6)}
-                    </p>
-                  </div>
-                  <div className="bg-zinc-800 rounded-xl px-4 py-3">
-                    <p className="text-xs text-zinc-500 mb-1">최고 자산</p>
-                    <p className="text-sm font-semibold text-zinc-200">
-                      {liveStatus.peakEquity.toFixed(6)}
-                    </p>
-                  </div>
-                </div>
-
-                {/* 메타 */}
-                <div className="flex items-center gap-4 pt-1 flex-wrap">
-                  <span className="text-xs text-zinc-600">
-                    생성: {liveStatus.createdAt}
-                  </span>
-                  <span className="text-xs text-zinc-600">
-                    마지막 업데이트: {liveStatus.lastUpdatedAt}
-                  </span>
-                </div>
-              </div>
-            ) : null}
+            <button
+              onClick={fetchSessionList}
+              className="text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
+              title="새로고침"
+            >
+              <i className={`ri-refresh-line ${statusLoading ? 'animate-spin' : ''}`}></i>
+            </button>
           </div>
-        )}
+
+          {statusLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <i className="ri-loader-4-line animate-spin text-teal-400 text-3xl"></i>
+            </div>
+          ) : sessionList.filter(s => s.mode === sessionTab).length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 text-zinc-600">
+              <i className="ri-inbox-line text-4xl mb-2"></i>
+              <p className="text-sm">진행 중인 세션이 없습니다</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {sessionList.filter(s => s.mode === sessionTab).map(session => (
+                <div key={session.id} className="bg-zinc-800/60 border border-zinc-700/50 rounded-xl p-4 space-y-3">
+                  {/* 헤더 */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-zinc-200">
+                        {getSymbolName(session.symbol)}
+                        <span className="ml-1 text-xs text-zinc-500">({session.symbol})</span>
+                      </span>
+                      <span className="text-xs text-zinc-200 bg-zinc-700 border border-zinc-600 px-2 py-0.5 rounded-md">
+                        {session.strategyConfig?.title || '-'}
+                      </span>
+                      </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-zinc-300">{session.lastUpdatedAt}</span>
+                      {session.active === 1 ? (
+                        <button
+                          onClick={() => setConfirmAction({ id: session.id, type: 'stop' })}
+                          className="px-2.5 py-1 text-xs font-semibold bg-amber-500/15 text-amber-400 hover:bg-amber-500/30 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <i className="ri-stop-line mr-1"></i>중지
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmAction({ id: session.id, type: 'resume' })}
+                          className="px-2.5 py-1 text-xs font-semibold bg-teal-500/15 text-teal-400 hover:bg-teal-500/30 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <i className="ri-play-line mr-1"></i>재실행
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setConfirmAction({ id: session.id, type: 'delete' })}
+                        className="px-2.5 py-1 text-xs font-semibold bg-red-500/15 text-red-400 hover:bg-red-500/30 rounded-lg transition-colors cursor-pointer"
+                      >
+                        <i className="ri-delete-bin-line mr-1"></i>삭제
+                      </button>
+                    </div>
+                  </div>
+                  {/* 세션 데이터 4×2 */}
+                  <div className="grid grid-cols-4 gap-2">
+                    <div className="bg-zinc-800 rounded-lg px-3 py-2">
+                      <p className="text-xs text-zinc-400 mb-1.5">현재 포지션</p>
+                      {positionBadge(session.currentPosition)}
+                    </div>
+                    <div className="bg-zinc-800 rounded-lg px-3 py-2">
+                      <p className="text-xs text-zinc-400 mb-1">보유 봉 수</p>
+                      <p className="text-sm font-semibold text-white">{session.barsHeld}</p>
+                    </div>
+                    <div className="bg-zinc-800 rounded-lg px-3 py-2">
+                      <p className="text-xs text-zinc-400 mb-1">손절가 (Stop)</p>
+                      <p className="text-sm font-semibold text-white">
+                        {session.stopPrice != null ? session.stopPrice.toLocaleString() : '-'}
+                      </p>
+                    </div>
+                    <div className="bg-zinc-800 rounded-lg px-3 py-2">
+                      <p className="text-xs text-zinc-400 mb-1">익절가 (TP)</p>
+                      <p className="text-sm font-semibold text-white">
+                        {session.tpPrice != null ? session.tpPrice.toLocaleString() : '-'}
+                      </p>
+                    </div>
+                    <div className="bg-zinc-800 rounded-lg px-3 py-2">
+                      <p className="text-xs text-zinc-400 mb-1">쿨다운 잔여 봉</p>
+                      <p className="text-sm font-semibold text-white">{session.cooldownBarsLeft}</p>
+                    </div>
+                    <div className="bg-zinc-800 rounded-lg px-3 py-2">
+                      <p className="text-xs text-zinc-400 mb-1">연속 손절 횟수</p>
+                      <p className="text-sm font-semibold text-white">{session.consecSlCount}</p>
+                    </div>
+                    <div className="bg-zinc-800 rounded-lg px-3 py-2">
+                      <p className="text-xs text-zinc-400 mb-1">현재 자산</p>
+                      <p className="text-sm font-semibold text-white">{session.currentEquity.toFixed(6)}</p>
+                    </div>
+                    <div className="bg-zinc-800 rounded-lg px-3 py-2">
+                      <p className="text-xs text-zinc-400 mb-1">최고 자산</p>
+                      <p className="text-sm font-semibold text-white">{session.peakEquity.toFixed(6)}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </PageLayout>
   );

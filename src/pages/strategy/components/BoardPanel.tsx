@@ -46,12 +46,6 @@ const PARAM_SUMMARY_ROWS: { label: string; key: keyof StrategyParams; format?: (
   ],
 ];
 
-const LIVE_SUMMARY_ROWS: { label: string; key: keyof StrategyParams; format?: (v: number) => string }[] = [
-  { label: '쿨다운 잔여 봉',  key: 'cooldown_bars_left' },
-  { label: '연속 손절 횟수',  key: 'consec_sl_count' },
-  { label: '현재 자산',       key: 'current_equity',  format: v => v.toFixed(6) },
-  { label: '최고 자산',       key: 'peak_equity',     format: v => v.toFixed(6) },
-];
 
 const MODAL_SECTIONS: { title: string; icon: string; isLive?: boolean; rows: { label: string; key: keyof StrategyParams; format?: (v: number) => string }[] }[] = [
   {
@@ -98,15 +92,6 @@ const MODAL_SECTIONS: { title: string; icon: string; isLive?: boolean; rows: { l
     rows: [
       { label: '지표 룩백 기간', key: 'indicator_window' },
       { label: '연간 거래일 수', key: 'trading_days_per_year' },
-    ],
-  },
-  {
-    title: '실전투자 전용', icon: 'ri-live-line', isLive: true,
-    rows: [
-      { label: '쿨다운 잔여 봉',  key: 'cooldown_bars_left' },
-      { label: '연속 손절 횟수',  key: 'consec_sl_count' },
-      { label: '현재 자산',       key: 'current_equity',  format: v => v.toFixed(6) },
-      { label: '최고 자산',       key: 'peak_equity',     format: v => v.toFixed(6) },
     ],
   },
 ];
@@ -239,25 +224,6 @@ export default function BoardPanel({ board, selectedId, appliedItem, loading, on
                 <div className="flex items-center justify-between col-span-2">
                   <span className="text-sm text-zinc-500">이전 봉 신호</span>
                   <span className="text-sm font-medium text-zinc-200">{appliedItem.params.use_prev_bar_signal ? 'ON' : 'OFF'}</span>
-                </div>
-              </div>
-              {/* 실전투자 전용 */}
-              <div className="mt-3 pt-3 border-t border-amber-500/20">
-                <div className="flex items-center gap-1.5 mb-2">
-                  <i className="ri-live-line text-amber-400 text-xs"></i>
-                  <span className="text-xs font-semibold text-amber-400">실전투자 전용</span>
-                </div>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-                  {LIVE_SUMMARY_ROWS.map(({ label, key, format }) => {
-                    const val = appliedItem.params[key] as number;
-                    const display = format ? format(val) : String(val);
-                    return (
-                      <div key={key} className="flex items-center justify-between">
-                        <span className="text-sm text-zinc-500">{label}</span>
-                        <span className="text-sm font-medium text-amber-200">{display}</span>
-                      </div>
-                    );
-                  })}
                 </div>
               </div>
             </div>

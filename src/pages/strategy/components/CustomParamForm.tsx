@@ -114,24 +114,6 @@ export default function CustomParamForm({ params, onChange }: CustomParamFormPro
         </div>
       </Section>
 
-      {/* 실전투자 전용 */}
-      <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-4">
-        <div className="flex items-center gap-2">
-          <i className="ri-live-line text-amber-400 text-base"></i>
-          <span className="text-sm font-semibold text-amber-400">실전투자 전용</span>
-          <span className="text-xs text-zinc-500 ml-1">백테스트에는 사용되지 않습니다</span>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <NumberField label="쿨다운 잔여 봉 수" desc="현재 쿨다운 남은 봉 수"
-            value={params.cooldown_bars_left} step={1} min={0} isInt onChange={v => set('cooldown_bars_left', v)} />
-          <NumberField label="연속 손절 횟수" desc="현재까지 연속 손절 횟수"
-            value={params.consec_sl_count} step={1} min={0} isInt onChange={v => set('consec_sl_count', v)} />
-          <NumberField label="현재 자산" desc="실전 운용 중인 현재 자산 (배율)"
-            value={params.current_equity} step={0.01} min={0} onChange={v => set('current_equity', v)} />
-          <NumberField label="최고 자산" desc="실전 운용 중 기록된 최고 자산 (배율)"
-            value={params.peak_equity} step={0.01} min={0} onChange={v => set('peak_equity', v)} />
-        </div>
-      </div>
     </div>
   );
 }
