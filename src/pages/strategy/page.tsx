@@ -12,7 +12,6 @@ import {
   dtoToBoardItem, strategyToDto, toStrategyParams,
 } from './strategyTypes';
 import CustomParamForm from './components/CustomParamForm';
-import ReadOnlyParamForm from './components/ReadOnlyParamForm';
 import BoardPanel from './components/BoardPanel';
 import { TabButton } from './components/StrategyFormFields';
 import type { StrategyParams, NumVal } from './strategyTypes';
@@ -375,7 +374,13 @@ export default function Strategy() {
                   </p>
                 </div>
               ) : recommended && (
-                <ReadOnlyParamForm params={recommended} />
+                <div className="flex items-center gap-3 px-5 py-4 bg-teal-500/10 border border-teal-500/30 rounded-xl">
+                  <i className="ri-check-double-line text-teal-400 text-2xl shrink-0"></i>
+                  <div>
+                    <p className="text-teal-300 font-semibold">추천 완료!</p>
+                    <p className="text-zinc-400 text-sm mt-0.5">위의 <span className="text-teal-400 font-medium">커스텀에 적용</span> 버튼을 눌러 커스텀 탭에서 설정을 확인하세요.</p>
+                  </div>
+                </div>
               )}
             </div>
             <BoardPanel

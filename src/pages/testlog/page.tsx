@@ -4,6 +4,7 @@ import { apiClient } from '../../api/apiClient';
 import { authStorage } from '../../utils/auth';
 import { PERMISSIONS } from '../../constants';
 import type { ApiResponse } from '../../types/index';
+import { getSymbolName } from '../../constants/symbolNames';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -182,7 +183,7 @@ function TradeDetailModal({ result, results, onClose }: {
         {/* Header */}
         <div className="flex items-start justify-between px-6 py-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
           <div>
-            <h2 className="text-xl font-bold text-white">{result.symbol} 백테스트 결과</h2>
+            <h2 className="text-xl font-bold text-white">{getSymbolName(result.symbol)} <span className="text-zinc-300 text-base font-normal">({result.symbol})</span> 백테스트 결과</h2>
             <div className="flex items-center gap-3 mt-1 flex-wrap">
               <span className="text-xs text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded">
                 {result.periodStart} ~ {result.periodEnd}
@@ -239,10 +240,13 @@ function TradeDetailModal({ result, results, onClose }: {
                           {isCurrent && <span className="ml-2 text-xs text-teal-400 font-medium">현재</span>}
                           {isSelected && <span className="ml-2 text-xs text-blue-400 font-medium">비교 대상</span>}
                         </td>
-                        <td className="px-3 py-2.5 text-zinc-400">{r.symbol}</td>
                         <td className="px-3 py-2.5 text-zinc-400">
+                          {getSymbolName(r.symbol)}
+                          <span className="text-zinc-400 ml-1 text-xs">({r.symbol})</span>
+                        </td>
+                        <td className="px-3 py-2.5 text-zinc-200">
                           {r.periodStart} ~ {r.periodEnd}
-                          <span className="text-zinc-600 ml-1">({r.periodDays}일)</span>
+                          <span className="text-zinc-400 ml-1">({r.periodDays}일)</span>
                         </td>
                       </tr>
                     );
@@ -750,10 +754,13 @@ export default function TestLog() {
                       <td className="px-4 py-3.5 text-sm text-zinc-500">{results.length - idx}</td>
                       {isAdmin && <td className="px-4 py-3.5 text-sm text-zinc-300">{r.userName ?? '-'}</td>}
                       <td className="px-4 py-3.5 text-sm font-medium text-zinc-200">{r.strategyTitle ?? '-'}</td>
-                      <td className="px-4 py-3.5 text-sm font-medium text-zinc-200">{r.symbol}</td>
-                      <td className="px-4 py-3.5 text-sm text-zinc-400">
+                      <td className="px-4 py-3.5 text-sm font-medium text-zinc-200">
+                        {getSymbolName(r.symbol)}
+                        <span className="text-zinc-300 ml-1 text-xs font-normal">({r.symbol})</span>
+                      </td>
+                      <td className="px-4 py-3.5 text-sm text-zinc-200">
                         {r.periodStart} ~ {r.periodEnd}
-                        <span className="text-zinc-600 ml-1">({r.periodDays}일)</span>
+                        <span className="text-zinc-400 ml-1">({r.periodDays}일)</span>
                       </td>
                       <td className="px-4 py-3.5 text-sm text-right text-zinc-300">{r.totalTrades}</td>
                       <td className="px-4 py-3.5 text-sm text-right text-teal-400">{Number(r.winRate).toFixed(1)}%</td>
@@ -764,7 +771,7 @@ export default function TestLog() {
                       <td className="px-4 py-3.5 text-sm text-right text-zinc-300">
                         {r.sharpe !== null && r.sharpe !== undefined ? Number(r.sharpe).toFixed(3) : '-'}
                       </td>
-                      <td className="px-4 py-3.5 text-sm text-zinc-500">{r.createdAt}</td>
+                      <td className="px-4 py-3.5 text-sm text-zinc-300">{r.createdAt}</td>
                       {!isAdmin && (
                         <td className="px-4 py-3.5 text-right">
                           <button
