@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import PageLayout from '../../components/PageLayout';
 import { apiClient } from '../../api/apiClient';
 import { authStorage } from '../../utils/auth';
+import { PERMISSIONS } from '../../constants';
 import type { ApiResponse } from '../../types/index';
 import type { StrategyConfigDTO, BoardItem } from '../strategy/strategyTypes';
 import { dtoToBoardItem } from '../strategy/strategyTypes';
@@ -16,6 +17,7 @@ interface LiveStatus {
   symbol:           string;
   active:           number;
   strategyConfig:   { id: number; title: string } | null;
+  userDTO?:         { userName?: string } | null;
   currentPosition:  'NONE' | 'LONG' | 'SHORT';
   barsHeld:         number;
   stopPrice:        number | null;
@@ -67,6 +69,9 @@ function positionBadge(pos: LiveStatus['currentPosition']) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function Live() {
+  const loginUser = authStorage.get();
+  const isAdmin = (loginUser?.permission ?? 0) >= PERMISSIONS.ADMIN;
+
   const [appliedItem, setAppliedItem] = useState<BoardItem | null>(null);
   const [investing, setInvesting]       = useState(false);
   const [sessionList, setSessionList]   = useState<LiveStatus[]>([]);
@@ -81,6 +86,28 @@ export default function Live() {
 
   // 중지/재실행/삭제 확인 팝업
   const [confirmAction, setConfirmAction] = useState<{ id: string; type: 'stop' | 'resume' | 'delete' } | null>(null);
+
+  const [adminToggle, setAdminToggle] = useState(false);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    apiClient.post<ApiResponse<{ isEnabled: number }>>('/trade/getExecuteOnOFF')
+      .then(res => {
+        if (res.data != null) setAdminToggle(res.data.isEnabled === 1);
+      })
+      .catch(() => {});
+  }, [isAdmin]);
+
+  const handleAdminToggle = async () => {
+    const newValue = !adminToggle;
+    setAdminToggle(newValue);
+    try {
+      const res = await apiClient.put<ApiResponse<{ isEnabled: number }>>('/trade/set/executeOnOff', { isEnabled: newValue ? 1 : 0 });
+      if (res.data != null) setAdminToggle(res.data.isEnabled === 1);
+    } catch {
+      setAdminToggle(!newValue);
+    }
+  };
 
   // 실전투자 전용 입력값 (기본값 0)
   const [liveParams, setLiveParams] = useState({
@@ -114,12 +141,12 @@ export default function Live() {
   // 진행 세션 목록 조회
   const fetchSessionList = useCallback(async () => {
     const userUid = authStorage.get()?.userUid;
-    if (!userUid) return;
+    if (!isAdmin && !userUid) return;
     setStatusLoading(true);
     try {
       const res = await apiClient.post<ApiResponse<LiveStatus[]>>(
         '/trade/getTradingSessionList',
-        { userUid },
+        isAdmin ? { userUid: null, userName: '', email: '', permission: 0, status: 0 } : { userUid },
       );
       setSessionList(res.data ?? []);
     } catch { /* silent */ } finally {
@@ -277,8 +304,8 @@ export default function Live() {
       <div className="space-y-6">
         <h1 className="text-2xl font-bold text-zinc-100">실전투자</h1>
 
-        {/* 적용된 전략 카드 */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+        {/* 적용된 전략 카드 — 일반 사용자만 표시 */}
+        {!isAdmin && <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
           <h2 className="text-lg font-semibold text-zinc-200 mb-4">적용된 전략 설정</h2>
 
           {appliedItem ? (
@@ -380,7 +407,7 @@ export default function Live() {
               : <><i className="ri-live-line text-lg"></i>투자하기</>
             }
           </button>
-        </div>
+        </div>}
 
         {/* 진행 섹션 */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
@@ -407,13 +434,27 @@ export default function Live() {
                 })}
               </div>
             </div>
-            <button
-              onClick={fetchSessionList}
-              className="text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
-              title="새로고침"
-            >
-              <i className={`ri-refresh-line ${statusLoading ? 'animate-spin' : ''}`}></i>
-            </button>
+            <div className="flex items-center gap-3">
+              {isAdmin && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-zinc-500">ON/OFF</span>
+                  <button
+                    type="button"
+                    onClick={handleAdminToggle}
+                    className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${adminToggle ? 'bg-teal-500' : 'bg-zinc-600'}`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${adminToggle ? 'translate-x-5' : 'translate-x-0'}`} />
+                  </button>
+                </div>
+              )}
+              <button
+                onClick={fetchSessionList}
+                className="text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
+                title="새로고침"
+              >
+                <i className={`ri-refresh-line ${statusLoading ? 'animate-spin' : ''}`}></i>
+              </button>
+            </div>
           </div>
 
           {statusLoading ? (
@@ -432,6 +473,11 @@ export default function Live() {
                   {/* 헤더 */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
+                      {isAdmin && session.userDTO?.userName && (
+                        <span className="text-xs text-zinc-300 bg-zinc-700 px-2 py-0.5 rounded-md">
+                          {session.userDTO.userName}
+                        </span>
+                      )}
                       <span className="text-sm font-semibold text-zinc-200">
                         {getSymbolName(session.symbol)}
                         <span className="ml-1 text-xs text-zinc-500">({session.symbol})</span>
@@ -439,17 +485,18 @@ export default function Live() {
                       <span className="text-xs text-zinc-200 bg-zinc-700 border border-zinc-600 px-2 py-0.5 rounded-md">
                         {session.strategyConfig?.title || '-'}
                       </span>
-                      </div>
+                    </div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-zinc-300">{session.lastUpdatedAt}</span>
-                      {session.active === 1 ? (
+                      {!isAdmin && session.active === 1 && (
                         <button
                           onClick={() => setConfirmAction({ id: session.id, type: 'stop' })}
                           className="px-2.5 py-1 text-xs font-semibold bg-amber-500/15 text-amber-400 hover:bg-amber-500/30 rounded-lg transition-colors cursor-pointer"
                         >
                           <i className="ri-stop-line mr-1"></i>중지
                         </button>
-                      ) : (
+                      )}
+                      {!isAdmin && session.active !== 1 && (
                         <button
                           onClick={() => setConfirmAction({ id: session.id, type: 'resume' })}
                           className="px-2.5 py-1 text-xs font-semibold bg-teal-500/15 text-teal-400 hover:bg-teal-500/30 rounded-lg transition-colors cursor-pointer"
@@ -457,12 +504,14 @@ export default function Live() {
                           <i className="ri-play-line mr-1"></i>재실행
                         </button>
                       )}
-                      <button
-                        onClick={() => setConfirmAction({ id: session.id, type: 'delete' })}
-                        className="px-2.5 py-1 text-xs font-semibold bg-red-500/15 text-red-400 hover:bg-red-500/30 rounded-lg transition-colors cursor-pointer"
-                      >
-                        <i className="ri-delete-bin-line mr-1"></i>삭제
-                      </button>
+                      {!isAdmin && (
+                        <button
+                          onClick={() => setConfirmAction({ id: session.id, type: 'delete' })}
+                          className="px-2.5 py-1 text-xs font-semibold bg-red-500/15 text-red-400 hover:bg-red-500/30 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <i className="ri-delete-bin-line mr-1"></i>삭제
+                        </button>
+                      )}
                     </div>
                   </div>
                   {/* 세션 데이터 4×2 */}

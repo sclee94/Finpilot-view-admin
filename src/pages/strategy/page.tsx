@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import PageLayout from '../../components/PageLayout';
 import { apiClient } from '../../api/apiClient';
 import { authStorage } from '../../utils/auth';
+import { PERMISSIONS } from '../../constants';
 import type { ApiResponse } from '../../types/index';
 import {
   type CustomFormParams,
@@ -19,6 +20,9 @@ import type { StrategyParams, NumVal } from './strategyTypes';
 type TabType = 'custom' | 'recommend';
 
 export default function Strategy() {
+  const loginUser = authStorage.get();
+  const isAdmin = (loginUser?.permission ?? 0) >= PERMISSIONS.ADMIN;
+
   const [activeTab, setActiveTab] = useState<TabType>('custom');
 
   // 커스텀 탭
@@ -71,7 +75,7 @@ export default function Strategy() {
   const refreshBoard = useCallback(async (uid: string) => {
     const res = await apiClient.post<ApiResponse<StrategyConfigDTO[]>>(
       '/strategy/getStrategyConfigList',
-      { userUid: uid },
+      isAdmin ? { userUid: null, userName: '', email: '', permission: 0, status: 0 } : { userUid: uid },
     );
     const items = res.data ? res.data.map(dtoToBoardItem) : [];
     setBoard(items);
@@ -214,6 +218,19 @@ export default function Strategy() {
       <div className="space-y-6">
         <h1 className="text-3xl font-bold text-white">전략 설정</h1>
 
+        {isAdmin ? (
+          <BoardPanel
+            board={board}
+            selectedId={null}
+            appliedItem={null}
+            loading={boardLoading}
+            onClickItem={() => {}}
+            onDeleteItem={() => {}}
+            onApplyItem={() => {}}
+            readOnly
+          />
+        ) : (
+          <>
         <div className="flex bg-zinc-800 rounded-lg p-1 gap-1 w-fit">
           <TabButton active={activeTab === 'custom'} onClick={() => setActiveTab('custom')}>
             <i className="ri-edit-line mr-1.5"></i>커스텀
@@ -371,6 +388,8 @@ export default function Strategy() {
               onApplyItem={setAppliedItem}
             />
           </div>
+        )}
+          </>
         )}
       </div>
     </PageLayout>

@@ -9,6 +9,7 @@ interface BoardPanelProps {
   onClickItem: (item: BoardItem) => void;
   onDeleteItem: (id: number, e: React.MouseEvent) => void;
   onApplyItem: (item: BoardItem | null) => void;
+  readOnly?: boolean;
 }
 
 const PARAM_SUMMARY_ROWS: { label: string; key: keyof StrategyParams; format?: (v: number) => string }[][] = [
@@ -170,12 +171,14 @@ function ParamDetailModal({ item, onClose }: { item: BoardItem; onClose: () => v
   );
 }
 
-export default function BoardPanel({ board, selectedId, appliedItem, loading, onClickItem, onDeleteItem, onApplyItem }: BoardPanelProps) {
+export default function BoardPanel({ board, selectedId, appliedItem, loading, onClickItem, onDeleteItem, onApplyItem, readOnly }: BoardPanelProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<BoardItem | null>(null);
+  const [detailItem, setDetailItem] = useState<BoardItem | null>(null);
 
   return (
     <div className="min-w-0">
+      {detailItem && <ParamDetailModal item={detailItem} onClose={() => setDetailItem(null)} />}
       <div className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden sticky top-6">
         <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-800 bg-zinc-800/40">
           <i className="ri-list-check text-teal-400"></i>
@@ -183,7 +186,7 @@ export default function BoardPanel({ board, selectedId, appliedItem, loading, on
           <span className="ml-auto text-sm text-zinc-500">{board.length}개</span>
         </div>
 
-        {appliedItem && (
+        {appliedItem && !readOnly && (
           <>
             {modalOpen && <ParamDetailModal item={appliedItem} onClose={() => setModalOpen(false)} />}
             <div
@@ -279,48 +282,54 @@ export default function BoardPanel({ board, selectedId, appliedItem, loading, on
           </div>
         ) : (
           <div className="divide-y divide-zinc-800">
-            <div className="grid grid-cols-[2rem_1fr_4.5rem_4rem_3rem_3rem] px-3 py-2 text-sm font-semibold text-zinc-500 bg-zinc-800/30">
+            <div className={`grid ${readOnly ? 'grid-cols-[2rem_1fr_1.5fr_4.5rem_4rem]' : 'grid-cols-[2rem_1fr_4.5rem_4rem_3rem_3rem]'} px-3 py-2 text-sm font-semibold text-zinc-500 bg-zinc-800/30`}>
               <span>No</span>
+              {readOnly && <span>이름</span>}
               <span>제목</span>
               <span>종목</span>
               <span>날짜</span>
-              <span className="text-center">적용</span>
-              <span className="text-center">제거</span>
+              {!readOnly && <span className="text-center">적용</span>}
+              {!readOnly && <span className="text-center">제거</span>}
             </div>
             {board.map((item, idx) => (
               <div
                 key={item.id}
-                onClick={() => onClickItem(item)}
-                className={`grid grid-cols-[2rem_1fr_4.5rem_4rem_3rem_3rem] items-center px-3 py-2.5 cursor-pointer transition-colors text-sm ${
+                onClick={() => { setDetailItem(item); if (!readOnly) onClickItem(item); }}
+                className={`grid ${readOnly ? 'grid-cols-[2rem_1fr_1.5fr_4.5rem_4rem]' : 'grid-cols-[2rem_1fr_4.5rem_4rem_3rem_3rem]'} items-center px-3 py-2.5 cursor-pointer transition-colors text-sm ${
                   selectedId === item.id ? 'bg-teal-500/10 border-l-2 border-teal-500' : 'hover:bg-zinc-800/50'
                 }`}
               >
                 <span className="text-zinc-500">{board.length - idx}</span>
-                <span className={`truncate ${selectedId === item.id ? 'text-teal-300 font-medium' : 'text-zinc-300'}`}>
+                {readOnly && <span className="text-zinc-300 truncate min-w-0">{item.userName ?? '-'}</span>}
+                <span className={`truncate min-w-0 ${selectedId === item.id ? 'text-teal-300 font-medium' : 'text-zinc-300'}`}>
                   {item.title}
                 </span>
                 <span className="text-zinc-400 truncate">{item.symbol}</span>
                 <span className="text-zinc-500">{item.date.replace(/\. /g, '.').replace(/\.$/, '')}</span>
-                <div className="flex justify-center">
-                  <button
-                    onClick={e => { e.stopPropagation(); onApplyItem(appliedItem?.id === item.id ? null as unknown as BoardItem : item); }}
-                    className={`px-1.5 py-0.5 rounded text-sm font-medium transition-colors ${
-                      appliedItem?.id === item.id
-                        ? 'bg-teal-500 text-white hover:bg-red-500/80'
-                        : 'bg-zinc-700 text-zinc-300 hover:bg-teal-500/80 hover:text-white'
-                    }`}
-                  >
-                    {appliedItem?.id === item.id ? '취소' : '적용'}
-                  </button>
-                </div>
-                <div className="flex justify-center">
-                  <button
-                    onClick={e => { e.stopPropagation(); setDeleteTarget(item); }}
-                    className="px-1.5 py-0.5 rounded text-sm font-medium bg-zinc-700 text-zinc-300 hover:bg-red-500/80 hover:text-white transition-colors"
-                  >
-                    제거
-                  </button>
-                </div>
+                {!readOnly && (
+                  <div className="flex justify-center">
+                    <button
+                      onClick={e => { e.stopPropagation(); onApplyItem(appliedItem?.id === item.id ? null as unknown as BoardItem : item); }}
+                      className={`px-1.5 py-0.5 rounded text-sm font-medium transition-colors ${
+                        appliedItem?.id === item.id
+                          ? 'bg-teal-500 text-white hover:bg-red-500/80'
+                          : 'bg-zinc-700 text-zinc-300 hover:bg-teal-500/80 hover:text-white'
+                      }`}
+                    >
+                      {appliedItem?.id === item.id ? '취소' : '적용'}
+                    </button>
+                  </div>
+                )}
+                {!readOnly && (
+                  <div className="flex justify-center">
+                    <button
+                      onClick={e => { e.stopPropagation(); setDeleteTarget(item); }}
+                      className="px-1.5 py-0.5 rounded text-sm font-medium bg-zinc-700 text-zinc-300 hover:bg-red-500/80 hover:text-white transition-colors"
+                    >
+                      제거
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

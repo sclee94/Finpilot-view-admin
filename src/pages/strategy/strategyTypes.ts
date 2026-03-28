@@ -48,17 +48,19 @@ export interface CustomFormParams {
 }
 
 export interface BoardItem {
-  id:     number;
-  title:  string;
-  symbol: string;
-  date:   string;
-  isUse:  number;   // 1: 적용 중, 0: 미적용
-  params: StrategyParams;
+  id:        number;
+  title:     string;
+  symbol:    string;
+  date:      string;
+  isUse:     number;   // 1: 적용 중, 0: 미적용
+  userName?: string;
+  params:    StrategyParams;
 }
 
 // Spring Boot StrategyConfigDTO 매핑
 export interface StrategyConfigDTO {
   userUid?:          string;
+  userDTO?:          { userName?: string } | null;
   id?:               number;
   title?:            string;
   symbol?:           string;
@@ -144,11 +146,12 @@ export const APPLIED_KEY = 'strategyApplied';
 /** DTO → BoardItem 변환 */
 export function dtoToBoardItem(dto: StrategyConfigDTO): BoardItem {
   return {
-    id:     dto.id!,
-    title:  dto.title ?? '',
-    symbol: dto.symbol ?? '',
-    date:   dto.createdAt ?? '',
-    isUse:  dto.isUse ?? 0,
+    id:       dto.id!,
+    title:    dto.title ?? '',
+    symbol:   dto.symbol ?? '',
+    date:     dto.createdAt ?? '',
+    isUse:    dto.isUse ?? 0,
+    userName: dto.userDTO?.userName,
     params: {
       symbol:              dto.symbol ?? '',
       adx_threshold:       dto.adxThreshold ?? 0,

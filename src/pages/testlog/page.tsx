@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import PageLayout from '../../components/PageLayout';
 import { apiClient } from '../../api/apiClient';
 import { authStorage } from '../../utils/auth';
+import { PERMISSIONS } from '../../constants';
 import type { ApiResponse } from '../../types/index';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -57,6 +58,7 @@ interface BacktestTrade {
 interface BacktestResult {
   id:               number;
   userUid:          string;
+  userName?:        string;
   strategyConfigId: number | null;
   symbol:           string;
   periodStart:      string;
@@ -390,6 +392,9 @@ function TradeDetailModal({ result, results, onClose }: {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function TestLog() {
+  const loginUser = authStorage.get();
+  const isAdmin = (loginUser?.permission ?? 0) >= PERMISSIONS.ADMIN;
+
   const [appliedItem, setAppliedItem] = useState<BoardItem | null>(null);
 
   const [running, setRunning] = useState(false);
@@ -436,7 +441,7 @@ export default function TestLog() {
     try {
       const res = await apiClient.post<ApiResponse<BacktestResult[]>>(
         '/backtest/getBacktestList',
-        { userUid: uid },
+        isAdmin ? { userUid: null, userName: '', email: '', permission: 0, status: 0 } : { userUid: uid },
       );
       setResults(res.data ?? []);
     } catch { /* silent */ } finally {
@@ -617,8 +622,8 @@ export default function TestLog() {
       <div className="space-y-6">
         <h1 className="text-2xl font-bold text-zinc-100">백테스트</h1>
 
-        {/* Applied Strategy Card */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+        {/* Applied Strategy Card — 일반 사용자만 표시 */}
+        {!isAdmin && <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-zinc-200">적용된 전략 설정</h2>
             {running && (
@@ -684,7 +689,7 @@ export default function TestLog() {
               : <><i className="ri-play-fill text-lg"></i>실행하기</>
             }
           </button>
-        </div>
+        </div>}
 
         {/* Backtest Result Board */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
@@ -707,6 +712,7 @@ export default function TestLog() {
               <thead>
                 <tr className="border-b border-zinc-800 bg-zinc-800/50">
                   <th className="text-left px-4 py-3 text-sm font-medium text-zinc-400 w-12">No</th>
+                  {isAdmin && <th className="text-left px-4 py-3 text-sm font-medium text-zinc-400">이름</th>}
                   <th className="text-left px-4 py-3 text-sm font-medium text-zinc-400">전략명</th>
                   <th className="text-left px-4 py-3 text-sm font-medium text-zinc-400">종목</th>
                   <th className="text-left px-4 py-3 text-sm font-medium text-zinc-400">기간</th>
@@ -716,20 +722,20 @@ export default function TestLog() {
                   <th className="text-right px-4 py-3 text-sm font-medium text-zinc-400">MDD</th>
                   <th className="text-right px-4 py-3 text-sm font-medium text-zinc-400">샤프</th>
                   <th className="text-left px-4 py-3 text-sm font-medium text-zinc-400">실행일시</th>
-                  <th className="px-4 py-3 text-sm font-medium text-zinc-400 w-16"></th>
+                  {!isAdmin && <th className="px-4 py-3 text-sm font-medium text-zinc-400 w-16"></th>}
                 </tr>
               </thead>
               <tbody>
                 {resultsLoading ? (
                   <tr>
-                    <td colSpan={11} className="text-center py-16 text-zinc-500">
+                    <td colSpan={isAdmin ? 10 : 11} className="text-center py-16 text-zinc-500">
                       <i className="ri-loader-4-line animate-spin text-3xl block mb-2"></i>
                       불러오는 중...
                     </td>
                   </tr>
                 ) : results.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="text-center py-16 text-zinc-500">
+                    <td colSpan={isAdmin ? 10 : 11} className="text-center py-16 text-zinc-500">
                       <i className="ri-file-list-line text-4xl block mb-2"></i>
                       백테스트 결과가 없습니다.
                     </td>
@@ -742,6 +748,7 @@ export default function TestLog() {
                       className="border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors cursor-pointer"
                     >
                       <td className="px-4 py-3.5 text-sm text-zinc-500">{results.length - idx}</td>
+                      {isAdmin && <td className="px-4 py-3.5 text-sm text-zinc-300">{r.userName ?? '-'}</td>}
                       <td className="px-4 py-3.5 text-sm font-medium text-zinc-200">{r.strategyTitle ?? '-'}</td>
                       <td className="px-4 py-3.5 text-sm font-medium text-zinc-200">{r.symbol}</td>
                       <td className="px-4 py-3.5 text-sm text-zinc-400">
@@ -758,14 +765,16 @@ export default function TestLog() {
                         {r.sharpe !== null && r.sharpe !== undefined ? Number(r.sharpe).toFixed(3) : '-'}
                       </td>
                       <td className="px-4 py-3.5 text-sm text-zinc-500">{r.createdAt}</td>
-                      <td className="px-4 py-3.5 text-right">
-                        <button
-                          onClick={e => { e.stopPropagation(); setDeleteTarget(r); }}
-                          className="text-xs text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 px-3 py-1.5 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
-                        >
-                          제거
-                        </button>
-                      </td>
+                      {!isAdmin && (
+                        <td className="px-4 py-3.5 text-right">
+                          <button
+                            onClick={e => { e.stopPropagation(); setDeleteTarget(r); }}
+                            className="text-xs text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 px-3 py-1.5 rounded-lg transition-colors cursor-pointer whitespace-nowrap"
+                          >
+                            제거
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))
                 )}
