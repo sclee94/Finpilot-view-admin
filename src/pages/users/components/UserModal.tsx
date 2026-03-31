@@ -90,6 +90,54 @@ export default function UserModal({ user, onClose, onSave }: UserModalProps) {
           </select>
         </div>
 
+        {/* 한국투자증권 연동 정보 */}
+        <div className="pt-2 border-t border-zinc-800">
+          <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">한국투자증권 연동</p>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-zinc-400 mb-2">앱키 (App Key)</label>
+              <input
+                type="text"
+                value={formData.kisAppKey ?? ''}
+                onChange={(e) => setFormData({ ...formData, kisAppKey: e.target.value })}
+                placeholder="KIS 앱키 입력"
+                className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-400 mb-2">앱시크릿 (App Secret)</label>
+              <input
+                type="password"
+                value={formData.kisAppSecret ?? ''}
+                onChange={(e) => setFormData({ ...formData, kisAppSecret: e.target.value })}
+                placeholder="KIS 앱시크릿 입력"
+                className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-400 mb-2">계좌번호 (앞 8자리)</label>
+              <input
+                type="text"
+                value={formData.kisAccountNo ?? ''}
+                onChange={(e) => setFormData({ ...formData, kisAccountNo: e.target.value })}
+                placeholder="12345678"
+                maxLength={8}
+                className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-400 mb-2">계좌상품코드</label>
+              <select
+                value={formData.kisAccountProduct ?? '01'}
+                onChange={(e) => setFormData({ ...formData, kisAccountProduct: e.target.value })}
+                className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              >
+                <option value="01">01 - 종합</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
         <div className="flex gap-3 pt-4">
           <button
             type="button"

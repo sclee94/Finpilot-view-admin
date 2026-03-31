@@ -111,6 +111,7 @@ export default function UserTable({ users, onUpdateUser, onDeleteUser }: UserTab
                 <th className="px-6 py-4 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">상태</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">가입일</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">최근 로그인</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">KIS 연동</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-zinc-500 uppercase tracking-wider">작업</th>
               </tr>
             </thead>
@@ -136,6 +137,12 @@ export default function UserTable({ users, onUpdateUser, onDeleteUser }: UserTab
                   </td>
                   <td className="px-6 py-4 text-sm text-zinc-400">{user.createdAt ?? '-'}</td>
                   <td className="px-6 py-4 text-sm text-zinc-400">{user.loginDate ?? '-'}</td>
+                  <td className="px-6 py-4">
+                    {user.kisAppKey && user.kisAppSecret && user.kisAccountNo && user.kisAccountProduct
+                      ? <Badge variant="success">연동됨</Badge>
+                      : <Badge variant="default">미연동</Badge>
+                    }
+                  </td>
                   <td className="px-6 py-4">
                     <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                       <button

@@ -20,6 +20,12 @@ export interface User {
   loginToken?: string;
   loginDate?: string;
   createdAt?: string;
+  kisAppKey?: string;
+  kisAppSecret?: string;
+  kisAccountNo?: string;
+  kisAccountProduct?: string;
+  kisAccessToken?: string;
+  kisTokenExpiredAt?: string;
 }
 
 export interface Stock {
