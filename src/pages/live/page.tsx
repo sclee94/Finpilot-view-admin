@@ -1,34 +1,20 @@
 import { useState, useEffect, useCallback } from 'react';
 import PageLayout from '../../components/PageLayout';
-import { apiClient } from '../../api/apiClient';
 import { authStorage } from '../../utils/auth';
 import { PERMISSIONS } from '../../constants';
-import type { ApiResponse } from '../../types/index';
+import type { ApiResponse, TradingSession } from '../../types/index';
 import type { StrategyConfigDTO, BoardItem } from '../strategy/strategyTypes';
 import { dtoToBoardItem } from '../strategy/strategyTypes';
 import { getSymbolName } from '../../constants/symbolNames';
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface LiveStatus {
-  id:               string;
-  strategyConfigId: number;
-  mode:             'LIVE' | 'PAPER';
-  symbol:           string;
-  active:           number;
-  strategyConfig:   { id: number; title: string } | null;
-  userDTO?:         { userName?: string } | null;
-  currentPosition:  'NONE' | 'LONG' | 'SHORT';
-  barsHeld:         number;
-  stopPrice:        number | null;
-  tpPrice:          number | null;
-  cooldownBarsLeft: number;
-  consecSlCount:    number;
-  currentEquity:    number;
-  peakEquity:       number;
-  createdAt:        string;
-  lastUpdatedAt:    string;
-}
+import { apiClient } from '../../api/apiClient';
+import {
+  getExecuteOnOff,
+  setExecuteOnOff,
+  getTradingSessionList,
+  insertTradingSession,
+  updateTradingSession,
+  deleteTradingSession,
+} from '../../api/tradeApi';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -60,7 +46,7 @@ const LIVE_PARAM_LABELS: { key: keyof BoardItem['params']; label: string; format
   { key: 'peak_equity',       label: '최고 자산',   format: v => Number(v).toFixed(6) },
 ];
 
-function positionBadge(pos: LiveStatus['currentPosition']) {
+function positionBadge(pos: TradingSession['currentPosition']) {
   if (pos === 'LONG')  return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-teal-500/20 text-teal-300">LONG</span>;
   if (pos === 'SHORT') return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-red-500/20 text-red-300">SHORT</span>;
   return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-zinc-700 text-zinc-400">NONE</span>;
@@ -74,7 +60,7 @@ export default function Live() {
 
   const [appliedItem, setAppliedItem] = useState<BoardItem | null>(null);
   const [investing, setInvesting]       = useState(false);
-  const [sessionList, setSessionList]   = useState<LiveStatus[]>([]);
+  const [sessionList, setSessionList]   = useState<TradingSession[]>([]);
   const [statusLoading, setStatusLoading] = useState(false);
   const [errorMessage, setErrorMessage]   = useState('');
 
@@ -91,7 +77,7 @@ export default function Live() {
 
   useEffect(() => {
     if (!isAdmin) return;
-    apiClient.post<ApiResponse<{ isEnabled: number }>>('/trade/getExecuteOnOFF')
+    getExecuteOnOff()
       .then(res => {
         if (res.data != null) setAdminToggle(res.data.isEnabled === 1);
       })
@@ -102,7 +88,7 @@ export default function Live() {
     const newValue = !adminToggle;
     setAdminToggle(newValue);
     try {
-      const res = await apiClient.put<ApiResponse<{ isEnabled: number }>>('/trade/set/executeOnOff', { isEnabled: newValue ? 1 : 0 });
+      const res = await setExecuteOnOff(newValue ? 1 : 0);
       if (res.data != null) setAdminToggle(res.data.isEnabled === 1);
     } catch {
       setAdminToggle(!newValue);
@@ -144,8 +130,7 @@ export default function Live() {
     if (!isAdmin && !userUid) return;
     setStatusLoading(true);
     try {
-      const res = await apiClient.post<ApiResponse<LiveStatus[]>>(
-        '/trade/getTradingSessionList',
+      const res = await getTradingSessionList(
         isAdmin ? { userUid: null, userName: '', email: '', permission: 0, status: 0 } : { userUid },
       );
       setSessionList(res.data ?? []);
@@ -163,19 +148,16 @@ export default function Live() {
     setInvesting(true);
     setErrorMessage('');
     try {
-      const res = await apiClient.post<ApiResponse<LiveStatus>>(
-        '/trade/insertTradingSession',
-        {
-          userUid,
-          strategyConfigId: appliedItem.id,
-          symbol:           appliedItem.params.symbol,
-          mode:             investMode,
-          cooldownBarsLeft: liveParams.cooldownBarsLeft,
-          consecSlCount:    liveParams.consecSlCount,
-          currentEquity:    liveParams.currentEquity,
-          peakEquity:       liveParams.peakEquity,
-        },
-      );
+      const res = await insertTradingSession({
+        userUid,
+        strategyConfigId: appliedItem.id,
+        symbol:           appliedItem.params.symbol,
+        mode:             investMode,
+        cooldownBarsLeft: liveParams.cooldownBarsLeft,
+        consecSlCount:    liveParams.consecSlCount,
+        currentEquity:    liveParams.currentEquity,
+        peakEquity:       liveParams.peakEquity,
+      });
       if (res.data) {
         await fetchSessionList();
       } else {
@@ -196,7 +178,7 @@ export default function Live() {
   // 세션 중지 (active: 0)
   const handleStopSession = async (id: string) => {
     try {
-      await apiClient.put('/trade/updateTradingSession', { id, active: 0 });
+      await updateTradingSession({ id, active: 0 });
       await fetchSessionList();
     } catch {
       setErrorMessage('세션 중지에 실패했습니다.');
@@ -206,7 +188,7 @@ export default function Live() {
   // 세션 재실행 (active: 1)
   const handleResumeSession = async (id: string) => {
     try {
-      await apiClient.put('/trade/updateTradingSession', { id, active: 1 });
+      await updateTradingSession({ id, active: 1 });
       await fetchSessionList();
     } catch {
       setErrorMessage('세션 재실행에 실패했습니다.');
@@ -216,7 +198,7 @@ export default function Live() {
   // 세션 삭제
   const handleDeleteSession = async (id: string) => {
     try {
-      await apiClient.delete('/trade/deleteTradingSession', { id });
+      await deleteTradingSession(id);
       await fetchSessionList();
     } catch {
       setErrorMessage('세션 삭제에 실패했습니다.');
@@ -525,6 +507,10 @@ export default function Live() {
                       <p className="text-sm font-semibold text-white">{session.barsHeld}</p>
                     </div>
                     <div className="bg-zinc-800 rounded-lg px-3 py-2">
+                      <p className="text-xs text-zinc-400 mb-1">보유 수량</p>
+                      <p className="text-sm font-semibold text-white">{session.sharesHeld ?? '-'}</p>
+                    </div>
+                    <div className="bg-zinc-800 rounded-lg px-3 py-2">
                       <p className="text-xs text-zinc-400 mb-1">손절가 (Stop)</p>
                       <p className="text-sm font-semibold text-white">
                         {session.stopPrice != null ? session.stopPrice.toLocaleString() : '-'}
@@ -546,7 +532,7 @@ export default function Live() {
                     </div>
                     <div className="bg-zinc-800 rounded-lg px-3 py-2">
                       <p className="text-xs text-zinc-400 mb-1">현재 자산</p>
-                      <p className="text-sm font-semibold text-white">{session.currentEquity.toFixed(6)}</p>
+                      <p className="text-sm font-semibold text-white">{session.currentEquity != null ? session.currentEquity.toFixed(6) : '-'}</p>
                     </div>
                     <div className="bg-zinc-800 rounded-lg px-3 py-2">
                       <p className="text-xs text-zinc-400 mb-1">최고 자산</p>

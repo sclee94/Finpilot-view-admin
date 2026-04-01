@@ -28,6 +28,34 @@ export interface User {
   kisTokenExpiredAt?: string;
 }
 
+/**
+ * trading_session 테이블 매핑
+ * currentPosition: 백엔드에서 'NONE' | 'LONG' | 'SHORT' 문자열로 반환
+ * active: 1=실행 중, 0=중지
+ */
+export interface TradingSession {
+  id:               string;
+  userUid:          string;
+  strategyConfigId: number;
+  mode:             'LIVE' | 'PAPER';
+  symbol:           string;
+  active:           number;
+  currentPosition:  'NONE' | 'LONG' | 'SHORT';
+  barsHeld:         number;
+  sharesHeld:       number | null;
+  stopPrice:        number | null;
+  tpPrice:          number | null;
+  cooldownBarsLeft: number;
+  consecSlCount:    number;
+  currentEquity:    number | null;
+  peakEquity:       number;
+  createdAt:        string;
+  lastUpdatedAt:    string;
+  // 백엔드 조인 필드
+  strategyConfig?:  { id: number; title: string } | null;
+  userDTO?:         { userName?: string } | null;
+}
+
 export interface Stock {
   id: string;
   name: string;
