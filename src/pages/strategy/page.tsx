@@ -4,6 +4,7 @@ import { apiClient } from '../../api/apiClient';
 import { authStorage } from '../../utils/auth';
 import { PERMISSIONS } from '../../constants';
 import type { ApiResponse } from '../../types/index';
+import { getBalance } from '../../api/tradeApi';
 import {
   type CustomFormParams,
   type BoardItem,
@@ -63,12 +64,28 @@ export default function Strategy() {
   const [recLoading, setRecLoading] = useState(false);
   const [recError, setRecError] = useState<string | null>(null);
   const [recInput, setRecInput] = useState<{ symbol: string; initial_capital: NumVal; risk_per_trade: NumVal; use_prev_bar_signal: boolean }>({
-    symbol: '', initial_capital: '', risk_per_trade: '', use_prev_bar_signal: false,
+    symbol: '', initial_capital: '', risk_per_trade: '', use_prev_bar_signal: true,
   });
   const [recSymbolMode, setRecSymbolMode] = useState<'dropdown' | 'direct'>('dropdown');
   const [recDropdownValue, setRecDropdownValue] = useState('');
   const [recElapsed, setRecElapsed] = useState(0);
   const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [balanceLoading, setBalanceLoading] = useState<'LIVE' | 'PAPER' | null>(null);
+
+  const fetchBalance = useCallback(async (mode: 'LIVE' | 'PAPER') => {
+    const stored = authStorage.get();
+    if (!stored?.userUid) return;
+    setBalanceLoading(mode);
+    try {
+      const accountNo = mode === 'PAPER' ? (stored.kisPaperAccountNo ?? undefined) : undefined;
+      const res = await getBalance(stored.userUid, mode, accountNo);
+      if (res && res.data?.balance !== undefined) {
+        setRecInput(p => ({ ...p, initial_capital: res.data!.balance }));
+      }
+    } finally {
+      setBalanceLoading(null);
+    }
+  }, []);
 
   // 저장된 전략 목록 조회 (isUse === 1 항목을 적용 상태로 자동 동기화)
   const refreshBoard = useCallback(async (uid: string) => {
@@ -201,7 +218,9 @@ export default function Strategy() {
     } catch { /* silent */ }
   };
 
-  const isRecInputComplete = !!recInput.symbol && recInput.initial_capital !== '' && recInput.risk_per_trade !== '';
+  const riskPerTradeNum = recInput.risk_per_trade === '' ? NaN : Number(recInput.risk_per_trade);
+  const isRiskPerTradeValid = !isNaN(riskPerTradeNum) && riskPerTradeNum >= 0.005 && riskPerTradeNum <= 0.03;
+  const isRecInputComplete = !!recInput.symbol && recInput.initial_capital !== '' && recInput.risk_per_trade !== '' && isRiskPerTradeValid;
   const isRecComplete = !!recommended && isRecInputComplete;
 
   const handleApplyRecommended = () => {
@@ -336,18 +355,35 @@ export default function Strategy() {
                         placeholder="값을 입력하세요"
                         onChange={e => { const v = e.target.value; setRecInput(p => ({ ...p, initial_capital: v === '' ? '' : (parseInt(v) || '') })); }}
                         className="w-full px-3 py-2.5 border rounded-lg text-lg text-zinc-200 focus:outline-none transition-colors bg-zinc-800 border-zinc-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder-zinc-600" />
+                      <div className="flex gap-2 pt-0.5">
+                        <button type="button" onClick={() => fetchBalance('LIVE')} disabled={balanceLoading !== null}
+                          className="flex-1 px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                          {balanceLoading === 'LIVE' ? <i className="ri-loader-4-line animate-spin mr-1" /> : <i className="ri-bank-line mr-1" />}실거래 자본금 가져오기
+                        </button>
+                        <button type="button" onClick={() => fetchBalance('PAPER')} disabled={balanceLoading !== null}
+                          className="flex-1 px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                          {balanceLoading === 'PAPER' ? <i className="ri-loader-4-line animate-spin mr-1" /> : <i className="ri-file-copy-line mr-1" />}모의거래 자본금 가져오기
+                        </button>
+                      </div>
                     </div>
                     <div className="space-y-1.5">
                       <span className="text-lg font-medium text-zinc-300">거래당 위험 비율 <span className="text-red-400">*</span></span>
-                      <input type="number" value={recInput.risk_per_trade} step={0.001} min={0}
-                        placeholder="값을 입력하세요"
+                      <input type="number" value={recInput.risk_per_trade} step={0.001} min={0.005} max={0.03}
+                        placeholder="0.005 ~ 0.03"
                         onChange={e => { const v = e.target.value; setRecInput(p => ({ ...p, risk_per_trade: v === '' ? '' : (parseFloat(v) || '') })); }}
-                        className="w-full px-3 py-2.5 border rounded-lg text-lg text-zinc-200 focus:outline-none transition-colors bg-zinc-800 border-zinc-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder-zinc-600" />
+                        className={`w-full px-3 py-2.5 border rounded-lg text-lg text-zinc-200 focus:outline-none transition-colors bg-zinc-800 focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder-zinc-600 ${recInput.risk_per_trade !== '' && !isRiskPerTradeValid ? 'border-red-500' : 'border-zinc-700'}`} />
+                      {recInput.risk_per_trade !== '' && !isRiskPerTradeValid
+                        ? <p className="text-sm text-red-400">0.005 ~ 0.03 범위로 입력해주세요</p>
+                        : <p className="text-sm text-teal-500">권장 범위: 0.005 (0.5%) ~ 0.03 (3%)</p>
+                      }
                     </div>
                   </div>
                   {/* 이전 봉 신호 사용 */}
                   <div className="flex items-center justify-between gap-4 p-4 bg-zinc-800/50 rounded-lg border border-zinc-700/50">
-                    <span className="text-lg font-medium text-zinc-300">이전 봉 신호 사용</span>
+                    <div>
+                      <span className="text-lg font-medium text-zinc-300">이전 봉 신호 사용</span>
+                      <p className="text-sm text-teal-500 mt-0.5">권장 설정입니다 (룩어헤드 바이어스 방지)</p>
+                    </div>
                     <button type="button"
                       onClick={() => setRecInput(p => ({ ...p, use_prev_bar_signal: !p.use_prev_bar_signal }))}
                       className={`relative w-11 h-6 rounded-full transition-colors shrink-0 cursor-pointer ${recInput.use_prev_bar_signal ? 'bg-teal-500' : 'bg-zinc-600'}`}>

@@ -115,7 +115,7 @@ export default function UserModal({ user, onClose, onSave }: UserModalProps) {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-2">계좌번호 (앞 8자리)</label>
+              <label className="block text-sm font-medium text-zinc-400 mb-2">실전 계좌번호 (앞 8자리)</label>
               <input
                 type="text"
                 value={formData.kisAccountNo ?? ''}
@@ -126,10 +126,31 @@ export default function UserModal({ user, onClose, onSave }: UserModalProps) {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-zinc-400 mb-2">계좌상품코드</label>
+              <label className="block text-sm font-medium text-zinc-400 mb-2">실전 계좌상품코드</label>
               <select
                 value={formData.kisAccountProduct ?? '01'}
                 onChange={(e) => setFormData({ ...formData, kisAccountProduct: e.target.value })}
+                className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              >
+                <option value="01">01 - 종합</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-400 mb-2">모의투자 계좌번호 (앞 8자리)</label>
+              <input
+                type="text"
+                value={formData.kisPaperAccountNo ?? ''}
+                onChange={(e) => setFormData({ ...formData, kisPaperAccountNo: e.target.value })}
+                placeholder="12345678"
+                maxLength={8}
+                className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-400 mb-2">모의투자 계좌상품코드</label>
+              <select
+                value={formData.kisPaperAccountProduct ?? '01'}
+                onChange={(e) => setFormData({ ...formData, kisPaperAccountProduct: e.target.value })}
                 className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
               >
                 <option value="01">01 - 종합</option>

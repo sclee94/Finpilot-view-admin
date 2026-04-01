@@ -33,3 +33,7 @@ export const updateTradingSession = (params: { id: string; active: number }) =>
 /** 세션 삭제 - DELETE /api/trade/deleteTradingSession */
 export const deleteTradingSession = (id: string) =>
   apiClient.delete<ApiResponse<TradingSession>>('/trade/deleteTradingSession', { id });
+
+/** 자본금 조회 - POST /api/finpilot/balance */
+export const getBalance = (userUid: string, mode: 'LIVE' | 'PAPER', accountNo?: string) =>
+  apiClient.post<ApiResponse<{ balance: number }>>('/finpilot/balance', { userUid, mode, ...(accountNo ? { accountNo } : {}) });

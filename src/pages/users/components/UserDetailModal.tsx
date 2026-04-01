@@ -51,9 +51,12 @@ export default function UserDetailModal({ user, onClose, onEdit, onDelete }: Use
           <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">한국투자증권 연동</p>
           <InfoRow label="앱키" value={user.kisAppKey ? '••••••••' : '-'} />
           <InfoRow label="앱시크릿" value={user.kisAppSecret ? '••••••••' : '-'} />
-          <InfoRow label="계좌번호" value={user.kisAccountNo ?? '-'} />
-          <InfoRow label="계좌상품코드" value={user.kisAccountProduct ?? '-'} />
-          <InfoRow label="토큰 만료일시" value={user.kisTokenExpiredAt ?? '-'} />
+          <InfoRow label="실전 계좌번호" value={user.kisAccountNo ?? '-'} />
+          <InfoRow label="실전 계좌상품코드" value={user.kisAccountProduct ?? '-'} />
+          <InfoRow label="모의 계좌번호" value={user.kisPaperAccountNo ?? '-'} />
+          <InfoRow label="모의 계좌상품코드" value={user.kisPaperAccountProduct ?? '-'} />
+          <InfoRow label="실전 토큰 만료일시" value={user.kisTokenExpiredAt ?? '-'} />
+          <InfoRow label="모의 토큰 만료일시" value={user.kisPaperTokenExpiredAt ?? '-'} />
         </div>
 
         {/* 버튼 */}

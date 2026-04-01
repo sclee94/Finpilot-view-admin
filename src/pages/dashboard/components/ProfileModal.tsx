@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { User } from '../../../types';
 import { getPermissionLabel } from '../../../utils/userHelpers';
-import { userUpdate } from '../../../api/userApi';
+import { getUser, userUpdate } from '../../../api/userApi';
+import { authStorage } from '../../../utils/auth';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -12,12 +13,38 @@ interface ProfileModalProps {
 export default function ProfileModal({ isOpen, onClose, user }: ProfileModalProps) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [kisAppKey, setKisAppKey] = useState(user?.kisAppKey ?? '');
-  const [kisAppSecret, setKisAppSecret] = useState(user?.kisAppSecret ?? '');
-  const [kisAccountNo, setKisAccountNo] = useState(user?.kisAccountNo ?? '');
-  const [kisAccountProduct, setKisAccountProduct] = useState(user?.kisAccountProduct ?? '01');
+  const [kisAppKey, setKisAppKey] = useState('');
+  const [kisAppSecret, setKisAppSecret] = useState('');
+  const [kisAccountNo, setKisAccountNo] = useState('');
+  const [kisAccountProduct, setKisAccountProduct] = useState('01');
+  const [kisPaperAccountNo, setKisPaperAccountNo] = useState('');
+  const [kisPaperAccountProduct, setKisPaperAccountProduct] = useState('01');
   const [kisSaving, setKisSaving] = useState(false);
   const [kisMsg, setKisMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!isOpen || !user) return;
+    getUser({ userUid: user.userUid }).then((res) => {
+      if (res.status < 400 && res.data) {
+        const u = res.data;
+        setKisAppKey(u.kisAppKey ?? '');
+        setKisAppSecret(u.kisAppSecret ?? '');
+        setKisAccountNo(u.kisAccountNo ?? '');
+        setKisAccountProduct(u.kisAccountProduct ?? '01');
+        setKisPaperAccountNo(u.kisPaperAccountNo ?? '');
+        setKisPaperAccountProduct(u.kisPaperAccountProduct ?? '01');
+        const stored = authStorage.get();
+        if (stored) authStorage.save({ ...stored, kisAppKey: u.kisAppKey, kisAppSecret: u.kisAppSecret, kisAccountNo: u.kisAccountNo, kisAccountProduct: u.kisAccountProduct, kisPaperAccountNo: u.kisPaperAccountNo, kisPaperAccountProduct: u.kisPaperAccountProduct });
+      }
+    }).catch(() => {
+      setKisAppKey(user.kisAppKey ?? '');
+      setKisAppSecret(user.kisAppSecret ?? '');
+      setKisAccountNo(user.kisAccountNo ?? '');
+      setKisAccountProduct(user.kisAccountProduct ?? '01');
+      setKisPaperAccountNo(user.kisPaperAccountNo ?? '');
+      setKisPaperAccountProduct(user.kisPaperAccountProduct ?? '01');
+    });
+  }, [isOpen, user?.userUid]);
 
   if (!isOpen || !user) return null;
 
@@ -31,9 +58,15 @@ export default function ProfileModal({ isOpen, onClose, user }: ProfileModalProp
         kisAppSecret,
         kisAccountNo,
         kisAccountProduct,
+        kisPaperAccountNo,
+        kisPaperAccountProduct,
       });
       if (res.status < 400) {
         setKisMsg({ type: 'success', text: 'KIS 연동 정보가 저장되었습니다.' });
+        const stored = authStorage.get();
+        if (stored) {
+          authStorage.save({ ...stored, kisAppKey, kisAppSecret, kisAccountNo, kisAccountProduct, kisPaperAccountNo, kisPaperAccountProduct });
+        }
       } else {
         setKisMsg({ type: 'error', text: res.message || '저장에 실패했습니다.' });
       }
@@ -125,7 +158,7 @@ export default function ProfileModal({ isOpen, onClose, user }: ProfileModalProp
               <div>
                 <label className="text-sm text-zinc-400 mb-1.5 block font-medium">앱키 (App Key)</label>
                 <input
-                  type="text"
+                  type="password"
                   value={kisAppKey}
                   onChange={(e) => setKisAppKey(e.target.value)}
                   placeholder="KIS 앱키 입력"
@@ -143,7 +176,7 @@ export default function ProfileModal({ isOpen, onClose, user }: ProfileModalProp
                 />
               </div>
               <div>
-                <label className="text-sm text-zinc-400 mb-1.5 block font-medium">계좌번호 (앞 8자리)</label>
+                <label className="text-sm text-zinc-400 mb-1.5 block font-medium">실전 계좌번호 (앞 8자리)</label>
                 <input
                   type="text"
                   value={kisAccountNo}
@@ -154,10 +187,31 @@ export default function ProfileModal({ isOpen, onClose, user }: ProfileModalProp
                 />
               </div>
               <div>
-                <label className="text-sm text-zinc-400 mb-1.5 block font-medium">계좌상품코드</label>
+                <label className="text-sm text-zinc-400 mb-1.5 block font-medium">실전 계좌상품코드</label>
                 <select
                   value={kisAccountProduct}
                   onChange={(e) => setKisAccountProduct(e.target.value)}
+                  className="w-full px-4 py-2.5 text-sm bg-zinc-800 border border-zinc-700 text-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
+                >
+                  <option value="01">01 - 종합</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-sm text-zinc-400 mb-1.5 block font-medium">모의투자 계좌번호 (앞 8자리)</label>
+                <input
+                  type="text"
+                  value={kisPaperAccountNo}
+                  onChange={(e) => setKisPaperAccountNo(e.target.value)}
+                  placeholder="12345678"
+                  maxLength={8}
+                  className="w-full px-4 py-2.5 text-sm bg-zinc-800 border border-zinc-700 text-zinc-200 placeholder-zinc-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-zinc-400 mb-1.5 block font-medium">모의투자 계좌상품코드</label>
+                <select
+                  value={kisPaperAccountProduct}
+                  onChange={(e) => setKisPaperAccountProduct(e.target.value)}
                   className="w-full px-4 py-2.5 text-sm bg-zinc-800 border border-zinc-700 text-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
                 >
                   <option value="01">01 - 종합</option>

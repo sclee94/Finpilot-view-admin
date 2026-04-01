@@ -26,6 +26,10 @@ export interface User {
   kisAccountProduct?: string;
   kisAccessToken?: string;
   kisTokenExpiredAt?: string;
+  kisPaperAccountNo?: string;
+  kisPaperAccountProduct?: string;
+  kisPaperAccessToken?: string;
+  kisPaperTokenExpiredAt?: string;
 }
 
 /**
