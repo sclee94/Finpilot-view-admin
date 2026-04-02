@@ -95,13 +95,13 @@ export default function Live() {
     }
   };
 
-  // 실전투자 전용 입력값 (기본값 0)
-  const [liveParams, setLiveParams] = useState({
+  // 실전투자 전용 입력값 — 첫 등록 시 항상 0 고정
+  const liveParams = {
     cooldownBarsLeft: 0,
     consecSlCount:    0,
     currentEquity:    0,
     peakEquity:       0,
-  });
+  };
 
   // Applied strategy — API 조회
   const fetchApplied = useCallback(async () => {
@@ -310,34 +310,27 @@ export default function Live() {
               </div>
               {/* 실전투자 전용 */}
               <div className="border border-amber-500/30 rounded-xl bg-amber-500/5 p-4 mb-6">
-                <div className="flex items-center gap-1.5 mb-3">
+                <div className="flex items-center gap-1.5 mb-1">
                   <i className="ri-live-line text-amber-400 text-sm"></i>
                   <span className="text-sm font-semibold text-amber-400">실전투자 전용</span>
                   <span className="text-xs text-amber-500/60 ml-1">백테스트에는 사용되지 않습니다</span>
                 </div>
+                <div className="flex items-center gap-1.5 mb-3">
+                  <i className="ri-information-line text-amber-500/60 text-xs"></i>
+                  <span className="text-xs text-amber-500/60">첫 등록 시 모두 0으로 고정됩니다. 이후 세션에서 자동으로 갱신됩니다.</span>
+                </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {([
-                    { key: 'cooldownBarsLeft', label: '쿨다운 잔여 봉',  step: 1,    isInt: true },
-                    { key: 'consecSlCount',    label: '연속 손절 횟수',  step: 1,    isInt: true },
-                    { key: 'currentEquity',    label: '현재 자산',       step: 0.01, isInt: false },
-                    { key: 'peakEquity',       label: '최고 자산',       step: 0.01, isInt: false },
-                  ] as const).map(({ key, label, step, isInt }) => (
+                    { key: 'cooldownBarsLeft', label: '쿨다운 잔여 봉' },
+                    { key: 'consecSlCount',    label: '연속 손절 횟수' },
+                    { key: 'currentEquity',    label: '현재 자산' },
+                    { key: 'peakEquity',       label: '최고 자산' },
+                  ] as const).map(({ key, label }) => (
                     <div key={key} className="bg-amber-500/10 rounded-xl px-4 py-3">
                       <p className="text-xs text-amber-500/70 mb-1.5">{label}</p>
-                      <input
-                        type="number"
-                        value={liveParams[key]}
-                        step={step}
-                        min={0}
-                        onChange={e => {
-                          const v = e.target.value;
-                          setLiveParams(prev => ({
-                            ...prev,
-                            [key]: isInt ? (parseInt(v) || 0) : (parseFloat(v) || 0),
-                          }));
-                        }}
-                        className="w-full bg-amber-500/10 border border-amber-500/30 rounded-lg px-2 py-1 text-sm font-semibold text-amber-200 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                      />
+                      <div className="w-full bg-amber-500/5 border border-amber-500/20 rounded-lg px-2 py-1 text-sm font-semibold text-amber-200/50 cursor-not-allowed select-none">
+                        0
+                      </div>
                     </div>
                   ))}
                 </div>

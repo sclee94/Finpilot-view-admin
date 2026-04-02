@@ -294,7 +294,7 @@ export default function BoardPanel({ board, selectedId, appliedItem, loading, on
             {board.map((item, idx) => (
               <div
                 key={item.id}
-                onClick={() => { setDetailItem(item); if (!readOnly) onClickItem(item); }}
+                onClick={() => { if (!readOnly) onClickItem(item); }}
                 className={`grid ${readOnly ? 'grid-cols-[2rem_1fr_1.5fr_4.5rem_4rem]' : 'grid-cols-[2rem_1fr_4.5rem_4rem_3rem_3rem]'} items-center px-3 py-2.5 cursor-pointer transition-colors text-sm ${
                   selectedId === item.id ? 'bg-teal-500/10 border-l-2 border-teal-500' : 'hover:bg-zinc-800/50'
                 }`}
