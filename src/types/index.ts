@@ -26,6 +26,8 @@ export interface User {
   kisAccountProduct?: string;
   kisAccessToken?: string;
   kisTokenExpiredAt?: string;
+  kisPaperAppKey?: string;
+  kisPaperAppSecret?: string;
   kisPaperAccountNo?: string;
   kisPaperAccountProduct?: string;
   kisPaperAccessToken?: string;

@@ -94,13 +94,14 @@ export default function UserModal({ user, onClose, onSave }: UserModalProps) {
         <div className="pt-2 border-t border-zinc-800">
           <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">한국투자증권 연동</p>
           <div className="space-y-4">
+            <p className="text-xs text-zinc-500 font-medium">— 실전투자</p>
             <div>
               <label className="block text-sm font-medium text-zinc-400 mb-2">앱키 (App Key)</label>
               <input
                 type="text"
                 value={formData.kisAppKey ?? ''}
                 onChange={(e) => setFormData({ ...formData, kisAppKey: e.target.value })}
-                placeholder="KIS 앱키 입력"
+                placeholder="KIS 실전 앱키 입력"
                 className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
               />
             </div>
@@ -110,7 +111,28 @@ export default function UserModal({ user, onClose, onSave }: UserModalProps) {
                 type="password"
                 value={formData.kisAppSecret ?? ''}
                 onChange={(e) => setFormData({ ...formData, kisAppSecret: e.target.value })}
-                placeholder="KIS 앱시크릿 입력"
+                placeholder="KIS 실전 앱시크릿 입력"
+                className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              />
+            </div>
+            <p className="text-xs text-zinc-500 font-medium pt-1">— 모의투자</p>
+            <div>
+              <label className="block text-sm font-medium text-zinc-400 mb-2">모의 앱키 (Paper App Key)</label>
+              <input
+                type="text"
+                value={formData.kisPaperAppKey ?? ''}
+                onChange={(e) => setFormData({ ...formData, kisPaperAppKey: e.target.value })}
+                placeholder="KIS 모의투자 앱키 입력"
+                className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-400 mb-2">모의 앱시크릿 (Paper App Secret)</label>
+              <input
+                type="password"
+                value={formData.kisPaperAppSecret ?? ''}
+                onChange={(e) => setFormData({ ...formData, kisPaperAppSecret: e.target.value })}
+                placeholder="KIS 모의투자 앱시크릿 입력"
                 className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
               />
             </div>

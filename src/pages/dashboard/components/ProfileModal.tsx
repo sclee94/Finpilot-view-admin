@@ -17,6 +17,8 @@ export default function ProfileModal({ isOpen, onClose, user }: ProfileModalProp
   const [kisAppSecret, setKisAppSecret] = useState('');
   const [kisAccountNo, setKisAccountNo] = useState('');
   const [kisAccountProduct, setKisAccountProduct] = useState('01');
+  const [kisPaperAppKey, setKisPaperAppKey] = useState('');
+  const [kisPaperAppSecret, setKisPaperAppSecret] = useState('');
   const [kisPaperAccountNo, setKisPaperAccountNo] = useState('');
   const [kisPaperAccountProduct, setKisPaperAccountProduct] = useState('01');
   const [kisSaving, setKisSaving] = useState(false);
@@ -31,16 +33,20 @@ export default function ProfileModal({ isOpen, onClose, user }: ProfileModalProp
         setKisAppSecret(u.kisAppSecret ?? '');
         setKisAccountNo(u.kisAccountNo ?? '');
         setKisAccountProduct(u.kisAccountProduct ?? '01');
+        setKisPaperAppKey(u.kisPaperAppKey ?? '');
+        setKisPaperAppSecret(u.kisPaperAppSecret ?? '');
         setKisPaperAccountNo(u.kisPaperAccountNo ?? '');
         setKisPaperAccountProduct(u.kisPaperAccountProduct ?? '01');
         const stored = authStorage.get();
-        if (stored) authStorage.save({ ...stored, kisAppKey: u.kisAppKey, kisAppSecret: u.kisAppSecret, kisAccountNo: u.kisAccountNo, kisAccountProduct: u.kisAccountProduct, kisPaperAccountNo: u.kisPaperAccountNo, kisPaperAccountProduct: u.kisPaperAccountProduct });
+        if (stored) authStorage.save({ ...stored, kisAppKey: u.kisAppKey, kisAppSecret: u.kisAppSecret, kisAccountNo: u.kisAccountNo, kisAccountProduct: u.kisAccountProduct, kisPaperAppKey: u.kisPaperAppKey, kisPaperAppSecret: u.kisPaperAppSecret, kisPaperAccountNo: u.kisPaperAccountNo, kisPaperAccountProduct: u.kisPaperAccountProduct });
       }
     }).catch(() => {
       setKisAppKey(user.kisAppKey ?? '');
       setKisAppSecret(user.kisAppSecret ?? '');
       setKisAccountNo(user.kisAccountNo ?? '');
       setKisAccountProduct(user.kisAccountProduct ?? '01');
+      setKisPaperAppKey(user.kisPaperAppKey ?? '');
+      setKisPaperAppSecret(user.kisPaperAppSecret ?? '');
       setKisPaperAccountNo(user.kisPaperAccountNo ?? '');
       setKisPaperAccountProduct(user.kisPaperAccountProduct ?? '01');
     });
@@ -58,6 +64,8 @@ export default function ProfileModal({ isOpen, onClose, user }: ProfileModalProp
         kisAppSecret,
         kisAccountNo,
         kisAccountProduct,
+        kisPaperAppKey,
+        kisPaperAppSecret,
         kisPaperAccountNo,
         kisPaperAccountProduct,
       });
@@ -65,7 +73,7 @@ export default function ProfileModal({ isOpen, onClose, user }: ProfileModalProp
         setKisMsg({ type: 'success', text: 'KIS 연동 정보가 저장되었습니다.' });
         const stored = authStorage.get();
         if (stored) {
-          authStorage.save({ ...stored, kisAppKey, kisAppSecret, kisAccountNo, kisAccountProduct, kisPaperAccountNo, kisPaperAccountProduct });
+          authStorage.save({ ...stored, kisAppKey, kisAppSecret, kisAccountNo, kisAccountProduct, kisPaperAppKey, kisPaperAppSecret, kisPaperAccountNo, kisPaperAccountProduct });
         }
       } else {
         setKisMsg({ type: 'error', text: res.message || '저장에 실패했습니다.' });
@@ -155,13 +163,14 @@ export default function ProfileModal({ isOpen, onClose, user }: ProfileModalProp
           <div className="mt-6 pt-5 border-t border-zinc-800">
             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">한국투자증권 연동</p>
             <div className="space-y-4">
+              <p className="text-xs text-zinc-500 font-medium">— 실전투자</p>
               <div>
                 <label className="text-sm text-zinc-400 mb-1.5 block font-medium">앱키 (App Key)</label>
                 <input
                   type="password"
                   value={kisAppKey}
                   onChange={(e) => setKisAppKey(e.target.value)}
-                  placeholder="KIS 앱키 입력"
+                  placeholder="KIS 실전 앱키 입력"
                   className="w-full px-4 py-2.5 text-sm bg-zinc-800 border border-zinc-700 text-zinc-200 placeholder-zinc-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
                 />
               </div>
@@ -171,7 +180,28 @@ export default function ProfileModal({ isOpen, onClose, user }: ProfileModalProp
                   type="password"
                   value={kisAppSecret}
                   onChange={(e) => setKisAppSecret(e.target.value)}
-                  placeholder="KIS 앱시크릿 입력"
+                  placeholder="KIS 실전 앱시크릿 입력"
+                  className="w-full px-4 py-2.5 text-sm bg-zinc-800 border border-zinc-700 text-zinc-200 placeholder-zinc-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
+                />
+              </div>
+              <p className="text-xs text-zinc-500 font-medium pt-1">— 모의투자</p>
+              <div>
+                <label className="text-sm text-zinc-400 mb-1.5 block font-medium">모의 앱키 (Paper App Key)</label>
+                <input
+                  type="password"
+                  value={kisPaperAppKey}
+                  onChange={(e) => setKisPaperAppKey(e.target.value)}
+                  placeholder="KIS 모의투자 앱키 입력"
+                  className="w-full px-4 py-2.5 text-sm bg-zinc-800 border border-zinc-700 text-zinc-200 placeholder-zinc-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
+                />
+              </div>
+              <div>
+                <label className="text-sm text-zinc-400 mb-1.5 block font-medium">모의 앱시크릿 (Paper App Secret)</label>
+                <input
+                  type="password"
+                  value={kisPaperAppSecret}
+                  onChange={(e) => setKisPaperAppSecret(e.target.value)}
+                  placeholder="KIS 모의투자 앱시크릿 입력"
                   className="w-full px-4 py-2.5 text-sm bg-zinc-800 border border-zinc-700 text-zinc-200 placeholder-zinc-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
                 />
               </div>
