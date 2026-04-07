@@ -64,17 +64,33 @@ export function ReadOnlyNumberField({ label, desc, value }: { label: string; des
 
 export function SelectField({ label, desc, value, options, readOnly, withPlaceholder, onChange }: {
   label: string; desc: string; value: string;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; group?: string }[];
   readOnly?: boolean; withPlaceholder?: boolean;
   onChange: (v: string) => void;
 }) {
+  const hasGroups = options.some(o => o.group);
+  const grouped = hasGroups
+    ? options.reduce<Record<string, typeof options>>((acc, o) => {
+        const g = o.group ?? '';
+        (acc[g] ??= []).push(o);
+        return acc;
+      }, {})
+    : null;
+
   return (
     <div className="space-y-1.5">
       {label && <FieldLabel label={label} desc={desc} />}
       <select value={value} disabled={readOnly} onChange={e => onChange(e.target.value)}
         className={`w-full px-3 py-2.5 border rounded-lg text-lg focus:outline-none transition-colors ${readOnly ? 'bg-zinc-800/50 border-zinc-700/50 text-zinc-400 cursor-default' : 'bg-zinc-800 border-zinc-700 text-zinc-200 focus:ring-2 focus:ring-teal-500 focus:border-transparent'}`}>
         {withPlaceholder && <option value="" disabled>— 종목을 선택하세요 —</option>}
-        {options.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+        {grouped
+          ? Object.entries(grouped).map(([g, opts]) => (
+              <optgroup key={g} label={g}>
+                {opts.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+              </optgroup>
+            ))
+          : options.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)
+        }
       </select>
     </div>
   );

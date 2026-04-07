@@ -413,7 +413,7 @@ export default function TestLog() {
   const [detailLoading, setDetailLoading]       = useState(false);
   const [deleteTarget, setDeleteTarget]         = useState<BacktestResult | null>(null);
 
-  // Applied strategy — API 조회
+  // Applied strategy — 백테스트 전용 적용 우선, 없으면 isUse === 1 fallback
   const fetchApplied = useCallback(async () => {
     const userUid = authStorage.get()?.userUid;
     if (!userUid) return;
@@ -422,7 +422,17 @@ export default function TestLog() {
         '/strategy/getStrategyConfigList',
         { userUid },
       );
-      const applied = (res.data ?? []).find(d => d.isUse === 1) ?? null;
+      const list = res.data ?? [];
+      // localStorage에 백테스트 전용 적용 항목이 있으면 우선 사용
+      let applied: StrategyConfigDTO | null = null;
+      try {
+        const backtestRaw = localStorage.getItem('strategyBacktestApplied');
+        if (backtestRaw) {
+          const backtestApplied = JSON.parse(backtestRaw) as { id: number };
+          applied = list.find(d => d.id === backtestApplied.id) ?? null;
+        }
+      } catch { /* ignore */ }
+      if (!applied) applied = list.find(d => d.isUse === 1) ?? null;
       setAppliedItem(applied ? dtoToApplied(applied) : null);
     } catch { /* silent */ }
   }, []);
@@ -433,7 +443,11 @@ export default function TestLog() {
     // 전략 설정 탭에서 적용/해제 시 동기화
     const handleCustom = () => fetchApplied();
     window.addEventListener('strategyAppliedChanged', handleCustom);
-    return () => window.removeEventListener('strategyAppliedChanged', handleCustom);
+    window.addEventListener('strategyBacktestAppliedChanged', handleCustom);
+    return () => {
+      window.removeEventListener('strategyAppliedChanged', handleCustom);
+      window.removeEventListener('strategyBacktestAppliedChanged', handleCustom);
+    };
   }, [fetchApplied]);
 
   // Timer cleanup on unmount
