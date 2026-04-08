@@ -2,10 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(find /c/devws/reatws/finpilot-admin/src -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) -exec wc -l {} +)",
+      "Bash(grep -r \"/trade\\\\|/strategy\" /c/reactWS/finpilot/src --include=\"*.tsx\" --include=\"*.ts\" 2>/dev/null | grep -E \"post|get|put|delete|apiClient\" | head -30)",
+      "Bash(grep -r \"insertTradingSession\\\\|getTradingSessionList\\\\|updateTradingSession\\\\|deleteTradingSession\\\\|insertStrategyConfig\\\\|updateStrategyConfig\\\\|getStrategyConfigList\\\\|deleteStrategyConfig\\\\|optimize\\\\|getExecuteOnOFF\\\\|set/executeOnOff\\\\|BackTest\" /c/reactWS/finpilot/src --include=\"*.tsx\" --include=\"*.ts\" 2>/dev/null | cut -d: -f1 | sort -u)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git push:*)",
-      "Bash(npm run:*)",
       "Bash(git pull:*)"
     ]
   }
