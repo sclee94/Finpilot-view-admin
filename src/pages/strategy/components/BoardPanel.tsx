@@ -5,6 +5,9 @@ interface BoardPanelProps {
   board: BoardItem[];
   selectedId: number | null;
   appliedItem: BoardItem | null;
+  backtestStrategyIds?: Set<number>;
+  liveStrategyIds?: Set<number>;
+  paperStrategyIds?: Set<number>;
   loading?: boolean;
   onClickItem: (item: BoardItem) => void;
   onDeleteItem: (id: number, e: React.MouseEvent) => void;
@@ -171,7 +174,7 @@ function ParamDetailModal({ item, onClose }: { item: BoardItem; onClose: () => v
   );
 }
 
-export default function BoardPanel({ board, selectedId, appliedItem, loading, onClickItem, onDeleteItem, onApplyItem, readOnly }: BoardPanelProps) {
+export default function BoardPanel({ board, selectedId, appliedItem, backtestStrategyIds, liveStrategyIds, paperStrategyIds, loading, onClickItem, onDeleteItem, onApplyItem, readOnly }: BoardPanelProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<BoardItem | null>(null);
   const [detailItem, setDetailItem] = useState<BoardItem | null>(null);
@@ -291,7 +294,11 @@ export default function BoardPanel({ board, selectedId, appliedItem, loading, on
               {!readOnly && <span className="text-center">적용</span>}
               {!readOnly && <span className="text-center">제거</span>}
             </div>
-            {board.map((item, idx) => (
+            {board.map((item, idx) => {
+              const isBacktestApplied = backtestStrategyIds?.has(item.id) ?? false;
+              const isLiveApplied = liveStrategyIds?.has(item.id) ?? false;
+              const isPaperApplied = paperStrategyIds?.has(item.id) ?? false;
+              return (
               <div
                 key={item.id}
                 onClick={() => { if (!readOnly) onClickItem(item); }}
@@ -301,9 +308,14 @@ export default function BoardPanel({ board, selectedId, appliedItem, loading, on
               >
                 <span className="text-zinc-500">{board.length - idx}</span>
                 {readOnly && <span className="text-zinc-300 truncate min-w-0">{item.userName ?? '-'}</span>}
-                <span className={`truncate min-w-0 ${selectedId === item.id ? 'text-teal-300 font-medium' : 'text-zinc-300'}`}>
-                  {item.title}
-                </span>
+                <div className="flex items-center gap-1 min-w-0">
+                  <span className={`truncate ${selectedId === item.id ? 'text-teal-300 font-medium' : 'text-zinc-300'}`}>
+                    {item.title}
+                  </span>
+                  {isBacktestApplied && <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-teal-400" title="백테스트 이력 있음" />}
+                  {isLiveApplied && <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-amber-400" title="실전 세션 있음" />}
+                  {isPaperApplied && <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-blue-400" title="모의 세션 있음" />}
+                </div>
                 <span className="text-zinc-400 truncate">{item.symbol}</span>
                 <span className="text-zinc-500">{item.date.replace(/\. /g, '.').replace(/\.$/, '')}</span>
                 {!readOnly && (
@@ -331,7 +343,8 @@ export default function BoardPanel({ board, selectedId, appliedItem, loading, on
                   </div>
                 )}
               </div>
-            ))}
+            );
+            })}
           </div>
         )}
       </div>

@@ -4,7 +4,7 @@ import { apiClient } from '../../api/apiClient';
 import { authStorage } from '../../utils/auth';
 import { PERMISSIONS } from '../../constants';
 import type { ApiResponse } from '../../types/index';
-import { getBalance } from '../../api/tradeApi';
+import { getBalance, getTradingSessionList } from '../../api/tradeApi';
 import {
   type CustomFormParams,
   type BoardItem,
@@ -35,6 +35,9 @@ export default function Strategy() {
   const [boardLoading, setBoardLoading] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [appliedItem, setAppliedItemState] = useState<BoardItem | null>(null);
+  const [backtestStrategyIds, setBacktestStrategyIds] = useState<Set<number>>(new Set());
+  const [liveStrategyIds, setLiveStrategyIds] = useState<Set<number>>(new Set());
+  const [paperStrategyIds, setPaperStrategyIds] = useState<Set<number>>(new Set());
 
   const setAppliedItem = useCallback(async (item: BoardItem | null) => {
     const userUid = authStorage.get()?.userUid;
@@ -63,8 +66,8 @@ export default function Strategy() {
   const [recommended, setRecommended] = useState<StrategyParams | null>(null);
   const [recLoading, setRecLoading] = useState(false);
   const [recError, setRecError] = useState<string | null>(null);
-  const [recInput, setRecInput] = useState<{ symbol: string; initial_capital: NumVal; risk_per_trade: NumVal; use_prev_bar_signal: boolean }>({
-    symbol: '', initial_capital: '', risk_per_trade: '', use_prev_bar_signal: true,
+  const [recInput, setRecInput] = useState<{ symbol: string; initial_capital: NumVal; risk_per_trade: NumVal; use_prev_bar_signal: boolean; min_trades: NumVal }>({
+    symbol: '', initial_capital: '', risk_per_trade: '', use_prev_bar_signal: true, min_trades: '',
   });
   const [recSymbolMode, setRecSymbolMode] = useState<'dropdown' | 'direct'>('dropdown');
   const [recDropdownValue, setRecDropdownValue] = useState('');
@@ -107,7 +110,22 @@ export default function Strategy() {
     if (!userUid) return;
     setBoardLoading(true);
     refreshBoard(userUid).finally(() => setBoardLoading(false));
-  }, [refreshBoard]);
+
+    if (isAdmin) return;
+    // 백테스트 결과에서 사용된 전략 ID 수집
+    apiClient.post<ApiResponse<{ strategyConfigId: number | null }[]>>(
+      '/backtest/getBacktestList', { userUid },
+    ).then(res => {
+      const ids = new Set((res.data ?? []).map(r => r.strategyConfigId).filter((id): id is number => id !== null));
+      setBacktestStrategyIds(ids);
+    }).catch(() => {});
+    // 실전/모의 세션에서 사용된 전략 ID 수집
+    getTradingSessionList({ userUid }).then(res => {
+      const sessions = res.data ?? [];
+      setLiveStrategyIds(new Set(sessions.filter(s => s.mode === 'LIVE').map(s => s.strategyConfigId)));
+      setPaperStrategyIds(new Set(sessions.filter(s => s.mode === 'PAPER').map(s => s.strategyConfigId)));
+    }).catch(() => {});
+  }, [refreshBoard, isAdmin]);
 
   const fetchRecommended = useCallback(() => {
     setRecLoading(true);
@@ -119,6 +137,7 @@ export default function Strategy() {
       initialCapital: Number(recInput.initial_capital),
       riskPerTrade: Number(recInput.risk_per_trade),
       usePrevBarSignal: recInput.use_prev_bar_signal,
+      ...(recInput.min_trades !== '' && { minTrades: Number(recInput.min_trades) }),
     }, 5 * 60 * 1000)
       .then(res => {
         if (res && typeof res.status === 'number' && res.status < 400 && res.data) {
@@ -290,6 +309,9 @@ export default function Strategy() {
               onClickItem={handleBoardClick}
               onDeleteItem={handleDeleteBoard}
               onApplyItem={setAppliedItem}
+              backtestStrategyIds={backtestStrategyIds}
+              liveStrategyIds={liveStrategyIds}
+              paperStrategyIds={paperStrategyIds}
             />
           </div>
         )}
@@ -338,7 +360,15 @@ export default function Strategy() {
                         onChange={e => { setRecDropdownValue(e.target.value); setRecInput(p => ({ ...p, symbol: e.target.value })); }}
                         className="w-full px-3 py-2.5 border rounded-lg text-lg focus:outline-none transition-colors bg-zinc-800 border-zinc-700 text-zinc-200 focus:ring-2 focus:ring-teal-500 focus:border-transparent">
                         <option value="" disabled>— 종목을 선택하세요 —</option>
-                        {SYMBOL_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                        {Object.entries(
+                          SYMBOL_OPTIONS.reduce<Record<string, typeof SYMBOL_OPTIONS>>((acc, o) => {
+                            (acc[o.group] ??= []).push(o); return acc;
+                          }, {})
+                        ).map(([g, opts]) => (
+                          <optgroup key={g} label={g}>
+                            {opts.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                          </optgroup>
+                        ))}
                       </select>
                     ) : (
                       <input type="text" value={recInput.symbol}
@@ -377,6 +407,15 @@ export default function Strategy() {
                         : <p className="text-sm text-teal-500">권장 범위: 0.005 (0.5%) ~ 0.03 (3%)</p>
                       }
                     </div>
+                  </div>
+                  {/* 최소 거래 횟수 */}
+                  <div className="space-y-1.5">
+                    <span className="text-lg font-medium text-zinc-300">최소 거래 횟수</span>
+                    <input type="number" value={recInput.min_trades} step={1} min={1}
+                      placeholder="미입력 시 기본값 사용"
+                      onChange={e => { const v = e.target.value; setRecInput(p => ({ ...p, min_trades: v === '' ? '' : (parseInt(v) || '') })); }}
+                      className="w-full px-3 py-2.5 border rounded-lg text-lg text-zinc-200 focus:outline-none transition-colors bg-zinc-800 border-zinc-700 focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder-zinc-600" />
+                    <p className="text-sm text-zinc-500">백테스트 최적화 시 허용할 최소 거래 횟수</p>
                   </div>
                   {/* 이전 봉 신호 사용 */}
                   <div className="flex items-center justify-between gap-4 p-4 bg-zinc-800/50 rounded-lg border border-zinc-700/50">
@@ -427,6 +466,9 @@ export default function Strategy() {
               onClickItem={handleBoardClick}
               onDeleteItem={handleDeleteBoard}
               onApplyItem={setAppliedItem}
+              backtestStrategyIds={backtestStrategyIds}
+              liveStrategyIds={liveStrategyIds}
+              paperStrategyIds={paperStrategyIds}
             />
           </div>
         )}
