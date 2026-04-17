@@ -34,6 +34,12 @@ export const updateTradingSession = (params: { id: string; active: number }) =>
 export const deleteTradingSession = (id: string) =>
   apiClient.delete<ApiResponse<TradingSession>>('/trade/deleteTradingSession', { id });
 
+/** 거래 이력 조회 - POST /api/tradeHistory/getTradeHistoryList */
+export const getTradeHistoryList = (params: {
+  userUid?: string | null;
+}) =>
+  apiClient.post<ApiResponse<import('../types').TradeHistory[]>>('/tradeHistory/getTradeHistoryList', params);
+
 /** 자본금 조회 - POST /api/finpilot/balance */
 export const getBalance = (userUid: string, mode: 'LIVE' | 'PAPER', accountNo?: string) =>
   apiClient.post<ApiResponse<{ balance: number }>>('/finpilot/balance', { userUid, mode, ...(accountNo ? { accountNo } : {}) });

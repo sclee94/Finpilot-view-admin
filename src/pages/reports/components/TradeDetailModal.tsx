@@ -1,32 +1,68 @@
-import { Trade } from '../../../mocks/trades';
-import { MARKET_STYLE, TRADE_STATUS_STYLE, TRADE_TYPE_STYLE } from '../../../constants/tradeStyles';
+import type { TradeHistory } from '../../../types';
 
-interface TradeDetailModalProps {
-  trade: Trade | null;
+interface Props {
+  trade:   TradeHistory | null;
   onClose: () => void;
 }
+
+const ACTION_STYLE: Record<string, string> = {
+  BUY:         'bg-teal-500/20 text-teal-300',
+  SELL_SHORT:  'bg-rose-500/20 text-rose-300',
+  CLOSE_LONG:  'bg-sky-500/20 text-sky-300',
+  CLOSE_SHORT: 'bg-orange-500/20 text-orange-300',
+};
+const ACTION_LABEL: Record<string, string> = {
+  BUY:         '매수 (BUY)',
+  SELL_SHORT:  '공매도 (SELL_SHORT)',
+  CLOSE_LONG:  '청산 롱 (CLOSE_LONG)',
+  CLOSE_SHORT: '청산 숏 (CLOSE_SHORT)',
+};
+const MODE_STYLE: Record<string, string> = {
+  LIVE:  'bg-amber-500/20 text-amber-300',
+  PAPER: 'bg-blue-500/20 text-blue-300',
+};
+const STATUS_STYLE: Record<string, string> = {
+  SUCCESS: 'bg-emerald-500/20 text-emerald-300',
+  FAILED:  'bg-rose-500/20 text-rose-400',
+};
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-xs text-zinc-500 mb-1.5">{label}</p>
+      <p className="text-xs text-zinc-500 mb-1">{label}</p>
       {children}
     </div>
   );
 }
 
-export default function TradeDetailModal({ trade, onClose }: TradeDetailModalProps) {
+function Dt({ value }: { value: string | null }) {
+  if (!value) return <p className="text-xs font-mono text-zinc-600">—</p>;
+  return (
+    <>
+      <p className="text-xs font-mono text-zinc-200">{value.slice(0, 10)}</p>
+      <p className="text-xs font-mono text-zinc-400 mt-0.5">{value.slice(11, 19)}</p>
+    </>
+  );
+}
+
+export default function TradeDetailModal({ trade, onClose }: Props) {
   if (!trade) return null;
+
+  const isClose = trade.action === 'CLOSE_LONG' || trade.action === 'CLOSE_SHORT';
+  const pnlColor = trade.realizedPnl != null && trade.realizedPnl >= 0 ? 'text-sky-400' : 'text-rose-400';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
       <div
-        className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg mx-4 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
+        className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-xl mx-4 shadow-2xl max-h-[90vh] overflow-y-auto"
+        onClick={e => e.stopPropagation()}
       >
         {/* 헤더 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
-          <h2 className="text-base font-bold text-zinc-100">거래 상세</h2>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
+          <div>
+            <h2 className="text-base font-bold text-zinc-100">거래 상세</h2>
+            <p className="text-xs text-zinc-500 mt-0.5">{trade.symbolName ?? trade.symbol} · {trade.symbol}</p>
+          </div>
           <button
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer"
@@ -35,80 +71,128 @@ export default function TradeDetailModal({ trade, onClose }: TradeDetailModalPro
           </button>
         </div>
 
-        {/* 본문 */}
-        <div className="px-6 py-5 space-y-5">
-
-          {/* 작성자 + 종목명 / 시장 + 거래유형 + 상태 */}
-          <div className="bg-zinc-800/50 rounded-xl px-5 py-4 space-y-4">
-            <div className="grid grid-cols-2 gap-x-6">
-              <Field label="작성자">
-                <p className="text-sm text-zinc-200">{trade.author}</p>
-              </Field>
-              <Field label="종목명">
-                <p className="text-sm text-zinc-200 font-medium">{trade.stockName}</p>
-                <p className="text-xs text-zinc-500 mt-0.5">{trade.stockCode}</p>
-              </Field>
-            </div>
-            <div className="grid grid-cols-3 gap-x-6">
-              <Field label="시장">
-                <span className={`inline-block px-2.5 py-1 text-xs font-semibold rounded-full ${MARKET_STYLE[trade.market] ?? 'bg-zinc-700 text-zinc-400'}`}>
-                  {trade.market}
-                </span>
-              </Field>
-              <Field label="거래 유형">
-                <span className={`inline-block px-3 py-1 text-xs font-bold rounded-full ${TRADE_TYPE_STYLE[trade.tradeType] ?? 'bg-zinc-700 text-zinc-400'}`}>
-                  {trade.tradeType}
-                </span>
-              </Field>
-              <Field label="상태">
-                <span className={`inline-block px-2.5 py-1 text-xs font-medium rounded-full ${TRADE_STATUS_STYLE[trade.status] ?? 'bg-zinc-700 text-zinc-400'}`}>
-                  {trade.status}
-                </span>
-              </Field>
-            </div>
+        <div className="px-6 py-5 space-y-4">
+          {/* 기본 정보 */}
+          <div className="bg-zinc-800/50 rounded-xl px-5 py-4 grid grid-cols-3 gap-4">
+            <Field label="모드">
+              <span className={`inline-block px-2.5 py-1 text-xs font-semibold rounded-full ${MODE_STYLE[trade.mode]}`}>
+                {trade.mode === 'LIVE' ? '실전' : '모의'}
+              </span>
+            </Field>
+            <Field label="액션">
+              <span className={`inline-block px-2.5 py-1 text-xs font-bold rounded-full ${ACTION_STYLE[trade.action]}`}>
+                {ACTION_LABEL[trade.action] ?? trade.action}
+              </span>
+            </Field>
+            <Field label="주문 상태">
+              <span className={`inline-block px-2.5 py-1 text-xs font-medium rounded-full ${STATUS_STYLE[trade.orderStatus]}`}>
+                {trade.orderStatus === 'SUCCESS' ? '성공' : '실패'}
+              </span>
+            </Field>
           </div>
 
-          {/* 단가 / 수량 / 총 거래금액 */}
-          <div className="grid grid-cols-3 gap-x-6 bg-zinc-800/50 rounded-xl px-5 py-4">
-            <Field label="단가">
-              <p className="text-sm font-bold text-zinc-100">₩{trade.price.toLocaleString()}</p>
-            </Field>
+          {/* 수량 / 진입가 / 청산가 */}
+          <div className="bg-zinc-800/50 rounded-xl px-5 py-4 grid grid-cols-3 gap-4">
             <Field label="수량">
-              <p className="text-sm font-bold text-zinc-100">{trade.quantity.toLocaleString()}주</p>
+              <p className="text-sm font-bold text-zinc-100">{trade.shares.toLocaleString()}주</p>
             </Field>
-            <Field label="총 거래금액">
-              <p className="text-sm font-bold text-amber-400">₩{trade.totalAmount.toLocaleString()}</p>
+            <Field label="진입가">
+              <p className="text-sm font-bold text-zinc-100">
+                {trade.entryPrice != null ? `₩${trade.entryPrice.toLocaleString()}` : '—'}
+              </p>
+            </Field>
+            <Field label="청산가">
+              <p className="text-sm font-bold text-zinc-100">
+                {trade.exitPrice != null ? `₩${trade.exitPrice.toLocaleString()}` : '—'}
+              </p>
             </Field>
           </div>
 
-          {/* 신청날짜 / 확정날짜 */}
-          <div className="grid grid-cols-2 gap-x-6 bg-zinc-800/50 rounded-xl px-5 py-4">
-            <Field label="신청날짜">
-              <p className="text-xs font-mono text-zinc-200">{trade.applyDate.slice(0, 10)}</p>
-              <p className="text-xs font-mono text-zinc-400 mt-0.5">{trade.applyDate.slice(11)}</p>
+          {/* 손익 / 보유봉수 */}
+          {isClose && (
+            <div className="bg-zinc-800/50 rounded-xl px-5 py-4 grid grid-cols-3 gap-4">
+              <Field label="실현 손익">
+                <p className={`text-sm font-bold ${pnlColor}`}>
+                  {trade.realizedPnl != null
+                    ? `${trade.realizedPnl >= 0 ? '+' : ''}₩${trade.realizedPnl.toLocaleString()}`
+                    : '—'}
+                </p>
+              </Field>
+              <Field label="보유 봉 수">
+                <p className="text-sm font-bold text-zinc-100">
+                  {trade.barsHeld != null ? `${trade.barsHeld}봉` : '—'}
+                </p>
+              </Field>
+              <Field label="청산 시각">
+                <Dt value={trade.exitAt} />
+              </Field>
+            </div>
+          )}
+
+          {/* 진입 / 생성 시각 */}
+          <div className="bg-zinc-800/50 rounded-xl px-5 py-4 grid grid-cols-2 gap-4">
+            <Field label="진입 시각">
+              <Dt value={trade.entryAt} />
             </Field>
-            <Field label="확정날짜">
-              {trade.confirmDate ? (
-                <>
-                  <p className="text-xs font-mono text-zinc-200">{trade.confirmDate.slice(0, 10)}</p>
-                  <p className="text-xs font-mono text-zinc-400 mt-0.5">{trade.confirmDate.slice(11)}</p>
-                </>
-              ) : (
-                <>
-                  <p className="text-xs font-mono text-zinc-500">—</p>
-                  <p className="text-xs font-mono text-zinc-500 mt-0.5">—</p>
-                </>
+            <Field label="생성 일시">
+              <Dt value={trade.createdAt} />
+            </Field>
+          </div>
+
+          {/* SL / TP */}
+          <div className="bg-zinc-800/50 rounded-xl px-5 py-4 grid grid-cols-2 gap-4">
+            <Field label="손절가 (Stop)">
+              <p className="text-sm text-zinc-200">
+                {trade.stopPrice != null ? `₩${trade.stopPrice.toLocaleString()}` : '—'}
+              </p>
+            </Field>
+            <Field label="익절가 (TP)">
+              <p className="text-sm text-zinc-200">
+                {trade.tpPrice != null ? `₩${trade.tpPrice.toLocaleString()}` : '—'}
+              </p>
+            </Field>
+          </div>
+
+          {/* 자본 현황 */}
+          <div className="bg-zinc-800/50 rounded-xl px-5 py-4 grid grid-cols-2 gap-4">
+            <Field label="현재 자본">
+              <p className="text-sm text-zinc-200">
+                {trade.currentEquity != null ? trade.currentEquity.toLocaleString() : '—'}
+              </p>
+            </Field>
+            <Field label="최대 자본 (Peak)">
+              <p className="text-sm text-zinc-200">
+                {trade.peakEquity != null ? trade.peakEquity.toLocaleString() : '—'}
+              </p>
+            </Field>
+          </div>
+
+          {/* 에러 메시지 (실패 시) */}
+          {trade.orderStatus === 'FAILED' && trade.errorMessage && (
+            <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl px-5 py-4">
+              <p className="text-xs text-rose-400 mb-1">오류 메시지</p>
+              <p className="text-sm text-rose-300 break-words">{trade.errorMessage}</p>
+            </div>
+          )}
+
+          {/* 전략 ID / 유저 */}
+          {(trade.strategyConfigId != null || trade.userName) && (
+            <div className="bg-zinc-800/30 rounded-xl px-5 py-3 space-y-1.5">
+              {trade.strategyConfigId != null && (
+                <p className="text-xs text-zinc-600">전략 ID: <span className="text-zinc-500">{trade.strategyConfigId}</span></p>
               )}
-            </Field>
-          </div>
-
+              {trade.userName && (
+                <p className="text-xs text-zinc-600">유저: <span className="text-zinc-400">{trade.userName}</span></p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 푸터 */}
-        <div className="px-6 py-4 border-t border-zinc-800 flex justify-end">
+        <div className="px-6 py-4 border-t border-zinc-800 flex justify-end sticky bottom-0 bg-zinc-900">
           <button
             onClick={onClose}
-            className="px-5 py-2 text-sm font-medium bg-zinc-800 text-zinc-300 rounded-lg hover:bg-zinc-700 transition-colors cursor-pointer whitespace-nowrap"
+            className="px-5 py-2 text-sm font-medium bg-zinc-800 text-zinc-300 rounded-lg hover:bg-zinc-700 transition-colors cursor-pointer"
           >
             닫기
           </button>

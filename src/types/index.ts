@@ -118,3 +118,31 @@ export interface Trade {
   views: number;
   comments: number;
 }
+
+/** trade_history 테이블 매핑 */
+export interface TradeHistory {
+  id:                string;
+  tradingSessionId:  string;
+  userUid:           string;
+  strategyConfigId:  number | null;
+  mode:              'LIVE' | 'PAPER';
+  symbol:            string;
+  symbolName:        string | null;
+  action:            'BUY' | 'SELL_SHORT' | 'CLOSE_LONG' | 'CLOSE_SHORT';
+  shares:            number;
+  orderStatus:       'SUCCESS' | 'FAILED';
+  entryPrice:        number | null;
+  entryAt:           string | null;
+  exitPrice:         number | null;
+  exitAt:            string | null;
+  realizedPnl:       number | null;
+  stopPrice:         number | null;
+  tpPrice:           number | null;
+  barsHeld:          number | null;
+  currentEquity:     number | null;
+  peakEquity:        number | null;
+  errorMessage:      string | null;
+  createdAt:         string;
+  // 백엔드 조인 필드 (관리자용)
+  userName?:         string | null;
+}

@@ -43,7 +43,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
       <ProfileModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} user={loginUser} />
 
       <aside
-        className={`relative fixed lg:static inset-y-0 left-0 z-50 w-96 bg-zinc-900 border-r border-zinc-800 transform transition-transform duration-300 ease-in-out ${
+        className={`relative fixed lg:static inset-y-0 left-0 z-50 w-96 lg:h-full bg-zinc-900 border-r border-zinc-800 transform transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
