@@ -14,6 +14,7 @@ import {
   insertTradingSession,
   updateTradingSession,
   deleteTradingSession,
+  resetTradingSession,
 } from '../../api/tradeApi';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -71,7 +72,7 @@ export default function Live() {
   const [sessionTab, setSessionTab] = useState<'LIVE' | 'PAPER'>('LIVE');
 
   // 중지/재실행/삭제 확인 팝업
-  const [confirmAction, setConfirmAction] = useState<{ id: string; type: 'stop' | 'resume' | 'delete' } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ id: string; type: 'stop' | 'resume' | 'delete' | 'reset' } | null>(null);
 
   const [adminToggle, setAdminToggle] = useState(false);
 
@@ -205,6 +206,16 @@ export default function Live() {
     }
   };
 
+  // 세션 초기화
+  const handleResetSession = async (id: string) => {
+    try {
+      await resetTradingSession(id);
+      await fetchSessionList();
+    } catch {
+      setErrorMessage('세션 초기화에 실패했습니다.');
+    }
+  };
+
   return (
     <PageLayout>
       {/* 중지/재실행 확인 팝업 */}
@@ -213,21 +224,23 @@ export default function Live() {
           <div className="bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
             <div className="flex items-center gap-3">
               <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                confirmAction.type === 'stop' ? 'bg-amber-500/20' : confirmAction.type === 'resume' ? 'bg-teal-500/20' : 'bg-red-500/20'
+                confirmAction.type === 'stop' ? 'bg-amber-500/20' : confirmAction.type === 'resume' ? 'bg-teal-500/20' : confirmAction.type === 'reset' ? 'bg-blue-500/20' : 'bg-red-500/20'
               }`}>
                 <i className={`text-lg ${
-                  confirmAction.type === 'stop' ? 'ri-stop-line text-amber-400' : confirmAction.type === 'resume' ? 'ri-play-line text-teal-400' : 'ri-delete-bin-line text-red-400'
+                  confirmAction.type === 'stop' ? 'ri-stop-line text-amber-400' : confirmAction.type === 'resume' ? 'ri-play-line text-teal-400' : confirmAction.type === 'reset' ? 'ri-refresh-line text-blue-400' : 'ri-delete-bin-line text-red-400'
                 }`}></i>
               </div>
               <div>
                 <p className="text-base font-semibold text-zinc-100">
-                  세션 {confirmAction.type === 'stop' ? '중지' : confirmAction.type === 'resume' ? '재실행' : '삭제'}
+                  세션 {confirmAction.type === 'stop' ? '중지' : confirmAction.type === 'resume' ? '재실행' : confirmAction.type === 'reset' ? '초기화' : '삭제'}
                 </p>
                 <p className="text-sm text-zinc-400 mt-0.5">
                   {confirmAction.type === 'stop'
                     ? '해당 세션을 중지하시겠습니까?'
                     : confirmAction.type === 'resume'
                     ? '해당 세션을 재실행하시겠습니까?'
+                    : confirmAction.type === 'reset'
+                    ? '해당 세션을 초기화하시겠습니까?'
                     : '해당 세션을 삭제하시겠습니까?'}
                 </p>
               </div>
@@ -245,15 +258,17 @@ export default function Live() {
                   setConfirmAction(null);
                   if (type === 'stop') await handleStopSession(id);
                   else if (type === 'resume') await handleResumeSession(id);
+                  else if (type === 'reset') await handleResetSession(id);
                   else await handleDeleteSession(id);
                 }}
                 className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-colors cursor-pointer text-white ${
                   confirmAction.type === 'stop' ? 'bg-amber-500 hover:bg-amber-400'
                   : confirmAction.type === 'resume' ? 'bg-teal-500 hover:bg-teal-400'
+                  : confirmAction.type === 'reset' ? 'bg-blue-500 hover:bg-blue-400'
                   : 'bg-red-500 hover:bg-red-400'
                 }`}
               >
-                {confirmAction.type === 'stop' ? '중지' : confirmAction.type === 'resume' ? '재실행' : '삭제'}
+                {confirmAction.type === 'stop' ? '중지' : confirmAction.type === 'resume' ? '재실행' : confirmAction.type === 'reset' ? '초기화' : '삭제'}
               </button>
             </div>
           </div>
@@ -463,6 +478,14 @@ export default function Live() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-zinc-300">{session.lastUpdatedAt}</span>
+                      {!isAdmin && (
+                        <button
+                          onClick={() => setConfirmAction({ id: session.id, type: 'reset' })}
+                          className="px-2.5 py-1 text-xs font-semibold bg-blue-500/15 text-blue-400 hover:bg-blue-500/30 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <i className="ri-refresh-line mr-1"></i>초기화
+                        </button>
+                      )}
                       {!isAdmin && session.active === 1 && (
                         <button
                           onClick={() => setConfirmAction({ id: session.id, type: 'stop' })}

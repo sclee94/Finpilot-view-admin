@@ -34,6 +34,8 @@ const PAGE_SIZE = 15;
 type SortField = 'createdAt' | 'entryAt' | 'exitAt' | 'realizedPnl' | null;
 type SortDir = 'asc' | 'desc';
 
+const today = new Date().toISOString().slice(0, 10);
+
 export default function ReportsPage() {
   const user    = authStorage.get();
   const isAdmin = (user?.permission ?? 0) >= 99;
@@ -48,6 +50,8 @@ export default function ReportsPage() {
   const [selected,    setSelected]    = useState<TradeHistory | null>(null);
   const [sortField,   setSortField]   = useState<SortField>(null);
   const [sortDir,     setSortDir]     = useState<SortDir>('desc');
+  const [dateFrom,    setDateFrom]    = useState(today);
+  const [dateTo,      setDateTo]      = useState(today);
 
   useEffect(() => {
     setLoading(true);
@@ -69,11 +73,14 @@ export default function ReportsPage() {
   const filtered = useMemo(() => {
     const base = list.filter(t => {
       const q = search.toLowerCase();
+      const dateStr = t.createdAt?.slice(0, 10) ?? '';
       return (
         (modeFilter   === 'all' || t.mode        === modeFilter) &&
         (actionFilter === 'all' || t.action      === actionFilter) &&
         (statusFilter === 'all' || t.orderStatus === statusFilter) &&
-        (q === '' || t.symbol.toLowerCase().includes(q) || (t.symbolName ?? '').toLowerCase().includes(q))
+        (q === '' || t.symbol.toLowerCase().includes(q) || (t.symbolName ?? '').toLowerCase().includes(q)) &&
+        (dateFrom === '' || dateStr >= dateFrom) &&
+        (dateTo   === '' || dateStr <= dateTo)
       );
     });
 
@@ -93,7 +100,7 @@ export default function ReportsPage() {
       });
     }
     return base;
-  }, [list, modeFilter, actionFilter, statusFilter, search, sortField, sortDir]);
+  }, [list, modeFilter, actionFilter, statusFilter, search, sortField, sortDir, dateFrom, dateTo]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -118,6 +125,27 @@ export default function ReportsPage() {
             <TradeSummaryCards list={filtered} />
 
             <div className="space-y-3">
+              {/* 날짜 범위 */}
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={e => { setDateFrom(e.target.value); setPage(1); }}
+                    className="bg-zinc-900 border border-zinc-700 text-zinc-200 text-sm rounded-xl px-3 py-2 cursor-pointer focus:outline-none focus:border-teal-500 [color-scheme:dark]"
+                  />
+                </div>
+                <span className="text-zinc-500 text-sm">~</span>
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={e => { setDateTo(e.target.value); setPage(1); }}
+                    className="bg-zinc-900 border border-zinc-700 text-zinc-200 text-sm rounded-xl px-3 py-2 cursor-pointer focus:outline-none focus:border-teal-500 [color-scheme:dark]"
+                  />
+                </div>
+              </div>
+
               {/* 필터 버튼 */}
               <div className="flex flex-wrap items-center gap-2">
                 <FilterButtonGroup options={MODE_FILTERS}   value={modeFilter}   onChange={v => { setModeFilter(v);   setPage(1); }} />

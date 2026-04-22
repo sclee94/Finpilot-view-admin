@@ -34,6 +34,10 @@ export const updateTradingSession = (params: { id: string; active: number }) =>
 export const deleteTradingSession = (id: string) =>
   apiClient.delete<ApiResponse<TradingSession>>('/trade/deleteTradingSession', { id });
 
+/** 세션 초기화 - PUT /api/trade/resetTradingSession */
+export const resetTradingSession = (id: string) =>
+  apiClient.put<ApiResponse<TradingSession>>('/trade/resetTradingSession', { id });
+
 /** 거래 이력 조회 - POST /api/tradeHistory/getTradeHistoryList */
 export const getTradeHistoryList = (params: {
   userUid?: string | null;
