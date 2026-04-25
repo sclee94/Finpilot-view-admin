@@ -8,19 +8,28 @@ function formatPnl(val: number): string {
   return `${sign}₩${abs.toLocaleString()}`;
 }
 
+function formatAmt(val: number): string {
+  if (val >= 100000000) return `${(val / 100000000).toFixed(2)}억원`;
+  if (val >= 10000) return `${Math.round(val / 10000).toLocaleString()}만원`;
+  return `₩${val.toLocaleString()}`;
+}
+
 interface Props {
   list: TradeHistory[];
 }
 
 export default function TradeSummaryCards({ list }: Props) {
-  const total       = list.length;
-  const success     = list.filter(t => t.orderStatus === 'SUCCESS').length;
-  const failed      = list.filter(t => t.orderStatus === 'FAILED').length;
-  const closeList   = list.filter(t => t.action === 'CLOSE_LONG' || t.action === 'CLOSE_SHORT');
-  const totalPnl    = closeList.reduce((s, t) => s + (t.realizedPnl ?? 0), 0);
-  const buyCount    = list.filter(t => t.action === 'BUY').length;
-  const shortCount  = list.filter(t => t.action === 'SELL_SHORT').length;
-  const closeCount  = closeList.length;
+  const total         = list.length;
+  const success       = list.filter(t => t.orderStatus === 'SUCCESS').length;
+  const failed        = list.filter(t => t.orderStatus === 'FAILED').length;
+  const closeList     = list.filter(t => t.action === 'CLOSE_LONG' || t.action === 'CLOSE_SHORT');
+  const buyList       = list.filter(t => t.action === 'BUY');
+  const totalPnl      = closeList.reduce((s, t) => s + (t.realizedPnl ?? 0), 0);
+  const buyCount      = buyList.length;
+  const shortCount    = list.filter(t => t.action === 'SELL_SHORT').length;
+  const closeCount    = closeList.length;
+  const totalBuyAmt   = buyList.reduce((s, t) => s + (t.entryPrice != null ? t.entryPrice * t.shares : 0), 0);
+  const totalSellAmt  = closeList.reduce((s, t) => s + (t.exitPrice != null ? t.exitPrice * t.shares : 0), 0);
 
   return (
     <div className="flex flex-col xl:flex-row gap-4">
@@ -75,6 +84,7 @@ export default function TradeSummaryCards({ list }: Props) {
                 <span className="text-xs text-zinc-500">매수 (BUY)</span>
               </div>
               <p className="text-lg font-bold text-teal-400">{buyCount}건</p>
+              <p className="text-xs text-teal-600 mt-0.5">{formatAmt(totalBuyAmt)}</p>
             </div>
             <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-3">
               <div className="flex items-center gap-1.5 mb-1.5">
@@ -89,6 +99,7 @@ export default function TradeSummaryCards({ list }: Props) {
                 <span className="text-xs text-zinc-500">청산 (CLOSE)</span>
               </div>
               <p className="text-lg font-bold text-sky-400">{closeCount}건</p>
+              <p className="text-xs text-sky-600 mt-0.5">{formatAmt(totalSellAmt)}</p>
             </div>
             <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-3">
               <div className="flex items-center gap-1.5 mb-1.5">

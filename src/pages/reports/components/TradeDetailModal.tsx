@@ -91,21 +91,38 @@ export default function TradeDetailModal({ trade, onClose }: Props) {
             </Field>
           </div>
 
-          {/* 수량 / 진입가 / 청산가 */}
+          {/* 수량 / 진입가(매수) 또는 청산가(청산) / 총금액 */}
           <div className="bg-zinc-800/50 rounded-xl px-5 py-4 grid grid-cols-3 gap-4">
             <Field label="수량">
               <p className="text-sm font-bold text-zinc-100">{trade.shares.toLocaleString()}주</p>
             </Field>
-            <Field label="진입가">
-              <p className="text-sm font-bold text-zinc-100">
-                {trade.entryPrice != null ? `₩${trade.entryPrice.toLocaleString()}` : '—'}
-              </p>
-            </Field>
-            <Field label="청산가">
-              <p className="text-sm font-bold text-zinc-100">
-                {trade.exitPrice != null ? `₩${trade.exitPrice.toLocaleString()}` : '—'}
-              </p>
-            </Field>
+            {isClose ? (
+              <>
+                <Field label="청산가">
+                  <p className="text-sm font-bold text-zinc-100">
+                    {trade.exitPrice != null ? `₩${trade.exitPrice.toLocaleString()}` : '—'}
+                  </p>
+                </Field>
+                <Field label="총매도금액">
+                  <p className="text-sm font-bold text-sky-300">
+                    {trade.exitPrice != null ? `₩${(trade.exitPrice * trade.shares).toLocaleString()}` : '—'}
+                  </p>
+                </Field>
+              </>
+            ) : (
+              <>
+                <Field label="진입가">
+                  <p className="text-sm font-bold text-zinc-100">
+                    {trade.entryPrice != null ? `₩${trade.entryPrice.toLocaleString()}` : '—'}
+                  </p>
+                </Field>
+                <Field label="총매수금액">
+                  <p className="text-sm font-bold text-teal-300">
+                    {trade.entryPrice != null ? `₩${(trade.entryPrice * trade.shares).toLocaleString()}` : '—'}
+                  </p>
+                </Field>
+              </>
+            )}
           </div>
 
           {/* 손익 / 보유봉수 */}

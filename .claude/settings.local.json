@@ -9,7 +9,11 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git push:*)",
-      "Bash(git pull:*)"
+      "Bash(git pull:*)",
+      "Bash(find /c/reactWS/finpilot/src -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) | xargs grep -l \"거래현황\\\\|Trade\" | head -20)",
+      "Bash(cd /c/reactWS && npx create-expo-app finpilot-mobile --template blank-typescript 2>&1)",
+      "Bash(cd /c/reactWS/finpilot-mobile && npm install @react-navigation/native @react-navigation/bottom-tabs @react-navigation/native-stack react-native-screens react-native-safe-area-context 2>&1 | tail -5)",
+      "Bash(cd /c/reactWS/finpilot-mobile && npm install @react-native-async-storage/async-storage react-native-vector-icons 2>&1 | tail -5)"
     ]
   }
 }
