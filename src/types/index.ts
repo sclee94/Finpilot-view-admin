@@ -58,7 +58,7 @@ export interface TradingSession {
   createdAt:        string;
   lastUpdatedAt:    string;
   // 백엔드 조인 필드
-  strategyConfig?:  { id: number; title: string } | null;
+  strategyConfig?:  { id: number; title: string; isStrategyUpdate?: number } | null;
   userDTO?:         { userName?: string } | null;
 }
 

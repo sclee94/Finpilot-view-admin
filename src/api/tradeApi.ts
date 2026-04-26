@@ -38,6 +38,10 @@ export const deleteTradingSession = (id: string) =>
 export const resetTradingSession = (id: string) =>
   apiClient.put<ApiResponse<TradingSession>>('/trade/resetTradingSession', { id });
 
+/** 전략 자동 업데이트 토글 - PUT /api/trade/toggleStrategyUpdate */
+export const toggleStrategyUpdate = (strategyConfigId: number) =>
+  apiClient.put<ApiResponse<null>>('/trade/toggleStrategyUpdate', { strategyConfigId });
+
 /** 거래 이력 조회 - POST /api/tradeHistory/getTradeHistoryList */
 export const getTradeHistoryList = (params: {
   userUid?: string | null;

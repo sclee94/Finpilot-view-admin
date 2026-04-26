@@ -15,6 +15,7 @@ import {
   updateTradingSession,
   deleteTradingSession,
   resetTradingSession,
+  toggleStrategyUpdate,
 } from '../../api/tradeApi';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -75,6 +76,7 @@ export default function Live() {
   const [confirmAction, setConfirmAction] = useState<{ id: string; type: 'stop' | 'resume' | 'delete' | 'reset' } | null>(null);
 
   const [adminToggle, setAdminToggle] = useState(false);
+  const [autoUpdateMap, setAutoUpdateMap] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -458,8 +460,15 @@ export default function Live() {
             </div>
           ) : (
             <div className="space-y-3">
-              {sessionList.filter(s => s.mode === sessionTab).map(session => (
-                <div key={session.id} className="bg-zinc-800/60 border border-zinc-700/50 rounded-xl p-4 space-y-3">
+              {sessionList.filter(s => s.mode === sessionTab).map(session => {
+                const hasShares = (session.sharesHeld ?? 0) >= 1;
+                const valueColor = 'text-white';
+                return (
+                <div key={session.id} className={`bg-zinc-800/60 border rounded-xl p-4 space-y-3 ${
+                  hasShares
+                    ? 'border-purple-500 shadow-[0_0_0_1px_rgba(168,85,247,0.2)]'
+                    : 'border-zinc-700/50'
+                }`}>
                   {/* 헤더 */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -478,6 +487,33 @@ export default function Live() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-zinc-300">{session.lastUpdatedAt}</span>
+                      {!isAdmin && (
+                        <div className="relative group flex items-center gap-1.5 bg-zinc-700/50 border border-zinc-600/50 rounded-lg px-2.5 py-1">
+                          <span className="text-xs text-zinc-400">전략 자동 업데이트</span>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!session.strategyConfigId) return;
+                              const next = !(autoUpdateMap[session.id] ?? (session.strategyConfig?.isStrategyUpdate === 1));
+                              setAutoUpdateMap(prev => ({ ...prev, [session.id]: next }));
+                              try {
+                                await toggleStrategyUpdate(session.strategyConfigId);
+                              } catch {
+                                setAutoUpdateMap(prev => ({ ...prev, [session.id]: !next }));
+                              }
+                            }}
+                            className={`relative w-9 h-5 rounded-full transition-colors cursor-pointer ${(autoUpdateMap[session.id] ?? (session.strategyConfig?.isStrategyUpdate === 1)) ? 'bg-teal-500' : 'bg-zinc-600'}`}
+                          >
+                            <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${(autoUpdateMap[session.id] ?? (session.strategyConfig?.isStrategyUpdate === 1)) ? 'translate-x-4' : 'translate-x-0'}`} />
+                          </button>
+                          <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block z-10 pointer-events-none">
+                            <div className="bg-zinc-800 border border-zinc-600 rounded-lg px-3 py-2 text-xs text-zinc-300 whitespace-nowrap shadow-lg">
+                              매일 자정 0시0분0초에 해당 날짜의 주식 정보(봉) 업데이트 합니다.
+                            </div>
+                            <div className="absolute right-3 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-zinc-600" />
+                          </div>
+                        </div>
+                      )}
                       {!isAdmin && (
                         <button
                           onClick={() => setConfirmAction({ id: session.id, type: 'reset' })}
@@ -520,43 +556,44 @@ export default function Live() {
                     </div>
                     <div className="bg-zinc-800 rounded-lg px-3 py-2">
                       <p className="text-xs text-zinc-400 mb-1">보유 봉 수</p>
-                      <p className="text-sm font-semibold text-white">{session.barsHeld}</p>
+                      <p className={`text-sm font-semibold ${valueColor}`}>{session.barsHeld}</p>
                     </div>
                     <div className="bg-zinc-800 rounded-lg px-3 py-2">
                       <p className="text-xs text-zinc-400 mb-1">보유 수량</p>
-                      <p className="text-sm font-semibold text-white">{session.sharesHeld ?? '-'}</p>
+                      <p className={`text-sm font-semibold ${valueColor}`}>{session.sharesHeld ?? '-'}</p>
                     </div>
                     <div className="bg-zinc-800 rounded-lg px-3 py-2">
                       <p className="text-xs text-zinc-400 mb-1">손절가 (Stop)</p>
-                      <p className="text-sm font-semibold text-white">
+                      <p className={`text-sm font-semibold ${valueColor}`}>
                         {session.stopPrice != null ? session.stopPrice.toLocaleString() : '-'}
                       </p>
                     </div>
                     <div className="bg-zinc-800 rounded-lg px-3 py-2">
                       <p className="text-xs text-zinc-400 mb-1">익절가 (TP)</p>
-                      <p className="text-sm font-semibold text-white">
+                      <p className={`text-sm font-semibold ${valueColor}`}>
                         {session.tpPrice != null ? session.tpPrice.toLocaleString() : '-'}
                       </p>
                     </div>
                     <div className="bg-zinc-800 rounded-lg px-3 py-2">
                       <p className="text-xs text-zinc-400 mb-1">쿨다운 잔여 봉</p>
-                      <p className="text-sm font-semibold text-white">{session.cooldownBarsLeft}</p>
+                      <p className={`text-sm font-semibold ${valueColor}`}>{session.cooldownBarsLeft}</p>
                     </div>
                     <div className="bg-zinc-800 rounded-lg px-3 py-2">
                       <p className="text-xs text-zinc-400 mb-1">연속 손절 횟수</p>
-                      <p className="text-sm font-semibold text-white">{session.consecSlCount}</p>
+                      <p className={`text-sm font-semibold ${valueColor}`}>{session.consecSlCount}</p>
                     </div>
                     <div className="bg-zinc-800 rounded-lg px-3 py-2">
                       <p className="text-xs text-zinc-400 mb-1">현재 자산</p>
-                      <p className="text-sm font-semibold text-white">{session.currentEquity != null ? session.currentEquity.toFixed(6) : '-'}</p>
+                      <p className={`text-sm font-semibold ${valueColor}`}>{session.currentEquity != null ? session.currentEquity.toFixed(6) : '-'}</p>
                     </div>
                     <div className="bg-zinc-800 rounded-lg px-3 py-2">
                       <p className="text-xs text-zinc-400 mb-1">최고 자산</p>
-                      <p className="text-sm font-semibold text-white">{session.peakEquity.toFixed(6)}</p>
+                      <p className={`text-sm font-semibold ${valueColor}`}>{session.peakEquity.toFixed(6)}</p>
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

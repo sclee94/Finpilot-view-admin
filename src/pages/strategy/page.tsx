@@ -64,6 +64,16 @@ export default function Strategy() {
 
   // 추천 탭
   const [recommended, setRecommended] = useState<StrategyParams | null>(null);
+  const [recStats, setRecStats] = useState<{
+    backtestFrom?: string;
+    backtestTo?: string;
+    trades?: number;
+    winRate?: number;
+    totalReturnPct?: number;
+    realizedPnl?: number;
+    mdd?: number;
+    sharpe?: number;
+  } | null>(null);
   const [recLoading, setRecLoading] = useState(false);
   const [recError, setRecError] = useState<string | null>(null);
   const [recInput, setRecInput] = useState<{ symbol: string; initial_capital: NumVal; risk_per_trade: NumVal; use_prev_bar_signal: boolean; min_trades: NumVal }>({
@@ -143,6 +153,16 @@ export default function Strategy() {
         if (res && typeof res.status === 'number' && res.status < 400 && res.data) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const d = res.data as any;
+          setRecStats({
+            backtestFrom:   d.backtestFrom,
+            backtestTo:     d.backtestTo,
+            trades:         d.trades,
+            winRate:        d.winRate,
+            totalReturnPct: d.totalReturnPct,
+            realizedPnl:    d.realizedPnl,
+            mdd:            d.mdd,
+            sharpe:         d.sharpe,
+          });
           setRecommended({
             symbol:               d.symbol ?? recInput.symbol,
             adx_threshold:        d.adxThreshold,
@@ -324,10 +344,6 @@ export default function Strategy() {
                   className="px-4 py-2 text-base bg-zinc-800 text-zinc-300 hover:bg-zinc-700 rounded-lg transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
                   <i className={`ri-magic-line mr-1.5 ${recLoading ? 'animate-spin' : ''}`}></i>추천받기
                 </button>
-                <button onClick={handleApplyRecommended} disabled={!isRecComplete}
-                  className="px-4 py-2 text-base font-semibold bg-zinc-700 hover:bg-zinc-600 text-zinc-200 rounded-lg transition-colors cursor-pointer whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed">
-                  <i className="ri-download-line mr-1.5"></i>커스텀에 적용
-                </button>
               </div>
 
               {/* 최적화 입력값 */}
@@ -449,12 +465,73 @@ export default function Strategy() {
                   </p>
                 </div>
               ) : recommended && (
-                <div className="flex items-center gap-3 px-5 py-4 bg-teal-500/10 border border-teal-500/30 rounded-xl">
-                  <i className="ri-check-double-line text-teal-400 text-2xl shrink-0"></i>
-                  <div>
-                    <p className="text-teal-300 font-semibold">추천 완료!</p>
-                    <p className="text-zinc-400 text-sm mt-0.5">위의 <span className="text-teal-400 font-medium">커스텀에 적용</span> 버튼을 눌러 커스텀 탭에서 설정을 확인하세요.</p>
+                <div className="bg-teal-500/10 border border-teal-500/30 rounded-xl px-5 py-4 space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <i className="ri-check-double-line text-teal-400 text-2xl shrink-0"></i>
+                      <div>
+                        <p className="text-teal-300 font-semibold">추천 완료!</p>
+                        <p className="text-zinc-400 text-sm mt-0.5">아래 결과를 확인하고 커스텀에 적용해 보세요.</p>
+                      </div>
+                    </div>
+                    <button onClick={handleApplyRecommended} disabled={!isRecComplete}
+                      className="px-4 py-2 text-sm font-semibold bg-teal-500 hover:bg-teal-400 text-white rounded-lg transition-colors cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-40 disabled:cursor-not-allowed">
+                      <i className="ri-download-line mr-1.5"></i>커스텀에 적용
+                    </button>
                   </div>
+                  {recStats && (
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 col-span-2">
+                        <p className="text-xs text-zinc-500 mb-1">백테스트 기간</p>
+                        <p className="text-sm font-semibold text-zinc-200">
+                          {recStats.backtestFrom && recStats.backtestTo
+                            ? (() => {
+                                const days = Math.round((new Date(recStats.backtestTo).getTime() - new Date(recStats.backtestFrom).getTime()) / 86400000);
+                                return `${recStats.backtestFrom} ~ ${recStats.backtestTo} (총 ${days}일)`;
+                              })()
+                            : '-'}
+                        </p>
+                      </div>
+                      <div className="bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3">
+                        <p className="text-xs text-zinc-500 mb-1">거래수</p>
+                        <p className="text-sm font-semibold text-zinc-200">{recStats.trades != null ? `${recStats.trades}건` : '-'}</p>
+                      </div>
+                      <div className="bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3">
+                        <p className="text-xs text-zinc-500 mb-1">성공률</p>
+                        <p className="text-sm font-semibold text-teal-400">
+                          {recStats.winRate != null ? `${Number(recStats.winRate).toFixed(1)}%` : '-'}
+                        </p>
+                      </div>
+                      <div className="bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3">
+                        <p className="text-xs text-zinc-500 mb-1">총 수익률</p>
+                        <p className={`text-sm font-semibold ${recStats.totalReturnPct != null ? (recStats.totalReturnPct >= 0 ? 'text-teal-400' : 'text-red-400') : 'text-zinc-200'}`}>
+                          {recStats.totalReturnPct != null
+                            ? `${recStats.totalReturnPct >= 0 ? '+' : ''}${Number(recStats.totalReturnPct).toFixed(2)}%`
+                            : '-'}
+                        </p>
+                      </div>
+                      <div className="bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3">
+                        <p className="text-xs text-zinc-500 mb-1">실현손익</p>
+                        <p className={`text-sm font-semibold ${recStats.realizedPnl != null ? (recStats.realizedPnl >= 0 ? 'text-teal-400' : 'text-red-400') : 'text-zinc-200'}`}>
+                          {recStats.realizedPnl != null
+                            ? `${recStats.realizedPnl >= 0 ? '+' : ''}${recStats.realizedPnl.toLocaleString()}`
+                            : '-'}
+                        </p>
+                      </div>
+                      <div className="bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3">
+                        <p className="text-xs text-zinc-500 mb-1">최대 낙폭</p>
+                        <p className="text-sm font-semibold text-red-400">
+                          {recStats.mdd != null ? `-${Number(recStats.mdd).toFixed(2)}%` : '-'}
+                        </p>
+                      </div>
+                      <div className="bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3">
+                        <p className="text-xs text-zinc-500 mb-1">샤프 비율</p>
+                        <p className="text-sm font-semibold text-zinc-200">
+                          {recStats.sharpe != null ? Number(recStats.sharpe).toFixed(3) : '-'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
