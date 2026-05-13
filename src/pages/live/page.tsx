@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import PageLayout from '../../components/PageLayout';
 import { authStorage } from '../../utils/auth';
 import { PERMISSIONS } from '../../constants';
-import type { ApiResponse, TradingSession } from '../../types/index';
+import type { ApiResponse, TradingSession, TradeHistory } from '../../types/index';
 import type { StrategyConfigDTO, BoardItem } from '../strategy/strategyTypes';
 import { dtoToBoardItem } from '../strategy/strategyTypes';
 import { getSymbolName } from '../../constants/symbolNames';
@@ -16,6 +16,8 @@ import {
   deleteTradingSession,
   resetTradingSession,
   toggleStrategyUpdate,
+  getTradeHistoryList,
+  updateSessionStrategyConfigId,
 } from '../../api/tradeApi';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -74,6 +76,63 @@ export default function Live() {
 
   // 중지/재실행/삭제 확인 팝업
   const [confirmAction, setConfirmAction] = useState<{ id: string; type: 'stop' | 'resume' | 'delete' | 'reset' } | null>(null);
+
+  // 전략 변경 팝업
+  const [strategyChangePopup, setStrategyChangePopup] = useState<{ sessionId: string; currentStrategyId: number | null; currentStrategyTitle: string } | null>(null);
+  const [strategyList, setStrategyList] = useState<StrategyConfigDTO[]>([]);
+  const [strategyListLoading, setStrategyListLoading] = useState(false);
+  const [selectedNewStrategy, setSelectedNewStrategy] = useState<StrategyConfigDTO | null>(null);
+
+  const openStrategyChangePopup = useCallback(async (sessionId: string, currentStrategyId: number | null, currentStrategyTitle: string) => {
+    setStrategyChangePopup({ sessionId, currentStrategyId, currentStrategyTitle });
+    setSelectedNewStrategy(null);
+    const userUid = authStorage.get()?.userUid;
+    if (!userUid) return;
+    setStrategyListLoading(true);
+    try {
+      const res = await apiClient.post<ApiResponse<StrategyConfigDTO[]>>(
+        '/strategy/getStrategyConfigList',
+        { userUid },
+      );
+      setStrategyList(res.data ?? []);
+    } catch { /* silent */ } finally {
+      setStrategyListLoading(false);
+    }
+  }, []);
+
+  const handleStrategyChange = async () => {
+    if (!strategyChangePopup || !selectedNewStrategy?.id) return;
+    try {
+      await updateSessionStrategyConfigId({ id: strategyChangePopup.sessionId, strategyConfigId: selectedNewStrategy.id });
+      await fetchSessionList();
+      setStrategyChangePopup(null);
+      setSelectedNewStrategy(null);
+    } catch {
+      setErrorMessage('전략 변경에 실패했습니다.');
+    }
+  };
+
+  // 거래 리스트 팝업
+  const [tradePopup, setTradePopup] = useState<{ symbol: string; symbolName: string; userUid: string; mode: 'LIVE' | 'PAPER' } | null>(null);
+  const [tradePopupList, setTradePopupList] = useState<TradeHistory[]>([]);
+  const [tradePopupLoading, setTradePopupLoading] = useState(false);
+  const [tradePopupDetail, setTradePopupDetail] = useState<TradeHistory | null>(null);
+  const [tradePopupDateFrom, setTradePopupDateFrom] = useState('');
+  const [tradePopupDateTo, setTradePopupDateTo] = useState('');
+
+  useEffect(() => {
+    if (!tradePopup) return;
+    setTradePopupDateFrom('');
+    setTradePopupDateTo('');
+    setTradePopupLoading(true);
+    getTradeHistoryList({ userUid: tradePopup.userUid })
+      .then(res => {
+        const filtered = (res.data ?? []).filter(t => t.symbol === tradePopup.symbol && t.mode === tradePopup.mode);
+        setTradePopupList(filtered);
+      })
+      .catch(() => setTradePopupList([]))
+      .finally(() => setTradePopupLoading(false));
+  }, [tradePopup]);
 
   const [adminToggle, setAdminToggle] = useState(false);
   const [autoUpdateMap, setAutoUpdateMap] = useState<Record<string, boolean>>({});
@@ -220,6 +279,109 @@ export default function Live() {
 
   return (
     <PageLayout>
+      {/* 전략 변경 팝업 */}
+      {strategyChangePopup && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-black/60" onClick={() => { setStrategyChangePopup(null); setSelectedNewStrategy(null); }}>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            {/* 헤더 */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 shrink-0">
+              <div>
+                <h2 className="text-base font-bold text-zinc-100">전략 변경</h2>
+                <p className="text-xs text-zinc-500 mt-0.5">현재: <span className="text-zinc-300">{strategyChangePopup.currentStrategyTitle || '-'}</span></p>
+              </div>
+              <button
+                onClick={() => { setStrategyChangePopup(null); setSelectedNewStrategy(null); }}
+                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer"
+              >
+                <i className="ri-close-line text-zinc-400 text-lg"></i>
+              </button>
+            </div>
+
+            {/* 전략 목록 */}
+            <div className="overflow-y-auto flex-1 px-4 py-3 space-y-2">
+              {strategyListLoading ? (
+                <div className="flex items-center justify-center py-10">
+                  <i className="ri-loader-4-line animate-spin text-teal-400 text-2xl"></i>
+                </div>
+              ) : strategyList.length === 0 ? (
+                <div className="py-10 text-center text-zinc-500 text-sm">
+                  <i className="ri-inbox-line text-3xl block mb-2"></i>
+                  전략이 없습니다
+                </div>
+              ) : (
+                strategyList.map(strategy => {
+                  const isCurrent = strategy.id === strategyChangePopup.currentStrategyId;
+                  const isSelected = selectedNewStrategy?.id === strategy.id;
+                  return (
+                    <button
+                      key={strategy.id}
+                      type="button"
+                      disabled={isCurrent}
+                      onClick={() => !isCurrent && setSelectedNewStrategy(isSelected ? null : strategy)}
+                      className={`w-full text-left px-4 py-3 rounded-xl border transition-colors ${
+                        isCurrent
+                          ? 'border-amber-500/30 bg-amber-500/5 cursor-not-allowed'
+                          : isSelected
+                          ? 'border-teal-500 bg-teal-500/10 cursor-pointer'
+                          : 'border-zinc-700/50 bg-zinc-800/30 hover:border-zinc-600 hover:bg-zinc-800/60 cursor-pointer'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`text-sm font-semibold truncate ${isCurrent ? 'text-amber-300' : isSelected ? 'text-teal-300' : 'text-zinc-200'}`}>
+                            {strategy.title || '-'}
+                          </span>
+                          {isCurrent && (
+                            <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">적용중</span>
+                          )}
+                          {isSelected && (
+                            <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-400">선택됨</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 ml-3">
+                          {strategy.symbol && (
+                            <span className="text-xs text-zinc-500 bg-zinc-700 px-2 py-0.5 rounded">{strategy.symbol}</span>
+                          )}
+                        </div>
+                      </div>
+                      {strategy.createdAt && (
+                        <p className="text-xs text-zinc-600 mt-1">{strategy.createdAt}</p>
+                      )}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            {/* 푸터 */}
+            <div className="px-6 py-4 border-t border-zinc-800 flex items-center justify-between shrink-0">
+              <span className="text-xs text-zinc-500">
+                {selectedNewStrategy ? <><span className="text-zinc-300">{selectedNewStrategy.title}</span>으로 변경됩니다</> : '변경할 전략을 선택해 주세요'}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setStrategyChangePopup(null); setSelectedNewStrategy(null); }}
+                  className="px-4 py-2 text-sm font-medium bg-zinc-800 text-zinc-300 rounded-lg hover:bg-zinc-700 transition-colors cursor-pointer"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={handleStrategyChange}
+                  disabled={!selectedNewStrategy}
+                  className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
+                    selectedNewStrategy
+                      ? 'bg-teal-500 hover:bg-teal-400 text-white cursor-pointer'
+                      : 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
+                  }`}
+                >
+                  변경하기
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 중지/재실행 확인 팝업 */}
       {confirmAction && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-black/50">
@@ -271,6 +433,266 @@ export default function Live() {
                 }`}
               >
                 {confirmAction.type === 'stop' ? '중지' : confirmAction.type === 'resume' ? '재실행' : confirmAction.type === 'reset' ? '초기화' : '삭제'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 거래 리스트 팝업 */}
+      {tradePopup && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-black/60" onClick={() => { setTradePopup(null); setTradePopupDetail(null); }}>
+          <div className="relative bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-6xl shadow-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            {/* 헤더 */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 shrink-0">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base font-bold text-zinc-100">거래 내역</h2>
+                  <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${tradePopup.mode === 'LIVE' ? 'bg-amber-500/20 text-amber-300' : 'bg-blue-500/20 text-blue-300'}`}>
+                    {tradePopup.mode === 'LIVE' ? '실전' : '모의'}
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-500 mt-0.5">{tradePopup.symbolName} · {tradePopup.symbol}</p>
+              </div>
+              <button
+                onClick={() => { setTradePopup(null); setTradePopupDetail(null); }}
+                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer"
+              >
+                <i className="ri-close-line text-zinc-400 text-lg"></i>
+              </button>
+            </div>
+
+            {/* 거래 상세 팝업 (내부) */}
+            {tradePopupDetail && (() => {
+              const t = tradePopupDetail;
+              const isClose = t.action === 'CLOSE_LONG' || t.action === 'CLOSE_SHORT';
+              const pnlColor = t.realizedPnl != null && t.realizedPnl >= 0 ? 'text-sky-400' : 'text-rose-400';
+              const ACTION_STYLE: Record<string, string> = { BUY: 'bg-teal-500/20 text-teal-300', SELL_SHORT: 'bg-rose-500/20 text-rose-300', CLOSE_LONG: 'bg-sky-500/20 text-sky-300', CLOSE_SHORT: 'bg-orange-500/20 text-orange-300' };
+              const ACTION_LABEL: Record<string, string> = { BUY: '매수 (BUY)', SELL_SHORT: '공매도 (SELL_SHORT)', CLOSE_LONG: '청산 롱 (CLOSE_LONG)', CLOSE_SHORT: '청산 숏 (CLOSE_SHORT)' };
+              const MODE_STYLE: Record<string, string> = { LIVE: 'bg-amber-500/20 text-amber-300', PAPER: 'bg-blue-500/20 text-blue-300' };
+              const STATUS_STYLE: Record<string, string> = { SUCCESS: 'bg-emerald-500/20 text-emerald-300', FAILED: 'bg-rose-500/20 text-rose-400' };
+              return (
+                <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/70 rounded-2xl" onClick={() => setTradePopupDetail(null)}>
+                  <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-xl mx-4 shadow-2xl max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 sticky top-0 bg-zinc-900">
+                      <div>
+                        <h3 className="text-base font-bold text-zinc-100">거래 상세</h3>
+                        <p className="text-xs text-zinc-500 mt-0.5">{t.symbolName ?? t.symbol} · {t.symbol}</p>
+                      </div>
+                      <button onClick={() => setTradePopupDetail(null)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer">
+                        <i className="ri-close-line text-zinc-400 text-lg"></i>
+                      </button>
+                    </div>
+                    <div className="px-6 py-5 space-y-4">
+                      <div className="bg-zinc-800/50 rounded-xl px-5 py-4 grid grid-cols-3 gap-4">
+                        <div><p className="text-xs text-zinc-500 mb-1">모드</p><span className={`inline-block px-2.5 py-1 text-xs font-semibold rounded-full ${MODE_STYLE[t.mode]}`}>{t.mode === 'LIVE' ? '실전' : '모의'}</span></div>
+                        <div><p className="text-xs text-zinc-500 mb-1">액션</p><span className={`inline-block px-2.5 py-1 text-xs font-bold rounded-full ${ACTION_STYLE[t.action]}`}>{ACTION_LABEL[t.action] ?? t.action}</span></div>
+                        <div><p className="text-xs text-zinc-500 mb-1">주문 상태</p><span className={`inline-block px-2.5 py-1 text-xs font-medium rounded-full ${STATUS_STYLE[t.orderStatus]}`}>{t.orderStatus === 'SUCCESS' ? '성공' : '실패'}</span></div>
+                      </div>
+                      <div className="bg-zinc-800/50 rounded-xl px-5 py-4 grid grid-cols-3 gap-4">
+                        <div><p className="text-xs text-zinc-500 mb-1">수량</p><p className="text-sm font-bold text-zinc-100">{t.shares.toLocaleString()}주</p></div>
+                        {isClose ? (<>
+                          <div><p className="text-xs text-zinc-500 mb-1">청산가</p><p className="text-sm font-bold text-zinc-100">{t.exitPrice != null ? `₩${t.exitPrice.toLocaleString()}` : '—'}</p></div>
+                          <div><p className="text-xs text-zinc-500 mb-1">총매도금액</p><p className="text-sm font-bold text-sky-300">{t.exitPrice != null ? `₩${(t.exitPrice * t.shares).toLocaleString()}` : '—'}</p></div>
+                        </>) : (<>
+                          <div><p className="text-xs text-zinc-500 mb-1">진입가</p><p className="text-sm font-bold text-zinc-100">{t.entryPrice != null ? `₩${t.entryPrice.toLocaleString()}` : '—'}</p></div>
+                          <div><p className="text-xs text-zinc-500 mb-1">총매수금액</p><p className="text-sm font-bold text-teal-300">{t.entryPrice != null ? `₩${(t.entryPrice * t.shares).toLocaleString()}` : '—'}</p></div>
+                        </>)}
+                      </div>
+                      {isClose && (
+                        <div className="bg-zinc-800/50 rounded-xl px-5 py-4 grid grid-cols-3 gap-4">
+                          <div><p className="text-xs text-zinc-500 mb-1">실현 손익</p><p className={`text-sm font-bold ${pnlColor}`}>{t.realizedPnl != null ? `${t.realizedPnl >= 0 ? '+' : ''}₩${t.realizedPnl.toLocaleString()}` : '—'}</p></div>
+                          <div><p className="text-xs text-zinc-500 mb-1">보유 봉 수</p><p className="text-sm font-bold text-zinc-100">{t.barsHeld != null ? `${t.barsHeld}봉` : '—'}</p></div>
+                          <div><p className="text-xs text-zinc-500 mb-1">청산 시각</p>{t.exitAt ? <><p className="text-xs font-mono text-zinc-200">{t.exitAt.slice(0, 10)}</p><p className="text-xs font-mono text-zinc-400 mt-0.5">{t.exitAt.slice(11, 19)}</p></> : <p className="text-xs font-mono text-zinc-600">—</p>}</div>
+                        </div>
+                      )}
+                      <div className="bg-zinc-800/50 rounded-xl px-5 py-4 grid grid-cols-2 gap-4">
+                        <div><p className="text-xs text-zinc-500 mb-1">진입 시각</p>{t.entryAt ? <><p className="text-xs font-mono text-zinc-200">{t.entryAt.slice(0, 10)}</p><p className="text-xs font-mono text-zinc-400 mt-0.5">{t.entryAt.slice(11, 19)}</p></> : <p className="text-xs font-mono text-zinc-600">—</p>}</div>
+                        <div><p className="text-xs text-zinc-500 mb-1">생성 일시</p>{t.createdAt ? <><p className="text-xs font-mono text-zinc-200">{t.createdAt.slice(0, 10)}</p><p className="text-xs font-mono text-zinc-400 mt-0.5">{t.createdAt.slice(11, 19)}</p></> : <p className="text-xs font-mono text-zinc-600">—</p>}</div>
+                      </div>
+                      <div className="bg-zinc-800/50 rounded-xl px-5 py-4 grid grid-cols-2 gap-4">
+                        <div><p className="text-xs text-zinc-500 mb-1">손절가 (Stop)</p><p className="text-sm text-zinc-200">{t.stopPrice != null ? `₩${t.stopPrice.toLocaleString()}` : '—'}</p></div>
+                        <div><p className="text-xs text-zinc-500 mb-1">익절가 (TP)</p><p className="text-sm text-zinc-200">{t.tpPrice != null ? `₩${t.tpPrice.toLocaleString()}` : '—'}</p></div>
+                      </div>
+                      <div className="bg-zinc-800/50 rounded-xl px-5 py-4 grid grid-cols-2 gap-4">
+                        <div><p className="text-xs text-zinc-500 mb-1">현재 자본</p><p className="text-sm text-zinc-200">{t.currentEquity != null ? t.currentEquity.toLocaleString() : '—'}</p></div>
+                        <div><p className="text-xs text-zinc-500 mb-1">최대 자본 (Peak)</p><p className="text-sm text-zinc-200">{t.peakEquity != null ? t.peakEquity.toLocaleString() : '—'}</p></div>
+                      </div>
+                      {t.orderStatus === 'FAILED' && t.errorMessage && (
+                        <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl px-5 py-4">
+                          <p className="text-xs text-rose-400 mb-1">오류 메시지</p>
+                          <p className="text-sm text-rose-300 break-words">{t.errorMessage}</p>
+                        </div>
+                      )}
+                    </div>
+                    <div className="px-6 py-4 border-t border-zinc-800 flex justify-end sticky bottom-0 bg-zinc-900">
+                      <button onClick={() => setTradePopupDetail(null)} className="px-5 py-2 text-sm font-medium bg-zinc-800 text-zinc-300 rounded-lg hover:bg-zinc-700 transition-colors cursor-pointer">닫기</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* 날짜 필터 + 요약 */}
+            {!tradePopupLoading && (
+              <div className="px-6 py-3 border-b border-zinc-800 shrink-0 space-y-3">
+                {/* 날짜 범위 */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-zinc-500">기간</span>
+                  <input
+                    type="date"
+                    value={tradePopupDateFrom}
+                    onChange={e => setTradePopupDateFrom(e.target.value)}
+                    className="bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs rounded-lg px-2.5 py-1.5 cursor-pointer focus:outline-none focus:border-teal-500 [color-scheme:dark]"
+                  />
+                  <span className="text-zinc-600 text-xs">~</span>
+                  <input
+                    type="date"
+                    value={tradePopupDateTo}
+                    onChange={e => setTradePopupDateTo(e.target.value)}
+                    className="bg-zinc-800 border border-zinc-700 text-zinc-200 text-xs rounded-lg px-2.5 py-1.5 cursor-pointer focus:outline-none focus:border-teal-500 [color-scheme:dark]"
+                  />
+                  {(tradePopupDateFrom || tradePopupDateTo) && (
+                    <button
+                      onClick={() => { setTradePopupDateFrom(''); setTradePopupDateTo(''); }}
+                      className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
+                    >
+                      초기화
+                    </button>
+                  )}
+                </div>
+                {/* 요약 */}
+                {(() => {
+                  const filtered = tradePopupList.filter(t => {
+                    const d = (t.createdAt ?? '').slice(0, 10);
+                    return (!tradePopupDateFrom || d >= tradePopupDateFrom) && (!tradePopupDateTo || d <= tradePopupDateTo);
+                  });
+                  const closeItems = filtered.filter(t => t.action === 'CLOSE_LONG' || t.action === 'CLOSE_SHORT');
+                  const buyItems   = filtered.filter(t => t.action === 'BUY' || t.action === 'ADD_LONG');
+                  const totalPnl   = closeItems.reduce((s, t) => s + (t.realizedPnl ?? 0), 0);
+                  const pnlColor   = totalPnl >= 0 ? 'text-sky-400' : 'text-rose-400';
+                  return (
+                    <div className="flex flex-wrap gap-2">
+                      <div className="bg-zinc-800/60 rounded-lg px-3 py-1.5 flex items-center gap-1.5">
+                        <span className="text-xs text-zinc-500">전체</span>
+                        <span className="text-xs font-bold text-zinc-200">{filtered.length}건</span>
+                      </div>
+                      <div className="bg-zinc-800/60 rounded-lg px-3 py-1.5 flex items-center gap-1.5">
+                        <span className="text-xs text-zinc-500">매수</span>
+                        <span className="text-xs font-bold text-teal-400">{buyItems.length}건</span>
+                      </div>
+                      <div className="bg-zinc-800/60 rounded-lg px-3 py-1.5 flex items-center gap-1.5">
+                        <span className="text-xs text-zinc-500">청산</span>
+                        <span className="text-xs font-bold text-sky-400">{closeItems.length}건</span>
+                      </div>
+                      <div className="bg-zinc-800/60 rounded-lg px-3 py-1.5 flex items-center gap-1.5">
+                        <span className="text-xs text-zinc-500">총 실현 손익</span>
+                        <span className={`text-xs font-bold ${pnlColor}`}>
+                          {totalPnl >= 0 ? '+' : ''}₩{totalPnl.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* 리스트 */}
+            <div className="overflow-auto flex-1">
+              {tradePopupLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <i className="ri-loader-4-line animate-spin text-teal-400 text-3xl"></i>
+                </div>
+              ) : (() => {
+                const ACTION_STYLE: Record<string, string> = { BUY: 'bg-teal-500/20 text-teal-300', SELL_SHORT: 'bg-rose-500/20 text-rose-300', CLOSE_LONG: 'bg-sky-500/20 text-sky-300', CLOSE_SHORT: 'bg-orange-500/20 text-orange-300' };
+                const ACTION_LABEL: Record<string, string> = { BUY: '매수', SELL_SHORT: '공매도', CLOSE_LONG: '청산(롱)', CLOSE_SHORT: '청산(숏)' };
+                const MODE_STYLE: Record<string, string> = { LIVE: 'bg-amber-500/20 text-amber-300', PAPER: 'bg-blue-500/20 text-blue-300' };
+                const STATUS_STYLE: Record<string, string> = { SUCCESS: 'bg-emerald-500/20 text-emerald-300', FAILED: 'bg-rose-500/20 text-rose-400' };
+                // 번호/종목코드/종목명/모드/액션/수량/진입가/진입시각/청산가/청산시각/실현손익/상태/생성일시 (사용자명 제외)
+                const COL = 'grid-cols-[36px_80px_110px_68px_90px_70px_95px_115px_95px_115px_105px_70px_115px]';
+                const displayList = tradePopupList.filter(t => {
+                  const d = (t.createdAt ?? '').slice(0, 10);
+                  return (!tradePopupDateFrom || d >= tradePopupDateFrom) && (!tradePopupDateTo || d <= tradePopupDateTo);
+                });
+                return displayList.length === 0 ? (
+                  <div className="py-16 text-center text-zinc-600 text-sm min-w-[1100px]">
+                    <i className="ri-inbox-line text-3xl mb-2 block"></i>
+                    거래 내역이 없습니다
+                  </div>
+                ) : (
+                  <div className="min-w-[1100px]">
+                    {/* 테이블 헤더 */}
+                    <div className={`grid ${COL} text-xs font-semibold text-zinc-500 uppercase tracking-wide px-3 py-3 border-b border-zinc-800 bg-zinc-800/40`}>
+                      <span className="text-center">#</span>
+                      <span>종목코드</span>
+                      <span>종목명</span>
+                      <span className="text-center">모드</span>
+                      <span className="text-center">액션</span>
+                      <span className="text-right">수량</span>
+                      <span className="text-right">진입가</span>
+                      <span className="text-center">진입시각</span>
+                      <span className="text-right">청산가</span>
+                      <span className="text-center">청산시각</span>
+                      <span className="text-right">실현손익</span>
+                      <span className="text-center">상태</span>
+                      <span className="text-center">생성일시</span>
+                    </div>
+                    {displayList.map((item, idx) => {
+                      const isClose = item.action === 'CLOSE_LONG' || item.action === 'CLOSE_SHORT';
+                      const pnlColor = item.realizedPnl != null && item.realizedPnl >= 0 ? 'text-sky-400' : 'text-rose-400';
+                      return (
+                        <div
+                          key={item.id}
+                          onClick={() => setTradePopupDetail(item)}
+                          className={`grid ${COL} items-center px-3 py-3 cursor-pointer hover:bg-zinc-800/60 transition-colors ${idx !== displayList.length - 1 ? 'border-b border-zinc-800/70' : ''}`}
+                        >
+                          <span className="text-center text-xs text-zinc-600">{idx + 1}</span>
+                          <span className="text-xs text-zinc-400 font-mono truncate pr-2">{item.symbol}</span>
+                          <span className="text-sm font-medium text-zinc-100 truncate pr-2 hover:text-teal-400 transition-colors">{item.symbolName ?? item.symbol}</span>
+                          <div className="flex justify-center">
+                            <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${MODE_STYLE[item.mode]}`}>{item.mode === 'LIVE' ? '실전' : '모의'}</span>
+                          </div>
+                          <div className="flex justify-center">
+                            <span className={`px-2 py-0.5 text-xs font-bold rounded-full whitespace-nowrap ${ACTION_STYLE[item.action] ?? 'bg-zinc-700 text-zinc-400'}`}>{ACTION_LABEL[item.action] ?? item.action}</span>
+                          </div>
+                          <span className="text-right text-xs font-semibold text-zinc-200">{item.shares.toLocaleString()}주</span>
+                          <span className="text-right text-xs text-zinc-300">{item.entryPrice != null ? `₩${item.entryPrice.toLocaleString()}` : <span className="text-zinc-600">—</span>}</span>
+                          <div className="text-center">{item.entryAt ? <><p className="text-xs text-zinc-300">{item.entryAt.slice(0, 10)}</p><p className="text-xs text-zinc-500 mt-0.5">{item.entryAt.slice(11, 19)}</p></> : <span className="text-zinc-600">—</span>}</div>
+                          <span className="text-right text-xs text-zinc-300">{item.exitPrice != null ? `₩${item.exitPrice.toLocaleString()}` : <span className="text-zinc-600">—</span>}</span>
+                          <div className="text-center">{item.exitAt ? <><p className="text-xs text-zinc-300">{item.exitAt.slice(0, 10)}</p><p className="text-xs text-zinc-500 mt-0.5">{item.exitAt.slice(11, 19)}</p></> : <span className="text-zinc-600">—</span>}</div>
+                          <span className={`text-right text-xs font-semibold ${isClose && item.realizedPnl != null ? pnlColor : 'text-zinc-600'}`}>
+                            {isClose && item.realizedPnl != null ? `${item.realizedPnl >= 0 ? '+' : ''}₩${item.realizedPnl.toLocaleString()}` : '—'}
+                          </span>
+                          <div className="flex justify-center">
+                            <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${STATUS_STYLE[item.orderStatus]}`}>{item.orderStatus === 'SUCCESS' ? '성공' : '실패'}</span>
+                          </div>
+                          <div className="text-center">{item.createdAt ? <><p className="text-xs text-zinc-300">{item.createdAt.slice(0, 10)}</p><p className="text-xs text-zinc-500 mt-0.5">{item.createdAt.slice(11, 19)}</p></> : <span className="text-zinc-600">—</span>}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* 푸터 */}
+            <div className="px-6 py-4 border-t border-zinc-800 flex items-center justify-between shrink-0">
+              <span className="text-xs text-zinc-500">
+                총 {(() => {
+                  const d = (tradePopupDateFrom || tradePopupDateTo)
+                    ? tradePopupList.filter(t => {
+                        const dt = (t.createdAt ?? '').slice(0, 10);
+                        return (!tradePopupDateFrom || dt >= tradePopupDateFrom) && (!tradePopupDateTo || dt <= tradePopupDateTo);
+                      }).length
+                    : tradePopupList.length;
+                  return d;
+                })()}건
+              </span>
+              <button
+                onClick={() => { setTradePopup(null); setTradePopupDetail(null); }}
+                className="px-5 py-2 text-sm font-medium bg-zinc-800 text-zinc-300 rounded-lg hover:bg-zinc-700 transition-colors cursor-pointer"
+              >
+                닫기
               </button>
             </div>
           </div>
@@ -481,9 +903,21 @@ export default function Live() {
                         {getSymbolName(session.symbol)}
                         <span className="ml-1 text-xs text-zinc-500">({session.symbol})</span>
                       </span>
-                      <span className="text-xs text-zinc-200 bg-zinc-700 border border-zinc-600 px-2 py-0.5 rounded-md">
-                        {session.strategyConfig?.title || '-'}
-                      </span>
+                      {!isAdmin ? (
+                        <button
+                          type="button"
+                          onClick={e => { e.stopPropagation(); openStrategyChangePopup(session.id, session.strategyConfigId ?? null, session.strategyConfig?.title ?? '-'); }}
+                          className="text-xs text-zinc-200 bg-zinc-700 border border-zinc-600 px-2 py-0.5 rounded-md hover:border-teal-500 hover:text-teal-300 hover:bg-teal-500/10 transition-colors cursor-pointer"
+                          title="클릭하여 전략 변경"
+                        >
+                          {session.strategyConfig?.title || '-'}
+                          <i className="ri-arrow-drop-down-line ml-0.5"></i>
+                        </button>
+                      ) : (
+                        <span className="text-xs text-zinc-200 bg-zinc-700 border border-zinc-600 px-2 py-0.5 rounded-md">
+                          {session.strategyConfig?.title || '-'}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-zinc-300">{session.lastUpdatedAt}</span>
@@ -507,8 +941,9 @@ export default function Live() {
                             <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${(autoUpdateMap[session.id] ?? (session.strategyConfig?.isStrategyUpdate === 1)) ? 'translate-x-4' : 'translate-x-0'}`} />
                           </button>
                           <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block z-10 pointer-events-none">
-                            <div className="bg-zinc-800 border border-zinc-600 rounded-lg px-3 py-2 text-xs text-zinc-300 whitespace-nowrap shadow-lg">
-                              매일 자정 0시0분0초에 해당 날짜의 주식 정보(봉) 업데이트 합니다.
+                            <div className="bg-zinc-800 border border-zinc-600 rounded-lg px-3 py-2 text-xs text-zinc-300 whitespace-nowrap shadow-lg space-y-1">
+                              <p>매일 자정 0시10분0초에 해당 날짜의 주식 정보(봉) 업데이트 합니다.</p>
+                              <p>최소 거래 횟수: 10, 거래당 위험 비: 0.015</p>
                             </div>
                             <div className="absolute right-3 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-zinc-600" />
                           </div>
@@ -549,44 +984,53 @@ export default function Live() {
                     </div>
                   </div>
                   {/* 세션 데이터 4×2 */}
-                  <div className="grid grid-cols-4 gap-2">
-                    <div className="bg-zinc-800 rounded-lg px-3 py-2">
+                  <div
+                    className="grid grid-cols-4 gap-2 cursor-pointer group/data"
+                    title="클릭하면 거래 내역을 확인합니다"
+                    onClick={() => setTradePopup({
+                      symbol: session.symbol,
+                      symbolName: getSymbolName(session.symbol),
+                      userUid: session.userUid,
+                      mode: session.mode,
+                    })}
+                  >
+                    <div className="bg-zinc-800 group-hover/data:bg-zinc-700/70 rounded-lg px-3 py-2 transition-colors">
                       <p className="text-xs text-zinc-400 mb-1.5">현재 포지션</p>
                       {positionBadge(session.currentPosition)}
                     </div>
-                    <div className="bg-zinc-800 rounded-lg px-3 py-2">
+                    <div className="bg-zinc-800 group-hover/data:bg-zinc-700/70 rounded-lg px-3 py-2 transition-colors">
                       <p className="text-xs text-zinc-400 mb-1">보유 봉 수</p>
                       <p className={`text-sm font-semibold ${valueColor}`}>{session.barsHeld}</p>
                     </div>
-                    <div className="bg-zinc-800 rounded-lg px-3 py-2">
+                    <div className="bg-zinc-800 group-hover/data:bg-zinc-700/70 rounded-lg px-3 py-2 transition-colors">
                       <p className="text-xs text-zinc-400 mb-1">보유 수량</p>
                       <p className={`text-sm font-semibold ${valueColor}`}>{session.sharesHeld ?? '-'}</p>
                     </div>
-                    <div className="bg-zinc-800 rounded-lg px-3 py-2">
+                    <div className="bg-zinc-800 group-hover/data:bg-zinc-700/70 rounded-lg px-3 py-2 transition-colors">
                       <p className="text-xs text-zinc-400 mb-1">손절가 (Stop)</p>
                       <p className={`text-sm font-semibold ${valueColor}`}>
                         {session.stopPrice != null ? session.stopPrice.toLocaleString() : '-'}
                       </p>
                     </div>
-                    <div className="bg-zinc-800 rounded-lg px-3 py-2">
+                    <div className="bg-zinc-800 group-hover/data:bg-zinc-700/70 rounded-lg px-3 py-2 transition-colors">
                       <p className="text-xs text-zinc-400 mb-1">익절가 (TP)</p>
                       <p className={`text-sm font-semibold ${valueColor}`}>
                         {session.tpPrice != null ? session.tpPrice.toLocaleString() : '-'}
                       </p>
                     </div>
-                    <div className="bg-zinc-800 rounded-lg px-3 py-2">
+                    <div className="bg-zinc-800 group-hover/data:bg-zinc-700/70 rounded-lg px-3 py-2 transition-colors">
                       <p className="text-xs text-zinc-400 mb-1">쿨다운 잔여 봉</p>
                       <p className={`text-sm font-semibold ${valueColor}`}>{session.cooldownBarsLeft}</p>
                     </div>
-                    <div className="bg-zinc-800 rounded-lg px-3 py-2">
+                    <div className="bg-zinc-800 group-hover/data:bg-zinc-700/70 rounded-lg px-3 py-2 transition-colors">
                       <p className="text-xs text-zinc-400 mb-1">연속 손절 횟수</p>
                       <p className={`text-sm font-semibold ${valueColor}`}>{session.consecSlCount}</p>
                     </div>
-                    <div className="bg-zinc-800 rounded-lg px-3 py-2">
+                    <div className="bg-zinc-800 group-hover/data:bg-zinc-700/70 rounded-lg px-3 py-2 transition-colors">
                       <p className="text-xs text-zinc-400 mb-1">현재 자산</p>
                       <p className={`text-sm font-semibold ${valueColor}`}>{session.currentEquity != null ? session.currentEquity.toFixed(6) : '-'}</p>
                     </div>
-                    <div className="bg-zinc-800 rounded-lg px-3 py-2">
+                    <div className="bg-zinc-800 group-hover/data:bg-zinc-700/70 rounded-lg px-3 py-2 transition-colors">
                       <p className="text-xs text-zinc-400 mb-1">최고 자산</p>
                       <p className={`text-sm font-semibold ${valueColor}`}>{session.peakEquity.toFixed(6)}</p>
                     </div>

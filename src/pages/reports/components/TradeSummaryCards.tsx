@@ -4,13 +4,10 @@ function formatPnl(val: number): string {
   const abs = Math.abs(val);
   const sign = val >= 0 ? '+' : '-';
   if (abs >= 100000000) return `${sign}${(abs / 100000000).toFixed(2)}억`;
-  if (abs >= 10000) return `${sign}${Math.round(abs / 10000)}만`;
   return `${sign}₩${abs.toLocaleString()}`;
 }
 
 function formatAmt(val: number): string {
-  if (val >= 100000000) return `${(val / 100000000).toFixed(2)}억원`;
-  if (val >= 10000) return `${Math.round(val / 10000).toLocaleString()}만원`;
   return `₩${val.toLocaleString()}`;
 }
 
@@ -23,7 +20,7 @@ export default function TradeSummaryCards({ list }: Props) {
   const success       = list.filter(t => t.orderStatus === 'SUCCESS').length;
   const failed        = list.filter(t => t.orderStatus === 'FAILED').length;
   const closeList     = list.filter(t => t.action === 'CLOSE_LONG' || t.action === 'CLOSE_SHORT');
-  const buyList       = list.filter(t => t.action === 'BUY');
+  const buyList       = list.filter(t => t.action === 'BUY' || t.action === 'ADD_LONG');
   const totalPnl      = closeList.reduce((s, t) => s + (t.realizedPnl ?? 0), 0);
   const buyCount      = buyList.length;
   const shortCount    = list.filter(t => t.action === 'SELL_SHORT').length;
@@ -81,7 +78,7 @@ export default function TradeSummaryCards({ list }: Props) {
             <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-3">
               <div className="flex items-center gap-1.5 mb-1.5">
                 <i className="ri-arrow-down-circle-line text-teal-400 text-sm"></i>
-                <span className="text-xs text-zinc-500">매수 (BUY)</span>
+                <span className="text-xs text-zinc-500">매수 (BUY+ADD)</span>
               </div>
               <p className="text-lg font-bold text-teal-400">{buyCount}건</p>
               <p className="text-xs text-teal-600 mt-0.5">{formatAmt(totalBuyAmt)}</p>

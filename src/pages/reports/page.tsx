@@ -44,7 +44,7 @@ export default function ReportsPage() {
   const [loading,     setLoading]     = useState(true);
   const [modeFilter,  setModeFilter]  = useState('all');
   const [actionFilter,setActionFilter]= useState('all');
-  const [statusFilter,setStatusFilter]= useState('all');
+  const [statusFilter,setStatusFilter]= useState('SUCCESS');
   const [search,      setSearch]      = useState('');
   const [page,        setPage]        = useState(1);
   const [selected,    setSelected]    = useState<TradeHistory | null>(null);
@@ -109,7 +109,7 @@ export default function ReportsPage() {
     <PageLayout>
       <div className="space-y-4">
         <div>
-          <h1 className="text-xl font-bold text-white mb-0.5">거래현황</h1>
+          <h1 className="text-xl font-bold text-white mb-0.5">매매현황</h1>
           <p className="text-xs text-zinc-400">
             {isAdmin ? '전체 유저 거래 이력' : '내 거래 이력'} — 매수·매도·청산 내역을 확인합니다
           </p>
