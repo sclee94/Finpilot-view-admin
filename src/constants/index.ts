@@ -1,7 +1,7 @@
 export const MENU_ITEMS = [
   { path: '/dashboard', icon: 'ri-dashboard-line',    label: '대시보드',  adminOnly: true  },
   { path: '/users',     icon: 'ri-user-line',         label: '사용자',    adminOnly: true  },
-  { path: '/reports',   icon: 'ri-exchange-line',     label: '거래현황',  adminOnly: false },
+  { path: '/reports',   icon: 'ri-exchange-line',     label: '매매현황',  adminOnly: false },
   { path: '/strategy',  icon: 'ri-settings-3-line',   label: '전략 설정', adminOnly: false },
   { path: '/testlog',   icon: 'ri-test-tube-line',    label: '백테스트',  adminOnly: false },
   { path: '/live',      icon: 'ri-live-line',          label: '실전투자',  adminOnly: false },

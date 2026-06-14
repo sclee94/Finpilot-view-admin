@@ -15,7 +15,7 @@ export default function Users() {
     getUserList()
       .then(res => {
         if (res.status < 400) {
-          setUsers(res.data ?? []);
+          setUsers(res.data?.content ?? []);
         } else {
           setError(res.message);
         }

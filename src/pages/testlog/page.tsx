@@ -3,7 +3,8 @@ import PageLayout from '../../components/PageLayout';
 import { apiClient } from '../../api/apiClient';
 import { authStorage } from '../../utils/auth';
 import { PERMISSIONS } from '../../constants';
-import type { ApiResponse } from '../../types/index';
+import type { ApiResponse, PageResponse } from '../../types/index';
+import Pagination from '../../components/Pagination';
 import { getSymbolName } from '../../constants/symbolNames';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -11,9 +12,11 @@ import { getSymbolName } from '../../constants/symbolNames';
 interface StrategyParams {
   symbol:                string;
   adx_threshold:         number;
+  adx_sideways_floor:    number;
   adx_persist:           number;
   rsi_long_entry:        number;
   rsi_short_entry:       number;
+  rsi_oversold_entry:    number;
   atr_sl_mult:           number;
   atr_tp_mult:           number;
   min_hold_bars:         number;
@@ -27,6 +30,7 @@ interface StrategyParams {
   use_prev_bar_signal:   boolean;
   indicator_window:      number;
   trading_days_per_year: number;
+  max_add_count:         number;
 }
 
 interface BoardItem {
@@ -86,9 +90,12 @@ interface StrategyConfigDTO {
   riskPerTrade?:     number;
   usePrevBarSignal?: boolean;
   adxThreshold?:     number;
+  adxSidewaysFloor?: number;
   adxPersist?:       number;
-  rsiLongEntry?:     number;
-  rsiShortEntry?:    number;
+  rsiLongEntry?:        number;
+  rsiShortEntry?:       number;
+  rsiOversoldEntry?:    number;
+  maxAddCount?:         number;
   atrSlMult?:        number;
   atrTpMult?:        number;
   minHoldBars?:      number;
@@ -112,9 +119,11 @@ function dtoToApplied(dto: StrategyConfigDTO): BoardItem {
     params: {
       symbol:                dto.symbol ?? '',
       adx_threshold:         dto.adxThreshold ?? 0,
+      adx_sideways_floor:    dto.adxSidewaysFloor ?? 15,
       adx_persist:           dto.adxPersist ?? 0,
       rsi_long_entry:        dto.rsiLongEntry ?? 0,
       rsi_short_entry:       dto.rsiShortEntry ?? 0,
+      rsi_oversold_entry:    dto.rsiOversoldEntry ?? 30,
       atr_sl_mult:           dto.atrSlMult ?? 0,
       atr_tp_mult:           dto.atrTpMult ?? 0,
       min_hold_bars:         dto.minHoldBars ?? 0,
@@ -128,18 +137,23 @@ function dtoToApplied(dto: StrategyConfigDTO): BoardItem {
       initial_capital:       dto.initialCapital ?? 0,
       indicator_window:      dto.indicatorWindow ?? 14,
       trading_days_per_year: dto.tradingDaysPerYear ?? 252,
+      max_add_count:         dto.maxAddCount ?? 3,
     },
   };
 }
+
+const RESULTS_SIZE = 15;
 
 const PARAM_LABELS: { key: keyof StrategyParams; label: string; format?: (v: unknown) => string }[] = [
   { key: 'symbol',                label: '종목 코드' },
   { key: 'initial_capital',       label: '초기 자본',       format: v => Number(v).toLocaleString() + ' 원' },
   { key: 'risk_per_trade',        label: '위험 비율',        format: v => (Number(v) * 100).toFixed(1) + '%' },
   { key: 'adx_threshold',         label: 'ADX 임계값' },
+  { key: 'adx_sideways_floor',    label: 'ADX 횡보 하한선' },
   { key: 'adx_persist',           label: 'ADX 지속 기간' },
   { key: 'rsi_long_entry',        label: 'RSI 롱 진입' },
   { key: 'rsi_short_entry',       label: 'RSI 숏 진입' },
+  { key: 'rsi_oversold_entry',    label: 'RSI 과매도 반등' },
   { key: 'atr_sl_mult',           label: 'ATR 손절 배수' },
   { key: 'atr_tp_mult',           label: 'ATR 익절 배수' },
   { key: 'min_hold_bars',         label: '최소 보유 봉' },
@@ -151,14 +165,19 @@ const PARAM_LABELS: { key: keyof StrategyParams; label: string; format?: (v: unk
   { key: 'use_prev_bar_signal',   label: '이전 봉 신호',     format: v => v ? 'ON' : 'OFF' },
   { key: 'indicator_window',      label: '지표 룩백 기간' },
   { key: 'trading_days_per_year', label: '연간 거래일 수' },
+  { key: 'max_add_count',         label: '최대 추가 매수' },
 ];
 
 // ─── Trade Detail Modal ───────────────────────────────────────────────────────
 
-function TradeDetailModal({ result, results, onClose }: {
-  result:  BacktestResult;
-  results: BacktestResult[];
-  onClose: () => void;
+function TradeDetailModal({ result, compResults, compPage, compTotalPage, compTotalCount, onCompPageChange, onClose }: {
+  result:           BacktestResult;
+  compResults:      BacktestResult[];
+  compPage:         number;
+  compTotalPage:    number;
+  compTotalCount:   number;
+  onCompPageChange: (page: number) => void;
+  onClose:          () => void;
 }) {
   const trades = result.trades ?? [];
   const [showCompare, setShowCompare] = useState(false);
@@ -211,7 +230,7 @@ function TradeDetailModal({ result, results, onClose }: {
         {/* Compare Panel */}
         {showCompare && (
           <div className="border-b border-zinc-800 px-6 py-4 space-y-4">
-            <h3 className="text-sm font-semibold text-zinc-300">백테스트 결과 목록 ({results.length}건)</h3>
+            <h3 className="text-sm font-semibold text-zinc-300">백테스트 결과 목록 ({compTotalCount}건)</h3>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -222,7 +241,7 @@ function TradeDetailModal({ result, results, onClose }: {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800">
-                  {results.map(r => {
+                  {compResults.map(r => {
                     const isCurrent = r.id === result.id;
                     const isSelected = compareTarget?.id === r.id;
                     return (
@@ -254,6 +273,9 @@ function TradeDetailModal({ result, results, onClose }: {
                 </tbody>
               </table>
             </div>
+            {compTotalPage > 1 && (
+              <Pagination currentPage={compPage} totalPages={compTotalPage} onPageChange={onCompPageChange} />
+            )}
 
             {/* 비교 뷰 */}
             {compareTarget && (
@@ -359,9 +381,18 @@ function TradeDetailModal({ result, results, onClose }: {
                       <td className="px-3 py-2.5 text-zinc-500">{t.tradeNo}</td>
                       <td className="px-3 py-2.5">
                         <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                          t.direction === 'BUY' ? 'bg-teal-500/20 text-teal-400' : 'bg-red-500/20 text-red-400'
+                          t.direction === 'BUY' || t.direction === 'LONG'
+                            ? 'bg-teal-500/20 text-teal-400'
+                            : t.direction === 'ADD_LONG'
+                            ? 'bg-blue-500/20 text-blue-400'
+                            : 'bg-red-500/20 text-red-400'
                         }`}>
-                          {t.direction}
+                          {t.direction === 'BUY'      ? '매수'
+                          : t.direction === 'SELL'    ? '매도'
+                          : t.direction === 'LONG'    ? '매수 (LONG)'
+                          : t.direction === 'SHORT'   ? '매도 (SHORT)'
+                          : t.direction === 'ADD_LONG' ? '추가매수'
+                          : t.direction}
                         </span>
                       </td>
                       <td className="px-3 py-2.5 text-zinc-400">{t.entryTime}</td>
@@ -372,10 +403,14 @@ function TradeDetailModal({ result, results, onClose }: {
                       <td className="px-3 py-2.5 text-right text-zinc-400">{Number(t.positionSizePct).toFixed(1)}%</td>
                       <td className="px-3 py-2.5">
                         <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                          t.result === 'SL'     ? 'bg-red-500/20 text-red-400' :
-                          t.result === 'TP'     ? 'bg-teal-500/20 text-teal-400' :
-                                                  'bg-zinc-700 text-zinc-400'
-                        }`}>{t.result}</span>
+                          t.result === 'SL' ? 'bg-red-500/20 text-red-400' :
+                          t.result === 'TP' ? 'bg-teal-500/20 text-teal-400' :
+                                              'bg-zinc-700 text-zinc-400'
+                        }`}>
+                          {t.result === 'SL' ? 'SL 손절'
+                          : t.result === 'TP' ? 'TP 익절'
+                          : t.result}
+                        </span>
                       </td>
                       <td className={`px-3 py-2.5 text-right font-medium ${Number(t.returnPct) >= 0 ? 'text-teal-400' : 'text-red-400'}`}>
                         {Number(t.returnPct) >= 0 ? '+' : ''}{Number(t.returnPct).toFixed(3)}%
@@ -406,8 +441,16 @@ export default function TestLog() {
   const [errorMessage, setErrorMessage] = useState('');
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const [results, setResults]               = useState<BacktestResult[]>([]);
-  const [resultsLoading, setResultsLoading] = useState(false);
+  const [results,           setResults]           = useState<BacktestResult[]>([]);
+  const [resultsLoading,    setResultsLoading]    = useState(false);
+  const [resultsPage,       setResultsPage]       = useState(1);
+  const [resultsTotalPage,  setResultsTotalPage]  = useState(1);
+  const [resultsTotalCount, setResultsTotalCount] = useState(0);
+
+  const [compResults,    setCompResults]    = useState<BacktestResult[]>([]);
+  const [compPage,       setCompPage]       = useState(1);
+  const [compTotalPage,  setCompTotalPage]  = useState(1);
+  const [compTotalCount, setCompTotalCount] = useState(0);
 
   const [selectedResult, setSelectedResult]     = useState<BacktestResult | null>(null);
   const [detailLoading, setDetailLoading]       = useState(false);
@@ -418,11 +461,11 @@ export default function TestLog() {
     const userUid = authStorage.get()?.userUid;
     if (!userUid) return;
     try {
-      const res = await apiClient.post<ApiResponse<StrategyConfigDTO[]>>(
+      const res = await apiClient.post<ApiResponse<import('../../types').PageResponse<StrategyConfigDTO>>>(
         '/strategy/getStrategyConfigList',
         { userUid },
       );
-      const list = res.data ?? [];
+      const list = res.data?.content ?? [];
       // localStorage에 백테스트 전용 적용 항목이 있으면 우선 사용
       let applied: StrategyConfigDTO | null = null;
       try {
@@ -454,22 +497,46 @@ export default function TestLog() {
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
 
   // ── API: 결과 목록 조회 ────────────────────────────────────────────────────
-  const refreshResults = useCallback(async (uid: string) => {
+  const refreshResults = useCallback(async (uid: string, page = 1) => {
     setResultsLoading(true);
+    setResultsPage(page);
     try {
-      const res = await apiClient.post<ApiResponse<BacktestResult[]>>(
+      const res = await apiClient.post<ApiResponse<PageResponse<BacktestResult>>>(
         '/backtest/getBacktestList',
-        isAdmin ? { userUid: null, userName: '', email: '', permission: 0, status: 0 } : { userUid: uid },
+        {
+          ...(isAdmin ? { userUid: null, userName: '', email: '', permission: 0, status: 0 } : { userUid: uid }),
+          page,
+          size: RESULTS_SIZE,
+        },
       );
-      setResults(res.data ?? []);
+      setResults(res.data?.content ?? []);
+      setResultsTotalPage(res.data?.totalPage ?? 1);
+      setResultsTotalCount(res.data?.totalCount ?? 0);
     } catch { /* silent */ } finally {
       setResultsLoading(false);
     }
-  }, []);
+  }, [isAdmin]);
+
+  const refreshCompResults = useCallback(async (uid: string, page = 1) => {
+    setCompPage(page);
+    try {
+      const res = await apiClient.post<ApiResponse<PageResponse<BacktestResult>>>(
+        '/backtest/getBacktestList',
+        {
+          ...(isAdmin ? { userUid: null, userName: '', email: '', permission: 0, status: 0 } : { userUid: uid }),
+          page,
+          size: RESULTS_SIZE,
+        },
+      );
+      setCompResults(res.data?.content ?? []);
+      setCompTotalPage(res.data?.totalPage ?? 1);
+      setCompTotalCount(res.data?.totalCount ?? 0);
+    } catch { /* silent */ }
+  }, [isAdmin]);
 
   useEffect(() => {
     const userUid = authStorage.get()?.userUid;
-    if (userUid) refreshResults(userUid);
+    if (userUid) refreshResults(userUid, 1);
   }, [refreshResults]);
 
   const formatElapsed = (secs: number) => {
@@ -500,9 +567,13 @@ export default function TestLog() {
           title:              appliedItem.title,
           symbol:             p.symbol,
           adxThreshold:       p.adx_threshold,
+          adxSidewaysFloor:   p.adx_sideways_floor,
           adxPersist:         p.adx_persist,
+          diGapMin:           p.di_gap_min,
+          rsiLongFloor:       p.rsi_long_floor,
           rsiLongEntry:       p.rsi_long_entry,
           rsiShortEntry:      p.rsi_short_entry,
+          rsiOversoldEntry:   p.rsi_oversold_entry,
           atrSlMult:          p.atr_sl_mult,
           atrTpMult:          p.atr_tp_mult,
           minHoldBars:        p.min_hold_bars,
@@ -516,11 +587,12 @@ export default function TestLog() {
           initialCapital:     p.initial_capital,
           indicatorWindow:    p.indicator_window,
           tradingDaysPerYear: p.trading_days_per_year,
+          maxAddCount:        p.max_add_count,
         },
       );
 
       if (runRes.data) {
-        setResults(prev => [runRes.data, ...prev]);
+        refreshResults(userUid, 1);
       } else {
         setErrorMessage(runRes.message || '백테스트 실행에 실패했습니다.');
       }
@@ -537,6 +609,7 @@ export default function TestLog() {
     const userUid = authStorage.get()?.userUid;
     setDetailLoading(true);
     setSelectedResult(result); // 팝업 즉시 열기 (로딩 표시)
+    if (userUid) refreshCompResults(userUid, 1);
     try {
       const res = await apiClient.post<ApiResponse<BacktestResult>>(
         '/backtest/getBacktest',
@@ -557,8 +630,8 @@ export default function TestLog() {
         '/backtest/deleteBacktest',
         { id: deleteTarget.id, userUid },
       );
-      setResults(prev => prev.filter(r => r.id !== deleteTarget.id));
       if (selectedResult?.id === deleteTarget.id) setSelectedResult(null);
+      if (userUid) refreshResults(userUid, resultsPage);
     } catch { /* silent */ } finally {
       setDeleteTarget(null);
     }
@@ -570,7 +643,11 @@ export default function TestLog() {
       {selectedResult && !detailLoading && (
         <TradeDetailModal
           result={selectedResult}
-          results={results}
+          compResults={compResults}
+          compPage={compPage}
+          compTotalPage={compTotalPage}
+          compTotalCount={compTotalCount}
+          onCompPageChange={page => { const uid = authStorage.get()?.userUid; if (uid) refreshCompResults(uid, page); }}
           onClose={() => setSelectedResult(null)}
         />
       )}
@@ -714,9 +791,9 @@ export default function TestLog() {
           <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-zinc-200">백테스트 결과</h2>
             <div className="flex items-center gap-3">
-              <span className="text-sm text-zinc-500">총 {results.length}건</span>
+              <span className="text-sm text-zinc-500">총 {resultsTotalCount}건</span>
               <button
-                onClick={() => { const uid = authStorage.get()?.userUid; if (uid) refreshResults(uid); }}
+                onClick={() => { const uid = authStorage.get()?.userUid; if (uid) refreshResults(uid, resultsPage); }}
                 className="text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
                 title="새로고침"
               >
@@ -759,13 +836,15 @@ export default function TestLog() {
                     </td>
                   </tr>
                 ) : (
-                  results.map((r, idx) => (
+                  results.map((r, idx) => {
+                    const no = resultsTotalCount - (resultsPage - 1) * RESULTS_SIZE - idx;
+                    return (
                     <tr
                       key={r.id}
                       onClick={() => handleResultClick(r)}
                       className="border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors cursor-pointer"
                     >
-                      <td className="px-4 py-3.5 text-sm text-zinc-500">{results.length - idx}</td>
+                      <td className="px-4 py-3.5 text-sm text-zinc-500">{no}</td>
                       {isAdmin && <td className="px-4 py-3.5 text-sm text-zinc-300">{r.userName ?? '-'}</td>}
                       <td className="px-4 py-3.5 text-sm font-medium text-zinc-200">{r.strategyTitle ?? '-'}</td>
                       <td className="px-4 py-3.5 text-sm font-medium text-zinc-200">
@@ -797,11 +876,20 @@ export default function TestLog() {
                         </td>
                       )}
                     </tr>
-                  ))
+                  ); })
                 )}
               </tbody>
             </table>
           </div>
+          {resultsTotalPage > 1 && (
+            <div className="px-6 py-4 border-t border-zinc-800">
+              <Pagination
+                currentPage={resultsPage}
+                totalPages={resultsTotalPage}
+                onPageChange={page => { const uid = authStorage.get()?.userUid; if (uid) refreshResults(uid, page); }}
+              />
+            </div>
+          )}
         </div>
       </div>
     </PageLayout>

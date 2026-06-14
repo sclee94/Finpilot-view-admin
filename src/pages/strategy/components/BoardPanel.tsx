@@ -9,6 +9,7 @@ interface BoardPanelProps {
   liveStrategyIds?: Set<number>;
   paperStrategyIds?: Set<number>;
   loading?: boolean;
+  startNo?: number;  // 페이지 시작 번호 (없으면 board.length 기준)
   onClickItem: (item: BoardItem) => void;
   onDeleteItem: (id: number, e: React.MouseEvent) => void;
   onApplyItem: (item: BoardItem | null) => void;
@@ -22,11 +23,13 @@ const PARAM_SUMMARY_ROWS: { label: string; key: keyof StrategyParams; format?: (
   ],
   [
     { label: 'ADX 임계치',    key: 'adx_threshold' },
+    { label: 'ADX 횡보 하한', key: 'adx_sideways_floor' },
     { label: 'ADX 유지 봉',   key: 'adx_persist' },
   ],
   [
     { label: 'RSI 롱 상한',   key: 'rsi_long_entry' },
     { label: 'RSI 숏 하한',   key: 'rsi_short_entry' },
+    { label: 'RSI 과매도',    key: 'rsi_oversold_entry' },
   ],
   [
     { label: '손절 ATR 배수', key: 'atr_sl_mult' },
@@ -63,14 +66,16 @@ const MODAL_SECTIONS: { title: string; icon: string; isLive?: boolean; rows: { l
     title: '추세 지표 (ADX)', icon: 'ri-line-chart-line',
     rows: [
       { label: 'ADX 임계치',      key: 'adx_threshold' },
+      { label: 'ADX 횡보 하한선', key: 'adx_sideways_floor' },
       { label: 'ADX 연속 유지 봉', key: 'adx_persist' },
     ],
   },
   {
     title: 'RSI 진입 조건', icon: 'ri-swap-line',
     rows: [
-      { label: '롱 진입 RSI 상한', key: 'rsi_long_entry' },
-      { label: '숏 진입 RSI 하한', key: 'rsi_short_entry' },
+      { label: '롱 진입 RSI 상한',   key: 'rsi_long_entry' },
+      { label: '숏 진입 RSI 하한',   key: 'rsi_short_entry' },
+      { label: '과매도 반등 RSI 상한', key: 'rsi_oversold_entry' },
     ],
   },
   {
@@ -94,8 +99,9 @@ const MODAL_SECTIONS: { title: string; icon: string; isLive?: boolean; rows: { l
   {
     title: '지표 설정', icon: 'ri-bar-chart-line',
     rows: [
-      { label: '지표 룩백 기간', key: 'indicator_window' },
-      { label: '연간 거래일 수', key: 'trading_days_per_year' },
+      { label: '지표 룩백 기간',    key: 'indicator_window' },
+      { label: '연간 거래일 수',    key: 'trading_days_per_year' },
+      { label: '최대 추가 매수 횟수', key: 'max_add_count' },
     ],
   },
 ];
@@ -174,7 +180,17 @@ function ParamDetailModal({ item, onClose }: { item: BoardItem; onClose: () => v
   );
 }
 
-export default function BoardPanel({ board, selectedId, appliedItem, backtestStrategyIds, liveStrategyIds, paperStrategyIds, loading, onClickItem, onDeleteItem, onApplyItem, readOnly }: BoardPanelProps) {
+function gradeColorClass(grade: number | null | undefined) {
+  if (!grade || grade <= 2) return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
+  if (grade <= 4)           return 'bg-red-500/20 text-red-400 border-red-500/30';
+  if (grade <= 7)           return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
+  if (grade === 8)          return 'bg-lime-500/20 text-lime-400 border-lime-500/30';
+  if (grade <= 11)          return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+  if (grade <= 13)          return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
+  return                           'bg-zinc-600/30 text-zinc-400 border-zinc-500/30';
+}
+
+export default function BoardPanel({ board, selectedId, appliedItem, backtestStrategyIds, liveStrategyIds, paperStrategyIds, loading, startNo, onClickItem, onDeleteItem, onApplyItem, readOnly }: BoardPanelProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<BoardItem | null>(null);
   const [detailItem, setDetailItem] = useState<BoardItem | null>(null);
@@ -184,8 +200,8 @@ export default function BoardPanel({ board, selectedId, appliedItem, backtestStr
       {detailItem && <ParamDetailModal item={detailItem} onClose={() => setDetailItem(null)} />}
       <div className="bg-zinc-900 rounded-xl border border-zinc-800 overflow-hidden sticky top-6">
         <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-800 bg-zinc-800/40">
-          <i className="ri-list-check text-teal-400"></i>
-          <h2 className="text-base font-semibold text-zinc-200">저장된 설정</h2>
+          <i className={`${readOnly ? 'ri-layout-grid-line text-amber-400' : 'ri-list-check text-teal-400'}`}></i>
+          <h2 className="text-base font-semibold text-zinc-200">{readOnly ? '전략 메뉴판' : '저장된 설정'}</h2>
           <span className="ml-auto text-sm text-zinc-500">{board.length}개</span>
         </div>
 
@@ -285,11 +301,12 @@ export default function BoardPanel({ board, selectedId, appliedItem, backtestStr
           </div>
         ) : (
           <div className="divide-y divide-zinc-800">
-            <div className={`grid ${readOnly ? 'grid-cols-[2rem_1fr_1.5fr_4.5rem_4rem]' : 'grid-cols-[2rem_1fr_4.5rem_4rem_3rem_3rem]'} px-3 py-2 text-sm font-semibold text-zinc-500 bg-zinc-800/30`}>
+            <div className={`grid ${readOnly ? 'grid-cols-5' : 'grid-cols-6'} gap-x-4 px-3 py-2 text-sm font-semibold text-zinc-500 bg-zinc-800/30`}>
               <span>No</span>
-              {readOnly && <span>이름</span>}
+              {readOnly && <span>등록자</span>}
+              {readOnly && <span>등급</span>}
               <span>제목</span>
-              <span>종목</span>
+              {!readOnly && <span>종목</span>}
               <span>날짜</span>
               {!readOnly && <span className="text-center">적용</span>}
               {!readOnly && <span className="text-center">제거</span>}
@@ -301,14 +318,24 @@ export default function BoardPanel({ board, selectedId, appliedItem, backtestStr
               return (
               <div
                 key={item.id}
-                onClick={() => { if (!readOnly) onClickItem(item); }}
-                className={`grid ${readOnly ? 'grid-cols-[2rem_1fr_1.5fr_4.5rem_4rem]' : 'grid-cols-[2rem_1fr_4.5rem_4rem_3rem_3rem]'} items-center px-3 py-2.5 cursor-pointer transition-colors text-sm ${
+                onClick={() => { if (readOnly) setDetailItem(item); else onClickItem(item); }}
+                className={`grid ${readOnly ? 'grid-cols-5' : 'grid-cols-6'} gap-x-4 items-center px-3 py-2.5 cursor-pointer transition-colors text-sm ${
                   selectedId === item.id ? 'bg-teal-500/10 border-l-2 border-teal-500' : 'hover:bg-zinc-800/50'
                 }`}
               >
-                <span className="text-zinc-500">{board.length - idx}</span>
+                <span className="text-zinc-500">{readOnly ? (item.menuGrade ?? idx + 1) : (startNo !== undefined ? startNo - idx : board.length - idx)}</span>
                 {readOnly && <span className="text-zinc-300 truncate min-w-0">{item.userName ?? '-'}</span>}
+                {readOnly && (
+                  <span className={`w-fit text-xs px-1.5 py-0.5 rounded border font-semibold whitespace-nowrap ${gradeColorClass(item.menuGrade)}`}>
+                    {item.menuGrade}등급
+                  </span>
+                )}
                 <div className="flex items-center gap-1 min-w-0">
+                  {!readOnly && item.menuGrade && (
+                    <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded border font-semibold ${gradeColorClass(item.menuGrade)}`}>
+                      {item.menuGrade}등급
+                    </span>
+                  )}
                   <span className={`truncate ${selectedId === item.id ? 'text-teal-300 font-medium' : 'text-zinc-300'}`}>
                     {item.title}
                   </span>
@@ -316,8 +343,8 @@ export default function BoardPanel({ board, selectedId, appliedItem, backtestStr
                   {isLiveApplied && <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-amber-400" title="실전 세션 있음" />}
                   {isPaperApplied && <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-blue-400" title="모의 세션 있음" />}
                 </div>
-                <span className="text-zinc-400 truncate">{item.symbol}</span>
-                <span className="text-zinc-500">{item.date.replace(/\. /g, '.').replace(/\.$/, '')}</span>
+                {!readOnly && <span className="text-zinc-400 truncate">{item.symbol}</span>}
+                <span className="text-zinc-500 whitespace-nowrap">{item.date.replace(/\. /g, '.').replace(/\.$/, '')}</span>
                 {!readOnly && (
                   <div className="flex justify-center">
                     <button

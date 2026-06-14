@@ -66,16 +66,24 @@ export default function CustomParamForm({ params, onChange }: CustomParamFormPro
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <NumberField label="ADX 임계치" desc="이 값 이상일 때 추세 있음으로 판단"
             value={params.adx_threshold} step={0.5} min={15} max={50} onChange={v => set('adx_threshold', v)} />
+          <NumberField label="ADX 횡보 하한선" desc="이 값 미만이면 ADX 임계치 무관하게 신호 차단"
+            value={params.adx_sideways_floor} step={1} min={5} max={30} isInt onChange={v => set('adx_sideways_floor', v)} />
           <NumberField label="ADX 연속 유지 봉 수" desc="ADX 조건이 유지되어야 하는 60분봉 수"
             value={params.adx_persist} step={1} min={1} max={10} isInt onChange={v => set('adx_persist', v)} />
+          <NumberField label="DI 격차 최소값" desc="+DI와 -DI 차이가 이 값 미만이면 방향성 약함으로 신호 차단"
+            value={params.di_gap_min} step={0.5} min={0} max={30} onChange={v => set('di_gap_min', v)} />
         </div>
       </Section>
       <Section title="RSI 진입 조건" icon="ri-swap-line">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <NumberField label="롱 진입 RSI 상한" desc="RSI가 이 값 미만일 때 롱 진입"
-            value={params.rsi_long_entry} step={1} min={30} max={55} isInt onChange={v => set('rsi_long_entry', v)} />
+          <NumberField label="롱 진입 RSI 하한" desc="RSI가 이 값 초과일 때 롱 진입 허용 (추세 올라타기, 0=비활성)"
+            value={params.rsi_long_floor} step={1} min={0} max={70} isInt onChange={v => set('rsi_long_floor', v)} />
+          <NumberField label="롱 진입 RSI 상한" desc="RSI가 이 값 미만일 때 롱 진입 (rsi_long_floor~rsi_long_entry 구간)"
+            value={params.rsi_long_entry} step={1} min={30} max={99} isInt onChange={v => set('rsi_long_entry', v)} />
           <NumberField label="숏 진입 RSI 하한" desc="RSI가 이 값 초과일 때 숏 진입"
             value={params.rsi_short_entry} step={1} min={45} max={70} isInt onChange={v => set('rsi_short_entry', v)} />
+          <NumberField label="과매도 반등 RSI 상한" desc="RSI가 이 값 미만일 때 ADX 조건 없이 롱 진입 (rsi_long_floor보다 낮아야 함)"
+            value={params.rsi_oversold_entry} step={1} min={5} max={40} isInt onChange={v => set('rsi_oversold_entry', v)} />
         </div>
       </Section>
       <Section title="리스크 관리" icon="ri-shield-line">

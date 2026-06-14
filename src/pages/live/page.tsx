@@ -3,8 +3,8 @@ import PageLayout from '../../components/PageLayout';
 import { authStorage } from '../../utils/auth';
 import { PERMISSIONS } from '../../constants';
 import type { ApiResponse, TradingSession, TradeHistory } from '../../types/index';
-import type { StrategyConfigDTO, BoardItem } from '../strategy/strategyTypes';
-import { dtoToBoardItem } from '../strategy/strategyTypes';
+import type { StrategyConfigDTO } from '../strategy/strategyTypes';
+import { SYMBOL_OPTIONS } from '../strategy/strategyTypes';
 import { getSymbolName } from '../../constants/symbolNames';
 import { apiClient } from '../../api/apiClient';
 import {
@@ -18,37 +18,10 @@ import {
   toggleStrategyUpdate,
   getTradeHistoryList,
   updateSessionStrategyConfigId,
+  getBalance,
 } from '../../api/tradeApi';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const PARAM_LABELS: { key: keyof BoardItem['params']; label: string; format?: (v: unknown) => string }[] = [
-  { key: 'symbol',                label: '종목 코드' },
-  { key: 'initial_capital',       label: '초기 자본',       format: v => Number(v).toLocaleString() + ' 원' },
-  { key: 'risk_per_trade',        label: '위험 비율',        format: v => (Number(v) * 100).toFixed(1) + '%' },
-  { key: 'adx_threshold',         label: 'ADX 임계값' },
-  { key: 'adx_persist',           label: 'ADX 지속 기간' },
-  { key: 'rsi_long_entry',        label: 'RSI 롱 진입' },
-  { key: 'rsi_short_entry',       label: 'RSI 숏 진입' },
-  { key: 'atr_sl_mult',           label: 'ATR 손절 배수' },
-  { key: 'atr_tp_mult',           label: 'ATR 익절 배수' },
-  { key: 'min_hold_bars',         label: '최소 보유 봉' },
-  { key: 'sl_cooldown_bars',      label: '손절 쿨다운' },
-  { key: 'consec_sl_limit',       label: '연속 손절 한도' },
-  { key: 'max_dd_stop',           label: '최대 낙폭 정지',   format: v => Number(v) === 0 ? '비활성' : String(v) },
-  { key: 'commission',            label: '수수료',           format: v => (Number(v) * 100).toFixed(3) + '%' },
-  { key: 'slippage',              label: '슬리피지',         format: v => (Number(v) * 100).toFixed(3) + '%' },
-  { key: 'use_prev_bar_signal',   label: '이전 봉 신호',     format: v => v ? 'ON' : 'OFF' },
-  { key: 'indicator_window',      label: '지표 룩백 기간' },
-  { key: 'trading_days_per_year', label: '연간 거래일 수' },
-];
-
-const LIVE_PARAM_LABELS: { key: keyof BoardItem['params']; label: string; format?: (v: unknown) => string }[] = [
-  { key: 'cooldown_bars_left', label: '쿨다운 잔여 봉' },
-  { key: 'consec_sl_count',   label: '연속 손절 횟수' },
-  { key: 'current_equity',    label: '현재 자산',   format: v => Number(v).toFixed(6) },
-  { key: 'peak_equity',       label: '최고 자산',   format: v => Number(v).toFixed(6) },
-];
 
 function positionBadge(pos: TradingSession['currentPosition']) {
   if (pos === 'LONG')  return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-teal-500/20 text-teal-300">LONG</span>;
@@ -62,8 +35,12 @@ export default function Live() {
   const loginUser = authStorage.get();
   const isAdmin = (loginUser?.permission ?? 0) >= PERMISSIONS.ADMIN;
 
-  const [appliedItem, setAppliedItem] = useState<BoardItem | null>(null);
-  const [investing, setInvesting]       = useState(false);
+  const [investSymbol,       setInvestSymbol]       = useState('');
+  const [investSymbolMode,   setInvestSymbolMode]   = useState<'dropdown' | 'direct'>('dropdown');
+  const [investDropdown,     setInvestDropdown]     = useState('');
+  const [investEquity,       setInvestEquity]       = useState('');
+  const [balanceLoading,     setBalanceLoading]     = useState<'LIVE' | 'PAPER' | null>(null);
+  const [investing,          setInvesting]          = useState(false);
   const [sessionList, setSessionList]   = useState<TradingSession[]>([]);
   const [statusLoading, setStatusLoading] = useState(false);
   const [errorMessage, setErrorMessage]   = useState('');
@@ -90,11 +67,11 @@ export default function Live() {
     if (!userUid) return;
     setStrategyListLoading(true);
     try {
-      const res = await apiClient.post<ApiResponse<StrategyConfigDTO[]>>(
+      const res = await apiClient.post<ApiResponse<import('../../types').PageResponse<StrategyConfigDTO>>>(
         '/strategy/getStrategyConfigList',
         { userUid },
       );
-      setStrategyList(res.data ?? []);
+      setStrategyList(res.data?.content ?? []);
     } catch { /* silent */ } finally {
       setStrategyListLoading(false);
     }
@@ -125,10 +102,9 @@ export default function Live() {
     setTradePopupDateFrom('');
     setTradePopupDateTo('');
     setTradePopupLoading(true);
-    getTradeHistoryList({ userUid: tradePopup.userUid })
+    getTradeHistoryList({ userUid: tradePopup.userUid, symbol: tradePopup.symbol, mode: tradePopup.mode })
       .then(res => {
-        const filtered = (res.data ?? []).filter(t => t.symbol === tradePopup.symbol && t.mode === tradePopup.mode);
-        setTradePopupList(filtered);
+        setTradePopupList(res.data?.content ?? []);
       })
       .catch(() => setTradePopupList([]))
       .finally(() => setTradePopupLoading(false));
@@ -157,35 +133,6 @@ export default function Live() {
     }
   };
 
-  // 실전투자 전용 입력값 — 첫 등록 시 항상 0 고정
-  const liveParams = {
-    cooldownBarsLeft: 0,
-    consecSlCount:    0,
-    currentEquity:    0,
-    peakEquity:       0,
-  };
-
-  // Applied strategy — API 조회
-  const fetchApplied = useCallback(async () => {
-    const userUid = authStorage.get()?.userUid;
-    if (!userUid) return;
-    try {
-      const res = await apiClient.post<ApiResponse<StrategyConfigDTO[]>>(
-        '/strategy/getStrategyConfigList',
-        { userUid },
-      );
-      const applied = (res.data ?? []).find(d => d.isUse === 1) ?? null;
-      setAppliedItem(applied ? dtoToBoardItem(applied) : null);
-    } catch { /* silent */ }
-  }, []);
-
-  useEffect(() => {
-    fetchApplied();
-    const handleCustom = () => fetchApplied();
-    window.addEventListener('strategyAppliedChanged', handleCustom);
-    return () => window.removeEventListener('strategyAppliedChanged', handleCustom);
-  }, [fetchApplied]);
-
   // 진행 세션 목록 조회
   const fetchSessionList = useCallback(async () => {
     const userUid = authStorage.get()?.userUid;
@@ -201,29 +148,49 @@ export default function Live() {
     }
   }, []);
 
-  // 투자하기
-  const handleInvest = async () => {
-    if (!appliedItem || investing || !investMode) return;
+  // 자본금 가져오기
+  const fetchBalance = async (mode: 'LIVE' | 'PAPER') => {
+    const stored = authStorage.get();
+    if (!stored?.userUid) return;
+    setBalanceLoading(mode);
+    try {
+      const accountNo = mode === 'PAPER' ? (stored.kisPaperAccountNo ?? undefined) : undefined;
+      const res = await getBalance(stored.userUid, mode, accountNo);
+      if (res?.data?.totalBalance !== undefined) {
+        setInvestEquity(String(res.data.totalBalance));
+      }
+    } catch { /* silent */ } finally {
+      setBalanceLoading(null);
+    }
+  };
+
+  // 세션 생성
+  const handleCreateSession = async () => {
+    if (!investSymbol.trim() || !investEquity || !investMode || investing) return;
     const userUid = authStorage.get()?.userUid;
     if (!userUid) return;
+    const equity = parseFloat(investEquity.replace(/,/g, ''));
+    if (isNaN(equity) || equity <= 0) { setErrorMessage('올바른 자본금을 입력해주세요.'); return; }
 
     setInvesting(true);
     setErrorMessage('');
     try {
       const res = await insertTradingSession({
         userUid,
-        strategyConfigId: appliedItem.id,
-        symbol:           appliedItem.params.symbol,
-        mode:             investMode,
-        cooldownBarsLeft: liveParams.cooldownBarsLeft,
-        consecSlCount:    liveParams.consecSlCount,
-        currentEquity:    liveParams.currentEquity,
-        peakEquity:       liveParams.peakEquity,
+        symbol:          investSymbol.trim().toUpperCase(),
+        mode:            investMode,
+        cooldownBarsLeft: 0,
+        consecSlCount:   0,
+        currentEquity:   equity,
+        peakEquity:      equity,
       });
       if (res.data) {
         await fetchSessionList();
+        setInvestSymbol('');
+        setInvestDropdown('');
+        setInvestEquity('');
       } else {
-        setErrorMessage(res.message || '투자 시작에 실패했습니다.');
+        setErrorMessage(res.message || '세션 생성에 실패했습니다.');
       }
     } catch {
       setErrorMessage('서버 연결에 실패했습니다.');
@@ -467,8 +434,8 @@ export default function Live() {
               const t = tradePopupDetail;
               const isClose = t.action === 'CLOSE_LONG' || t.action === 'CLOSE_SHORT';
               const pnlColor = t.realizedPnl != null && t.realizedPnl >= 0 ? 'text-sky-400' : 'text-rose-400';
-              const ACTION_STYLE: Record<string, string> = { BUY: 'bg-teal-500/20 text-teal-300', SELL_SHORT: 'bg-rose-500/20 text-rose-300', CLOSE_LONG: 'bg-sky-500/20 text-sky-300', CLOSE_SHORT: 'bg-orange-500/20 text-orange-300' };
-              const ACTION_LABEL: Record<string, string> = { BUY: '매수 (BUY)', SELL_SHORT: '공매도 (SELL_SHORT)', CLOSE_LONG: '청산 롱 (CLOSE_LONG)', CLOSE_SHORT: '청산 숏 (CLOSE_SHORT)' };
+              const ACTION_STYLE: Record<string, string> = { BUY: 'bg-teal-500/20 text-teal-300', ADD_LONG: 'bg-blue-500/20 text-blue-300', SELL_SHORT: 'bg-rose-500/20 text-rose-300', CLOSE_LONG: 'bg-sky-500/20 text-sky-300', CLOSE_SHORT: 'bg-orange-500/20 text-orange-300' };
+              const ACTION_LABEL: Record<string, string> = { BUY: '매수 (BUY)', ADD_LONG: '추가매수 (ADD_LONG)', SELL_SHORT: '공매도 (SELL_SHORT)', CLOSE_LONG: '청산 롱 (CLOSE_LONG)', CLOSE_SHORT: '청산 숏 (CLOSE_SHORT)' };
               const MODE_STYLE: Record<string, string> = { LIVE: 'bg-amber-500/20 text-amber-300', PAPER: 'bg-blue-500/20 text-blue-300' };
               const STATUS_STYLE: Record<string, string> = { SUCCESS: 'bg-emerald-500/20 text-emerald-300', FAILED: 'bg-rose-500/20 text-rose-400' };
               return (
@@ -604,8 +571,8 @@ export default function Live() {
                   <i className="ri-loader-4-line animate-spin text-teal-400 text-3xl"></i>
                 </div>
               ) : (() => {
-                const ACTION_STYLE: Record<string, string> = { BUY: 'bg-teal-500/20 text-teal-300', SELL_SHORT: 'bg-rose-500/20 text-rose-300', CLOSE_LONG: 'bg-sky-500/20 text-sky-300', CLOSE_SHORT: 'bg-orange-500/20 text-orange-300' };
-                const ACTION_LABEL: Record<string, string> = { BUY: '매수', SELL_SHORT: '공매도', CLOSE_LONG: '청산(롱)', CLOSE_SHORT: '청산(숏)' };
+                const ACTION_STYLE: Record<string, string> = { BUY: 'bg-teal-500/20 text-teal-300', ADD_LONG: 'bg-blue-500/20 text-blue-300', SELL_SHORT: 'bg-rose-500/20 text-rose-300', CLOSE_LONG: 'bg-sky-500/20 text-sky-300', CLOSE_SHORT: 'bg-orange-500/20 text-orange-300' };
+                const ACTION_LABEL: Record<string, string> = { BUY: '매수', ADD_LONG: '추가매수', SELL_SHORT: '공매도', CLOSE_LONG: '청산(롱)', CLOSE_SHORT: '청산(숏)' };
                 const MODE_STYLE: Record<string, string> = { LIVE: 'bg-amber-500/20 text-amber-300', PAPER: 'bg-blue-500/20 text-blue-300' };
                 const STATUS_STYLE: Record<string, string> = { SUCCESS: 'bg-emerald-500/20 text-emerald-300', FAILED: 'bg-rose-500/20 text-rose-400' };
                 // 번호/종목코드/종목명/모드/액션/수량/진입가/진입시각/청산가/청산시각/실현손익/상태/생성일시 (사용자명 제외)
@@ -725,66 +692,104 @@ export default function Live() {
       <div className="space-y-6">
         <h1 className="text-2xl font-bold text-zinc-100">실전투자</h1>
 
-        {/* 적용된 전략 카드 — 일반 사용자만 표시 */}
+        {/* 세션 생성 카드 — 일반 사용자만 표시 */}
         {!isAdmin && <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-          <h2 className="text-lg font-semibold text-zinc-200 mb-4">적용된 전략 설정</h2>
+          <h2 className="text-lg font-semibold text-zinc-200 mb-4">세션 생성</h2>
 
-          {appliedItem ? (
-            <>
-              <div className="flex items-center gap-3 mb-4 flex-wrap">
-                <span className="text-xl font-bold text-teal-300">{appliedItem.title}</span>
-                <span className="text-sm text-zinc-400 bg-zinc-800 px-3 py-1 rounded-full">{appliedItem.symbol}</span>
-                <span className="text-sm text-zinc-500">{appliedItem.date}</span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-4">
-                {PARAM_LABELS.map(({ key, label, format }) => {
-                  const val = appliedItem.params[key];
-                  return (
-                    <div key={key} className="bg-zinc-800 rounded-xl px-4 py-3">
-                      <p className="text-xs text-zinc-500 mb-1">{label}</p>
-                      <p className="text-sm font-semibold text-zinc-200">{format ? format(val) : String(val)}</p>
-                    </div>
-                  );
-                })}
-              </div>
-              {/* 실전투자 전용 */}
-              <div className="border border-amber-500/30 rounded-xl bg-amber-500/5 p-4 mb-6">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <i className="ri-live-line text-amber-400 text-sm"></i>
-                  <span className="text-sm font-semibold text-amber-400">실전투자 전용</span>
-                  <span className="text-xs text-amber-500/60 ml-1">백테스트에는 사용되지 않습니다</span>
+          <div className="space-y-4 mb-6">
+            {/* 종목 선택 */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-sm font-medium text-zinc-400">종목</label>
+                <div className="flex bg-zinc-800 rounded-md p-0.5 gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => { setInvestSymbolMode('dropdown'); setInvestDropdown(''); setInvestSymbol(''); }}
+                    className={`px-3 py-1 text-xs rounded transition-colors cursor-pointer ${
+                      investSymbolMode === 'dropdown' ? 'bg-teal-500 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    선택
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setInvestSymbolMode('direct'); setInvestSymbol(''); }}
+                    className={`px-3 py-1 text-xs rounded transition-colors cursor-pointer ${
+                      investSymbolMode === 'direct' ? 'bg-teal-500 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    직접입력
+                  </button>
                 </div>
-                <div className="flex items-center gap-1.5 mb-3">
-                  <i className="ri-information-line text-amber-500/60 text-xs"></i>
-                  <span className="text-xs text-amber-500/60">첫 등록 시 모두 0으로 고정됩니다. 이후 세션에서 자동으로 갱신됩니다.</span>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {([
-                    { key: 'cooldownBarsLeft', label: '쿨다운 잔여 봉' },
-                    { key: 'consecSlCount',    label: '연속 손절 횟수' },
-                    { key: 'currentEquity',    label: '현재 자산' },
-                    { key: 'peakEquity',       label: '최고 자산' },
-                  ] as const).map(({ key, label }) => (
-                    <div key={key} className="bg-amber-500/10 rounded-xl px-4 py-3">
-                      <p className="text-xs text-amber-500/70 mb-1.5">{label}</p>
-                      <div className="w-full bg-amber-500/5 border border-amber-500/20 rounded-lg px-2 py-1 text-sm font-semibold text-amber-200/50 cursor-not-allowed select-none">
-                        0
-                      </div>
-                    </div>
+              </div>
+              {investSymbolMode === 'dropdown' ? (
+                <select
+                  value={investDropdown}
+                  onChange={e => { setInvestDropdown(e.target.value); setInvestSymbol(e.target.value); }}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-teal-500 transition-colors"
+                >
+                  <option value="" disabled>— 종목을 선택하세요 —</option>
+                  {Object.entries(
+                    SYMBOL_OPTIONS.reduce<Record<string, typeof SYMBOL_OPTIONS>>((acc, o) => {
+                      (acc[o.group] ??= []).push(o); return acc;
+                    }, {})
+                  ).map(([g, opts]) => (
+                    <optgroup key={g} label={g}>
+                      {opts.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                    </optgroup>
                   ))}
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-10 text-zinc-500">
-              <i className="ri-settings-3-line text-4xl mb-2"></i>
-              <p className="text-base">전략 설정에서 적용할 설정을 선택해 주세요.</p>
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={investSymbol}
+                  onChange={e => setInvestSymbol(e.target.value)}
+                  placeholder="예: 005930.KS, AAPL, NQ=F"
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-teal-500 transition-colors"
+                />
+              )}
             </div>
-          )}
+
+            {/* 초기 자본금 */}
+            <div>
+              <label className="block text-sm font-medium text-zinc-400 mb-1.5">초기 자본금 (원)</label>
+              <input
+                type="text"
+                value={investEquity}
+                onChange={e => setInvestEquity(e.target.value)}
+                placeholder="예: 10000000"
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-teal-500 transition-colors mb-2"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => fetchBalance('LIVE')}
+                  disabled={balanceLoading !== null}
+                  className="flex-1 px-3 py-1.5 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {balanceLoading === 'LIVE'
+                    ? <><i className="ri-loader-4-line animate-spin mr-1"></i>불러오는 중...</>
+                    : <><i className="ri-bank-line mr-1"></i>실전 자본금 가져오기</>
+                  }
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fetchBalance('PAPER')}
+                  disabled={balanceLoading !== null}
+                  className="flex-1 px-3 py-1.5 text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {balanceLoading === 'PAPER'
+                    ? <><i className="ri-loader-4-line animate-spin mr-1"></i>불러오는 중...</>
+                    : <><i className="ri-file-copy-line mr-1"></i>모의 자본금 가져오기</>
+                  }
+                </button>
+              </div>
+            </div>
+          </div>
 
           {/* 투자 모드 선택 */}
-          <div className="flex items-center gap-3 mb-4">
-            <span className="text-sm font-medium text-zinc-400">투자 모드</span>
+          <div className="flex items-center gap-3 mb-6">
+            <span className="text-sm font-medium text-zinc-400">거래 모드</span>
             <div className="flex bg-zinc-800 rounded-lg p-1 gap-1">
               <button
                 type="button"
@@ -808,19 +813,20 @@ export default function Live() {
           </div>
 
           <button
-            onClick={handleInvest}
-            disabled={!appliedItem || investing || !investMode}
+            onClick={handleCreateSession}
+            disabled={!investSymbol.trim() || !investEquity || !investMode || investing}
             className={`flex items-center gap-2 px-6 py-3 rounded-xl text-base font-semibold transition-colors ${
-              !appliedItem || investing || !investMode
+              !investSymbol.trim() || !investEquity || !investMode || investing
                 ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
                 : 'bg-teal-500 hover:bg-teal-400 text-white cursor-pointer'
             }`}
           >
             {investing
               ? <><i className="ri-loader-4-line animate-spin text-lg"></i>처리 중...</>
-              : <><i className="ri-live-line text-lg"></i>투자하기</>
+              : <><i className="ri-add-line text-lg"></i>세션 생성하기</>
             }
           </button>
+          <p className="text-xs text-zinc-600 mt-3">전략은 시장 상황에 따라 자동으로 적용됩니다.</p>
         </div>}
 
         {/* 진행 섹션 */}
@@ -903,47 +909,34 @@ export default function Live() {
                         {getSymbolName(session.symbol)}
                         <span className="ml-1 text-xs text-zinc-500">({session.symbol})</span>
                       </span>
-                      {!isAdmin ? (
-                        <button
-                          type="button"
-                          onClick={e => { e.stopPropagation(); openStrategyChangePopup(session.id, session.strategyConfigId ?? null, session.strategyConfig?.title ?? '-'); }}
-                          className="text-xs text-zinc-200 bg-zinc-700 border border-zinc-600 px-2 py-0.5 rounded-md hover:border-teal-500 hover:text-teal-300 hover:bg-teal-500/10 transition-colors cursor-pointer"
-                          title="클릭하여 전략 변경"
-                        >
-                          {session.strategyConfig?.title || '-'}
-                          <i className="ri-arrow-drop-down-line ml-0.5"></i>
-                        </button>
-                      ) : (
-                        <span className="text-xs text-zinc-200 bg-zinc-700 border border-zinc-600 px-2 py-0.5 rounded-md">
-                          {session.strategyConfig?.title || '-'}
-                        </span>
-                      )}
+                      <span className={`text-xs px-2 py-0.5 rounded-md border font-semibold ${session.isStrategyUpdate === 1 ? 'text-teal-300 bg-teal-500/10 border-teal-600' : 'text-zinc-400 bg-zinc-700 border-zinc-600'}`}>
+                        {session.isStrategyUpdate === 1 ? '전략 메뉴판' : '4등급 고정'}
+                      </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-zinc-300">{session.lastUpdatedAt}</span>
                       {!isAdmin && (
                         <div className="relative group flex items-center gap-1.5 bg-zinc-700/50 border border-zinc-600/50 rounded-lg px-2.5 py-1">
-                          <span className="text-xs text-zinc-400">전략 자동 업데이트</span>
+                          <span className="text-xs text-zinc-400">메뉴판</span>
                           <button
                             type="button"
                             onClick={async () => {
-                              if (!session.strategyConfigId) return;
-                              const next = !(autoUpdateMap[session.id] ?? (session.strategyConfig?.isStrategyUpdate === 1));
+                              const next = !(autoUpdateMap[session.id] ?? (session.isStrategyUpdate === 1));
                               setAutoUpdateMap(prev => ({ ...prev, [session.id]: next }));
                               try {
-                                await toggleStrategyUpdate(session.strategyConfigId);
+                                await toggleStrategyUpdate(session.id);
                               } catch {
                                 setAutoUpdateMap(prev => ({ ...prev, [session.id]: !next }));
                               }
                             }}
-                            className={`relative w-9 h-5 rounded-full transition-colors cursor-pointer ${(autoUpdateMap[session.id] ?? (session.strategyConfig?.isStrategyUpdate === 1)) ? 'bg-teal-500' : 'bg-zinc-600'}`}
+                            className={`relative w-9 h-5 rounded-full transition-colors cursor-pointer ${(autoUpdateMap[session.id] ?? (session.isStrategyUpdate === 1)) ? 'bg-teal-500' : 'bg-zinc-600'}`}
                           >
-                            <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${(autoUpdateMap[session.id] ?? (session.strategyConfig?.isStrategyUpdate === 1)) ? 'translate-x-4' : 'translate-x-0'}`} />
+                            <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${(autoUpdateMap[session.id] ?? (session.isStrategyUpdate === 1)) ? 'translate-x-4' : 'translate-x-0'}`} />
                           </button>
                           <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block z-10 pointer-events-none">
                             <div className="bg-zinc-800 border border-zinc-600 rounded-lg px-3 py-2 text-xs text-zinc-300 whitespace-nowrap shadow-lg space-y-1">
-                              <p>매일 자정 0시10분0초에 해당 날짜의 주식 정보(봉) 업데이트 합니다.</p>
-                              <p>최소 거래 횟수: 10, 거래당 위험 비: 0.015</p>
+                              <p>ON: 시장 등급에 따라 전략을 자동 배정합니다.</p>
+                              <p>OFF: 4등급 전략을 고정 사용합니다.</p>
                             </div>
                             <div className="absolute right-3 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-zinc-600" />
                           </div>
@@ -969,8 +962,9 @@ export default function Live() {
                         <button
                           onClick={() => setConfirmAction({ id: session.id, type: 'resume' })}
                           className="px-2.5 py-1 text-xs font-semibold bg-teal-500/15 text-teal-400 hover:bg-teal-500/30 rounded-lg transition-colors cursor-pointer"
+                          title="실행하면 15분마다 시장 상황에 맞는 전략이 자동 적용됩니다"
                         >
-                          <i className="ri-play-line mr-1"></i>재실행
+                          <i className="ri-play-line mr-1"></i>시작
                         </button>
                       )}
                       {!isAdmin && (
@@ -1005,6 +999,12 @@ export default function Live() {
                     <div className="bg-zinc-800 group-hover/data:bg-zinc-700/70 rounded-lg px-3 py-2 transition-colors">
                       <p className="text-xs text-zinc-400 mb-1">보유 수량</p>
                       <p className={`text-sm font-semibold ${valueColor}`}>{session.sharesHeld ?? '-'}</p>
+                    </div>
+                    <div className="bg-zinc-800 group-hover/data:bg-zinc-700/70 rounded-lg px-3 py-2 transition-colors">
+                      <p className="text-xs text-zinc-400 mb-1">평균 진입가</p>
+                      <p className={`text-sm font-semibold ${valueColor}`}>
+                        {session.avgEntryPrice != null ? session.avgEntryPrice.toLocaleString() : '-'}
+                      </p>
                     </div>
                     <div className="bg-zinc-800 group-hover/data:bg-zinc-700/70 rounded-lg px-3 py-2 transition-colors">
                       <p className="text-xs text-zinc-400 mb-1">손절가 (Stop)</p>

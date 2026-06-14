@@ -253,22 +253,6 @@ export default function Home() {
             </button>
           </form>
 
-          {/* Test: Dashboard shortcut */}
-          <button
-            type="button"
-            onClick={() => {
-              setEmail('superadmin@finpilot.com');
-              setPassword('super1234!');
-              setTimeout(() => {
-                document.getElementById('loginForm')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-              }, 0);
-            }}
-            className="w-full mt-3 py-2.5 bg-amber-900/30 border border-amber-700 text-amber-400 text-sm font-medium rounded-lg hover:bg-amber-900/50 transition-colors whitespace-nowrap cursor-pointer flex items-center justify-center gap-1.5"
-          >
-            <i className="ri-shield-star-line"></i>
-            최상위 관리자 로그인
-          </button>
-
           <div className="grid grid-cols-3 gap-2 mt-4">
             <button
               type="button"

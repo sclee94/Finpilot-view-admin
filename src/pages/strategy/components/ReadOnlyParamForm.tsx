@@ -32,13 +32,17 @@ export default function ReadOnlyParamForm({ params }: ReadOnlyParamFormProps) {
       <Section title="추세 지표 (ADX)" icon="ri-line-chart-line">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <ReadOnlyNumberField label="ADX 임계치" desc="이 값 이상일 때 추세 있음으로 판단" value={n(params?.adx_threshold)} />
+          <ReadOnlyNumberField label="ADX 횡보 하한선" desc="이 값 미만이면 ADX 임계치 무관하게 신호 차단" value={n(params?.adx_sideways_floor)} />
           <ReadOnlyNumberField label="ADX 연속 유지 봉 수" desc="ADX 조건이 유지되어야 하는 60분봉 수" value={n(params?.adx_persist)} />
+          <ReadOnlyNumberField label="DI 격차 최소값" desc="+DI와 -DI 차이가 이 값 미만이면 방향성 약함으로 신호 차단" value={n(params?.di_gap_min)} />
         </div>
       </Section>
       <Section title="RSI 진입 조건" icon="ri-swap-line">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <ReadOnlyNumberField label="롱 진입 RSI 하한" desc="RSI가 이 값 초과일 때 롱 진입 허용 (0=비활성)" value={n(params?.rsi_long_floor)} />
           <ReadOnlyNumberField label="롱 진입 RSI 상한" desc="RSI가 이 값 미만일 때 롱 진입" value={n(params?.rsi_long_entry)} />
           <ReadOnlyNumberField label="숏 진입 RSI 하한" desc="RSI가 이 값 초과일 때 숏 진입" value={n(params?.rsi_short_entry)} />
+          <ReadOnlyNumberField label="과매도 반등 RSI 상한" desc="ADX 조건 없이 롱 진입 (rsi_long_floor보다 낮아야 함)" value={n(params?.rsi_oversold_entry)} />
         </div>
       </Section>
       <Section title="리스크 관리" icon="ri-shield-line">

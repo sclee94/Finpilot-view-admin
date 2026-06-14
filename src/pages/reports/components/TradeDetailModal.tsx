@@ -7,12 +7,14 @@ interface Props {
 
 const ACTION_STYLE: Record<string, string> = {
   BUY:         'bg-teal-500/20 text-teal-300',
+  ADD_LONG:    'bg-blue-500/20 text-blue-300',
   SELL_SHORT:  'bg-rose-500/20 text-rose-300',
   CLOSE_LONG:  'bg-sky-500/20 text-sky-300',
   CLOSE_SHORT: 'bg-orange-500/20 text-orange-300',
 };
 const ACTION_LABEL: Record<string, string> = {
   BUY:         '매수 (BUY)',
+  ADD_LONG:    '추가매수 (ADD_LONG)',
   SELL_SHORT:  '공매도 (SELL_SHORT)',
   CLOSE_LONG:  '청산 롱 (CLOSE_LONG)',
   CLOSE_SHORT: '청산 숏 (CLOSE_SHORT)',
@@ -192,11 +194,11 @@ export default function TradeDetailModal({ trade, onClose }: Props) {
             </div>
           )}
 
-          {/* 전략 ID / 유저 */}
-          {(trade.strategyConfigId != null || trade.userName) && (
+          {/* 적용 전략 / 유저 */}
+          {(trade.menuGrade != null || trade.userName) && (
             <div className="bg-zinc-800/30 rounded-xl px-5 py-3 space-y-1.5">
-              {trade.strategyConfigId != null && (
-                <p className="text-xs text-zinc-600">전략 ID: <span className="text-zinc-500">{trade.strategyConfigId}</span></p>
+              {trade.menuGrade != null && (
+                <p className="text-xs text-zinc-600">적용 전략: <span className="text-zinc-500">{trade.menuGrade}등급</span></p>
               )}
               {trade.userName && (
                 <p className="text-xs text-zinc-600">유저: <span className="text-zinc-400">{trade.userName}</span></p>

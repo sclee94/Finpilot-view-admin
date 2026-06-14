@@ -1,4 +1,5 @@
 import type { TradeHistory } from '../../../types';
+import type { AssetSummary } from '../../../api/tradeApi';
 
 function formatPnl(val: number): string {
   const abs = Math.abs(val);
@@ -13,20 +14,20 @@ function formatAmt(val: number): string {
 
 interface Props {
   list: TradeHistory[];
+  assetInfo?: AssetSummary | null;
 }
 
-export default function TradeSummaryCards({ list }: Props) {
-  const total         = list.length;
-  const success       = list.filter(t => t.orderStatus === 'SUCCESS').length;
-  const failed        = list.filter(t => t.orderStatus === 'FAILED').length;
-  const closeList     = list.filter(t => t.action === 'CLOSE_LONG' || t.action === 'CLOSE_SHORT');
-  const buyList       = list.filter(t => t.action === 'BUY' || t.action === 'ADD_LONG');
-  const totalPnl      = closeList.reduce((s, t) => s + (t.realizedPnl ?? 0), 0);
-  const buyCount      = buyList.length;
-  const shortCount    = list.filter(t => t.action === 'SELL_SHORT').length;
-  const closeCount    = closeList.length;
-  const totalBuyAmt   = buyList.reduce((s, t) => s + (t.entryPrice != null ? t.entryPrice * t.shares : 0), 0);
-  const totalSellAmt  = closeList.reduce((s, t) => s + (t.exitPrice != null ? t.exitPrice * t.shares : 0), 0);
+export default function TradeSummaryCards({ list, assetInfo }: Props) {
+  const total        = list.length;
+  const success      = list.filter(t => t.orderStatus === 'SUCCESS').length;
+  const failed       = list.filter(t => t.orderStatus === 'FAILED').length;
+  const closeList    = list.filter(t => t.action === 'CLOSE_LONG' || t.action === 'CLOSE_SHORT');
+  const buyList      = list.filter(t => t.action === 'BUY' || t.action === 'ADD_LONG');
+  const totalPnl     = closeList.reduce((s, t) => s + (t.realizedPnl ?? 0), 0);
+  const buyCount     = buyList.length;
+  const closeCount   = closeList.length;
+  const totalBuyAmt  = buyList.reduce((s, t) => s + (t.entryPrice != null ? t.entryPrice * t.shares : 0), 0);
+  const totalSellAmt = closeList.reduce((s, t) => s + (t.exitPrice != null ? t.exitPrice * t.shares : 0), 0);
 
   return (
     <div className="flex flex-col xl:flex-row gap-4">
@@ -74,7 +75,7 @@ export default function TradeSummaryCards({ list }: Props) {
           </div>
 
           {/* 액션별 카운트 */}
-          <div className="grid grid-cols-2 gap-3 flex-1">
+          <div className="flex flex-col gap-3 flex-1">
             <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-3">
               <div className="flex items-center gap-1.5 mb-1.5">
                 <i className="ri-arrow-down-circle-line text-teal-400 text-sm"></i>
@@ -85,28 +86,55 @@ export default function TradeSummaryCards({ list }: Props) {
             </div>
             <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-3">
               <div className="flex items-center gap-1.5 mb-1.5">
-                <i className="ri-arrow-up-circle-line text-rose-400 text-sm"></i>
-                <span className="text-xs text-zinc-500">공매도 (SHORT)</span>
-              </div>
-              <p className="text-lg font-bold text-rose-400">{shortCount}건</p>
-            </div>
-            <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-3">
-              <div className="flex items-center gap-1.5 mb-1.5">
                 <i className="ri-check-double-line text-sky-400 text-sm"></i>
                 <span className="text-xs text-zinc-500">청산 (CLOSE)</span>
               </div>
               <p className="text-lg font-bold text-sky-400">{closeCount}건</p>
               <p className="text-xs text-sky-600 mt-0.5">{formatAmt(totalSellAmt)}</p>
             </div>
-            <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-3">
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <i className="ri-bar-chart-grouped-line text-amber-400 text-sm"></i>
-                <span className="text-xs text-zinc-500">성공률</span>
-              </div>
-              <p className="text-lg font-bold text-amber-400">
-                {total > 0 ? Math.round((success / total) * 100) : 0}%
-              </p>
+          </div>
+        </div>
+      </div>
+
+      {/* 우측 현재 자산 패널 */}
+      <div className="xl:w-64 xl:shrink-0 bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-4 sm:p-5 flex flex-col">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-indigo-500/20 shrink-0">
+            <i className="ri-wallet-3-line text-base text-indigo-400"></i>
+          </div>
+          <span className="text-base font-bold text-indigo-300 tracking-wide">현재 자산</span>
+        </div>
+
+        <div className="flex flex-col gap-3 flex-1">
+          <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-3">
+            <div className="flex items-center gap-1.5 mb-1">
+              <i className="ri-funds-line text-indigo-400 text-sm"></i>
+              <span className="text-xs text-zinc-500">총자산</span>
             </div>
+            <p className="text-lg font-bold text-indigo-300">
+              {assetInfo != null ? formatAmt(assetInfo.totalAsset) : '—'}
+            </p>
+            <p className="text-xs text-zinc-600 mt-0.5">보유주식 + 현금</p>
+          </div>
+
+          <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-3">
+            <div className="flex items-center gap-1.5 mb-1">
+              <i className="ri-stock-line text-amber-400 text-sm"></i>
+              <span className="text-xs text-zinc-500">보유 주식 평가금액</span>
+            </div>
+            <p className="text-lg font-bold text-amber-300">
+              {assetInfo != null ? formatAmt(assetInfo.stockEvalAmount) : '—'}
+            </p>
+          </div>
+
+          <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-3">
+            <div className="flex items-center gap-1.5 mb-1">
+              <i className="ri-money-dollar-circle-line text-emerald-400 text-sm"></i>
+              <span className="text-xs text-zinc-500">매수 가능 자산</span>
+            </div>
+            <p className="text-lg font-bold text-emerald-300">
+              {assetInfo != null ? formatAmt(assetInfo.availableBuyAmount) : '—'}
+            </p>
           </div>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import type { ApiResponse, User } from '../types';
+import type { ApiResponse, PageResponse, User } from '../types';
 import { apiClient } from './apiClient';
 
 /** 유저 정보 단일 조회 - POST /api/user/getUser */
@@ -7,7 +7,7 @@ export const getUser = (params: Partial<User>) =>
 
 /** 유저 정보 리스트 조회 - POST /api/user/getUserList */
 export const getUserList = (params?: Partial<User>) =>
-  apiClient.post<ApiResponse<User[]>>('/user/getUserList', params ?? {});
+  apiClient.post<ApiResponse<PageResponse<User>>>('/user/getUserList', params ?? {});
 
 /** 유저 회원 가입 신청 - POST /api/user/signUp */
 export const signUp = (userData: Partial<User> & { password: string }) =>

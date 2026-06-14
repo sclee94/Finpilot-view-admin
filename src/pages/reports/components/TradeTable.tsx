@@ -13,12 +13,14 @@ interface Props {
 
 const ACTION_STYLE: Record<string, string> = {
   BUY:         'bg-teal-500/20 text-teal-300',
+  ADD_LONG:    'bg-blue-500/20 text-blue-300',
   SELL_SHORT:  'bg-rose-500/20 text-rose-300',
   CLOSE_LONG:  'bg-sky-500/20 text-sky-300',
   CLOSE_SHORT: 'bg-orange-500/20 text-orange-300',
 };
 const ACTION_LABEL: Record<string, string> = {
   BUY:         '매수',
+  ADD_LONG:    '추가매수',
   SELL_SHORT:  '공매도',
   CLOSE_LONG:  '청산(롱)',
   CLOSE_SHORT: '청산(숏)',

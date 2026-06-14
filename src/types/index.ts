@@ -5,6 +5,16 @@ export interface ApiResponse<T> {
   data: T;
 }
 
+// Spring Boot PageResponse<T> 페이징 응답 래퍼
+export interface PageResponse<T> {
+  content: T[];
+  totalCount: number;
+  currentPage: number;
+  totalPage: number;
+  hasNext: boolean;
+  size: number;
+}
+
 /**
  * Spring Boot UserDTO 매핑
  * permission: 1=일반유저, 99=관리자, 100=최고관리자
@@ -42,7 +52,7 @@ export interface User {
 export interface TradingSession {
   id:               string;
   userUid:          string;
-  strategyConfigId: number;
+  strategyConfigId: number | null;
   mode:             'LIVE' | 'PAPER';
   symbol:           string;
   active:           number;
@@ -55,10 +65,12 @@ export interface TradingSession {
   consecSlCount:    number;
   currentEquity:    number | null;
   peakEquity:       number;
+  avgEntryPrice:    number | null;
+  isStrategyUpdate: number;
   createdAt:        string;
   lastUpdatedAt:    string;
   // 백엔드 조인 필드
-  strategyConfig?:  { id: number; title: string; isStrategyUpdate?: number } | null;
+  strategyConfig?:  { id: number; title: string } | null;
   userDTO?:         { userName?: string } | null;
 }
 
@@ -142,6 +154,7 @@ export interface TradeHistory {
   currentEquity:     number | null;
   peakEquity:        number | null;
   errorMessage:      string | null;
+  menuGrade:         number | null;
   createdAt:         string;
   // 백엔드 조인 필드 (관리자용)
   userName?:         string | null;

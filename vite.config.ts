@@ -94,6 +94,10 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      '/finpilot/admin/oauth': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
     },
   },
 });

@@ -1,9 +1,13 @@
 export interface StrategyParams {
   symbol:              string;
   adx_threshold:       number;
+  adx_sideways_floor:  number;
   adx_persist:         number;
+  di_gap_min:          number;
   rsi_long_entry:      number;
+  rsi_long_floor:      number;
   rsi_short_entry:     number;
+  rsi_oversold_entry:  number;
   atr_sl_mult:         number;
   atr_tp_mult:         number;
   min_hold_bars:       number;
@@ -17,6 +21,7 @@ export interface StrategyParams {
   initial_capital:        number;
   indicator_window:       number;
   trading_days_per_year:  number;
+  max_add_count:          number;
   // 실전투자 전용
   cooldown_bars_left:     number;
   consec_sl_count:        number;
@@ -29,9 +34,13 @@ export type NumVal = number | '';
 export interface CustomFormParams {
   symbol:                string;
   adx_threshold:         NumVal;
+  adx_sideways_floor:    NumVal;
   adx_persist:           NumVal;
+  di_gap_min:            NumVal;
   rsi_long_entry:        NumVal;
+  rsi_long_floor:        NumVal;
   rsi_short_entry:       NumVal;
+  rsi_oversold_entry:    NumVal;
   atr_sl_mult:           NumVal;
   atr_tp_mult:           NumVal;
   min_hold_bars:         NumVal;
@@ -48,13 +57,14 @@ export interface CustomFormParams {
 }
 
 export interface BoardItem {
-  id:        number;
-  title:     string;
-  symbol:    string;
-  date:      string;
-  isUse:     number;   // 1: 적용 중, 0: 미적용
-  userName?: string;
-  params:    StrategyParams;
+  id:         number;
+  title:      string;
+  symbol:     string;
+  date:       string;
+  isUse:      number;   // 1: 적용 중, 0: 미적용
+  userName?:  string;
+  menuGrade?: number;   // 전략 메뉴 등급 (1~7, undefined이면 일반 전략)
+  params:     StrategyParams;
 }
 
 // Spring Boot StrategyConfigDTO 매핑
@@ -68,9 +78,14 @@ export interface StrategyConfigDTO {
   riskPerTrade?:     number;
   usePrevBarSignal?: boolean;
   adxThreshold?:     number;
+  adxSidewaysFloor?: number;
   adxPersist?:       number;
+  diGapMin?:         number;
   rsiLongEntry?:     number;
+  rsiLongFloor?:     number;
   rsiShortEntry?:    number;
+  rsiOversoldEntry?: number;
+  maxAddCount?:         number;
   atrSlMult?:        number;
   atrTpMult?:        number;
   minHoldBars?:      number;
@@ -86,15 +101,20 @@ export interface StrategyConfigDTO {
   currentEquity?:        number;
   peakEquity?:           number;
   isUse?:                number;
+  menuGrade?:            number;
   createdAt?:            string;
 }
 
 export const EMPTY_CUSTOM: CustomFormParams = {
   symbol:              '',
   adx_threshold:       '',
+  adx_sideways_floor:  '',
   adx_persist:         '',
+  di_gap_min:          '',
   rsi_long_entry:      '',
+  rsi_long_floor:      '',
   rsi_short_entry:     '',
+  rsi_oversold_entry:  '',
   atr_sl_mult:         '',
   atr_tp_mult:         '',
   min_hold_bars:       '',
@@ -113,9 +133,13 @@ export const EMPTY_CUSTOM: CustomFormParams = {
 export const DEFAULT_PARAMS: StrategyParams = {
   symbol:              'NQ=F',
   adx_threshold:       18.0,
+  adx_sideways_floor:  15,
   adx_persist:         1,
-  rsi_long_entry:      40,
+  di_gap_min:          7.0,
+  rsi_long_entry:      75,
+  rsi_long_floor:      30,
   rsi_short_entry:     57,
+  rsi_oversold_entry:  30,
   atr_sl_mult:         2.5,
   atr_tp_mult:         5.0,
   min_hold_bars:       16,
@@ -129,6 +153,7 @@ export const DEFAULT_PARAMS: StrategyParams = {
   initial_capital:       10000000,
   indicator_window:      14,
   trading_days_per_year: 252,
+  max_add_count:         3,
   cooldown_bars_left:    0,
   consec_sl_count:       0,
   current_equity:        1.0,
@@ -218,6 +243,8 @@ export const SYMBOL_OPTIONS: SymbolOption[] = [
   { group: 'KOSPI',   value: '161390.KS',  label: '한국타이어앤테크놀로지 (161390.KS)' },
   { group: 'KOSPI',   value: '092200.KS',  label: '현대오토에버 (092200.KS)' },
   { group: 'KOSPI',   value: '011210.KS',  label: '현대위아 (011210.KS)' },
+  // ── KOSDAQ ──────────────────────────────────────
+  { group: 'KOSDAQ',  value: '041190.KQ',  label: '우리기술투자 (041190.KQ)' },
   // ── 나스닥 ──────────────────────────────────────
   { group: '나스닥',  value: 'AAPL',       label: 'Apple (AAPL)' },
   { group: '나스닥',  value: 'MSFT',       label: 'Microsoft (MSFT)' },
@@ -325,18 +352,23 @@ export const BACKTEST_APPLIED_KEY = 'strategyBacktestApplied';
 /** DTO → BoardItem 변환 */
 export function dtoToBoardItem(dto: StrategyConfigDTO): BoardItem {
   return {
-    id:       dto.id!,
-    title:    dto.title ?? '',
-    symbol:   dto.symbol ?? '',
-    date:     dto.createdAt ?? '',
-    isUse:    dto.isUse ?? 0,
-    userName: dto.userDTO?.userName,
+    id:        dto.id!,
+    title:     dto.title ?? '',
+    symbol:    dto.symbol ?? '',
+    date:      dto.createdAt ?? '',
+    isUse:     dto.isUse ?? 0,
+    userName:  dto.userDTO?.userName,
+    menuGrade: dto.menuGrade,
     params: {
       symbol:              dto.symbol ?? '',
       adx_threshold:       dto.adxThreshold ?? 0,
+      adx_sideways_floor:  dto.adxSidewaysFloor ?? 15,
       adx_persist:         dto.adxPersist ?? 0,
+      di_gap_min:          dto.diGapMin ?? 10.0,
       rsi_long_entry:      dto.rsiLongEntry ?? 0,
+      rsi_long_floor:      dto.rsiLongFloor ?? 0,
       rsi_short_entry:     dto.rsiShortEntry ?? 0,
+      rsi_oversold_entry:  dto.rsiOversoldEntry ?? 30,
       atr_sl_mult:         dto.atrSlMult ?? 0,
       atr_tp_mult:         dto.atrTpMult ?? 0,
       min_hold_bars:       dto.minHoldBars ?? 0,
@@ -350,6 +382,7 @@ export function dtoToBoardItem(dto: StrategyConfigDTO): BoardItem {
       initial_capital:       dto.initialCapital ?? 0,
       indicator_window:      dto.indicatorWindow ?? 14,
       trading_days_per_year: dto.tradingDaysPerYear ?? 252,
+      max_add_count:         dto.maxAddCount ?? 3,
       cooldown_bars_left:    dto.cooldownBarsLeft ?? 0,
       consec_sl_count:       dto.consecSlCount ?? 0,
       current_equity:        dto.currentEquity ?? 1.0,
@@ -364,19 +397,25 @@ export function strategyToDto(
   title: string,
   userUid: string,
   id?: number,
+  menuGrade?: number | null,
 ): StrategyConfigDTO {
   return {
     userUid,
     ...(id !== undefined && { id }),
     title,
+    ...(menuGrade != null && { menuGrade }),
     symbol:           params.symbol,
     initialCapital:   params.initial_capital,
     riskPerTrade:     params.risk_per_trade,
     usePrevBarSignal: params.use_prev_bar_signal,
     adxThreshold:     params.adx_threshold,
+    adxSidewaysFloor: params.adx_sideways_floor,
     adxPersist:       params.adx_persist,
+    diGapMin:         params.di_gap_min,
     rsiLongEntry:     params.rsi_long_entry,
+    rsiLongFloor:     params.rsi_long_floor,
     rsiShortEntry:    params.rsi_short_entry,
+    rsiOversoldEntry: params.rsi_oversold_entry,
     atrSlMult:        params.atr_sl_mult,
     atrTpMult:        params.atr_tp_mult,
     minHoldBars:      params.min_hold_bars,
@@ -387,12 +426,13 @@ export function strategyToDto(
     slippage:            params.slippage,
     indicatorWindow:     params.indicator_window,
     tradingDaysPerYear:  params.trading_days_per_year,
+    maxAddCount:         params.max_add_count,
   };
 }
 
 export function toStrategyParams(form: CustomFormParams): StrategyParams | null {
   const numFields: (keyof CustomFormParams)[] = [
-    'adx_threshold', 'adx_persist', 'rsi_long_entry', 'rsi_short_entry',
+    'adx_threshold', 'adx_sideways_floor', 'adx_persist', 'di_gap_min', 'rsi_long_entry', 'rsi_long_floor', 'rsi_short_entry', 'rsi_oversold_entry',
     'atr_sl_mult', 'atr_tp_mult', 'min_hold_bars', 'sl_cooldown_bars',
     'consec_sl_limit', 'max_dd_stop', 'commission', 'slippage',
     'risk_per_trade', 'initial_capital', 'indicator_window', 'trading_days_per_year',

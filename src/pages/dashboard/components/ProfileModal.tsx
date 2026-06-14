@@ -159,6 +159,22 @@ export default function ProfileModal({ isOpen, onClose, user }: ProfileModalProp
             비밀번호 변경
           </button>
 
+          {/* 카카오 알림 연동 섹션 */}
+          <div className="mt-6 pt-5 border-t border-zinc-800">
+            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">카카오 알림 연동</p>
+            <p className="text-xs text-zinc-500 mb-4">카카오 계정을 연동하면 매매 체결 시 카카오톡으로 알림을 받을 수 있습니다.</p>
+            <button
+              type="button"
+              onClick={() => { window.location.href = `${window.location.origin}/finpilot/admin/oauth/kakao/authorize?userUid=${user.userUid}`; }}
+              className="w-full py-2.5 bg-[#FEE500] text-[#3C1E1E] text-sm font-semibold rounded-xl hover:bg-[#f5dc00] active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#3C1E1E" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 3C6.48 3 2 6.72 2 11.28c0 2.88 1.68 5.4 4.2 6.96l-1.08 4.02 4.68-3.06c.72.12 1.44.18 2.2.18 5.52 0 10-3.72 10-8.28C22 6.72 17.52 3 12 3z"/>
+              </svg>
+              카카오 알림 연동하기
+            </button>
+          </div>
+
           {/* KIS 연동 섹션 */}
           <div className="mt-6 pt-5 border-t border-zinc-800">
             <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4">한국투자증권 연동</p>

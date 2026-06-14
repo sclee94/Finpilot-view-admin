@@ -5,7 +5,7 @@ import Pagination from '../../components/Pagination';
 import FilterButtonGroup from '../../components/FilterButtonGroup';
 import TradeSummaryCards from './components/TradeSummaryCards';
 import TradeTable from './components/TradeTable';
-import { getTradeHistoryList } from '../../api/tradeApi';
+import { getTradeHistoryList, getBalance, getTradingSessionList, type AssetSummary } from '../../api/tradeApi';
 import { authStorage } from '../../utils/auth';
 import type { TradeHistory } from '../../types';
 
@@ -41,7 +41,10 @@ export default function ReportsPage() {
   const isAdmin = (user?.permission ?? 0) >= 99;
 
   const [list,        setList]        = useState<TradeHistory[]>([]);
+  const [totalCount,  setTotalCount]  = useState(0);
+  const [summaryList, setSummaryList] = useState<TradeHistory[]>([]);
   const [loading,     setLoading]     = useState(true);
+  const [assetInfo,   setAssetInfo]   = useState<AssetSummary | null>(null);
   const [modeFilter,  setModeFilter]  = useState('all');
   const [actionFilter,setActionFilter]= useState('all');
   const [statusFilter,setStatusFilter]= useState('SUCCESS');
@@ -53,57 +56,95 @@ export default function ReportsPage() {
   const [dateFrom,    setDateFrom]    = useState(today);
   const [dateTo,      setDateTo]      = useState(today);
 
+  // 거래요약용 전체 데이터 (페이징 없음)
+  useEffect(() => {
+    const commonParams = {
+      ...(isAdmin ? {} : { userUid: user?.userUid ?? null }),
+      ...(modeFilter   !== 'all' ? { mode:        modeFilter   } : {}),
+      ...(actionFilter !== 'all' ? { action:      actionFilter } : {}),
+      ...(search.trim()          ? { symbolName:  search.trim()  } : {}),
+      ...(dateFrom               ? { dateFrom                  } : {}),
+      ...(dateTo                 ? { dateTo                    } : {}),
+    };
+    getTradeHistoryList(commonParams)
+      .then(res => { if (res.status === 200) setSummaryList(res.data?.content ?? []); })
+      .catch(console.error);
+  }, [modeFilter, actionFilter, search, dateFrom, dateTo]);
+
+  // 서버사이드 페이징 + 필터링
   useEffect(() => {
     setLoading(true);
-    const params = isAdmin ? {} : { userUid: user?.userUid ?? null };
-    getTradeHistoryList(params)
+    getTradeHistoryList({
+      ...(isAdmin ? {} : { userUid: user?.userUid ?? null }),
+      ...(modeFilter   !== 'all' ? { mode:        modeFilter   } : {}),
+      ...(actionFilter !== 'all' ? { action:      actionFilter } : {}),
+      ...(statusFilter !== 'all' ? { orderStatus: statusFilter } : {}),
+      ...(search.trim()          ? { symbolName:  search.trim()  } : {}),
+      ...(dateFrom               ? { dateFrom                  } : {}),
+      ...(dateTo                 ? { dateTo                    } : {}),
+      page,
+      size: PAGE_SIZE,
+    })
       .then(res => {
-        if (res.status === 200) setList(res.data ?? []);
+        if (res.status === 200) {
+          setList(res.data?.content ?? []);
+          setTotalCount(res.data?.totalCount ?? 0);
+        }
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, []);
+  }, [modeFilter, actionFilter, statusFilter, search, dateFrom, dateTo, page]);
+
+  useEffect(() => {
+    const userUid = user?.userUid;
+    if (!userUid) return;
+    const mode = modeFilter === 'PAPER' ? 'PAPER' : 'LIVE';
+    const accountNo = mode === 'LIVE' ? user?.kisAccountNo : user?.kisPaperAccountNo;
+    const sessionParams = { userUid };
+    Promise.all([
+      getBalance(userUid, mode, accountNo ?? undefined),
+      getTradingSessionList(sessionParams),
+    ])
+      .then(([balRes, sessRes]) => {
+        const balance  = balRes.status  === 200 ? (balRes.data?.balance  ?? 0) : 0;
+        const sessions = sessRes.status === 200 ? (sessRes.data ?? []) : [];
+        const holdingSessions = sessions.filter(s => s.mode === mode && s.userUid === userUid && s.currentPosition !== 'NONE');
+        const stockEvalAmount = holdingSessions.reduce((sum, s) => sum + (s.sharesHeld ?? 0) * (s.avgEntryPrice ?? 0), 0);
+        setAssetInfo({
+          totalAsset:         balance,
+          stockEvalAmount,
+          availableBuyAmount: balance - stockEvalAmount,
+        });
+      })
+      .catch(console.error);
+  }, [modeFilter]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSortField(field); setSortDir('desc'); }
-    setPage(1);
   };
 
-  const filtered = useMemo(() => {
-    const base = list.filter(t => {
-      const q = search.toLowerCase();
-      const dateStr = t.createdAt?.slice(0, 10) ?? '';
-      return (
-        (modeFilter   === 'all' || t.mode        === modeFilter) &&
-        (actionFilter === 'all' || t.action      === actionFilter) &&
-        (statusFilter === 'all' || t.orderStatus === statusFilter) &&
-        (q === '' || t.symbol.toLowerCase().includes(q) || (t.symbolName ?? '').toLowerCase().includes(q)) &&
-        (dateFrom === '' || dateStr >= dateFrom) &&
-        (dateTo   === '' || dateStr <= dateTo)
-      );
+  // 현재 페이지 데이터만 정렬
+  const sorted = useMemo(() => {
+    if (!sortField) return list;
+    const s = [...list];
+    s.sort((a, b) => {
+      let av: string | number | null, bv: string | number | null;
+      if (sortField === 'realizedPnl') {
+        av = a.realizedPnl; bv = b.realizedPnl;
+        if (av == null && bv == null) return 0;
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        return sortDir === 'asc' ? av - bv : bv - av;
+      }
+      av = a[sortField] ?? ''; bv = b[sortField] ?? '';
+      const cmp = String(av).localeCompare(String(bv));
+      return sortDir === 'asc' ? cmp : -cmp;
     });
+    return s;
+  }, [list, sortField, sortDir]);
 
-    if (sortField) {
-      base.sort((a, b) => {
-        let av: string | number | null, bv: string | number | null;
-        if (sortField === 'realizedPnl') {
-          av = a.realizedPnl; bv = b.realizedPnl;
-          if (av == null && bv == null) return 0;
-          if (av == null) return 1;
-          if (bv == null) return -1;
-          return sortDir === 'asc' ? av - bv : bv - av;
-        }
-        av = a[sortField] ?? ''; bv = b[sortField] ?? '';
-        const cmp = String(av).localeCompare(String(bv));
-        return sortDir === 'asc' ? cmp : -cmp;
-      });
-    }
-    return base;
-  }, [list, modeFilter, actionFilter, statusFilter, search, sortField, sortDir, dateFrom, dateTo]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   return (
     <PageLayout>
@@ -122,7 +163,7 @@ export default function ReportsPage() {
           </div>
         ) : (
           <>
-            <TradeSummaryCards list={filtered} />
+            <TradeSummaryCards list={summaryList} assetInfo={assetInfo} />
 
             <div className="space-y-3">
               {/* 날짜 범위 */}
@@ -151,7 +192,7 @@ export default function ReportsPage() {
                 <FilterButtonGroup options={MODE_FILTERS}   value={modeFilter}   onChange={v => { setModeFilter(v);   setPage(1); }} />
                 <FilterButtonGroup options={ACTION_FILTERS} value={actionFilter} onChange={v => { setActionFilter(v); setPage(1); }} />
                 <FilterButtonGroup options={STATUS_FILTERS} value={statusFilter} onChange={v => { setStatusFilter(v); setPage(1); }} />
-                <span className="text-sm text-zinc-500 whitespace-nowrap">총 {filtered.length}건</span>
+                <span className="text-sm text-zinc-500 whitespace-nowrap">총 {totalCount}건</span>
               </div>
 
               {/* 검색 */}
@@ -168,7 +209,7 @@ export default function ReportsPage() {
             </div>
 
             <TradeTable
-              paginated={paginated}
+              paginated={sorted}
               sortField={sortField}
               sortDir={sortDir}
               onSort={handleSort}
