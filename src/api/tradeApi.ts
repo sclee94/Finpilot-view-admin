@@ -19,12 +19,16 @@ export const insertTradingSession = (params: {
   strategyConfigId?: number | null;
   symbol:            string;
   mode:              'LIVE' | 'PAPER';
-  cooldownBarsLeft:  number;
-  consecSlCount:     number;
-  currentEquity:     number;
-  peakEquity:        number;
 }) =>
   apiClient.post<ApiResponse<TradingSession>>('/trade/insertTradingSession', params);
+
+/** KIS 실잔고 동기화 - PUT /api/trade/syncPosition */
+export const syncPosition = (id: string) =>
+  apiClient.put<ApiResponse<TradingSession>>('/trade/syncPosition', { id });
+
+/** 자본금 조정 (입금/출금, 포지션·수익 이력 유지) - PUT /api/trade/adjustCapital */
+export const adjustCapital = (id: string, depositAmount: number) =>
+  apiClient.put<ApiResponse<TradingSession>>('/trade/adjustCapital', { id, depositAmount });
 
 /** 세션 상태 변경 (중지/재실행) - PUT /api/trade/updateTradingSession */
 export const updateTradingSession = (params: { id: string; active: number }) =>

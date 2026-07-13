@@ -1,166 +1,30 @@
-export interface StrategyParams {
-  symbol:              string;
-  adx_threshold:       number;
-  adx_sideways_floor:  number;
-  adx_persist:         number;
-  di_gap_min:          number;
-  rsi_long_entry:      number;
-  rsi_long_floor:      number;
-  rsi_short_entry:     number;
-  rsi_oversold_entry:  number;
-  atr_sl_mult:         number;
-  atr_tp_mult:         number;
-  min_hold_bars:       number;
-  sl_cooldown_bars:    number;
-  consec_sl_limit:     number;
-  max_dd_stop:         number;
-  commission:          number;
-  slippage:            number;
-  risk_per_trade:      number;
-  use_prev_bar_signal:    boolean;
-  initial_capital:        number;
-  indicator_window:       number;
-  trading_days_per_year:  number;
-  max_add_count:          number;
-  // 실전투자 전용
-  cooldown_bars_left:     number;
-  consec_sl_count:        number;
-  current_equity:         number;
-  peak_equity:            number;
-}
-
-export type NumVal = number | '';
-
-export interface CustomFormParams {
-  symbol:                string;
-  adx_threshold:         NumVal;
-  adx_sideways_floor:    NumVal;
-  adx_persist:           NumVal;
-  di_gap_min:            NumVal;
-  rsi_long_entry:        NumVal;
-  rsi_long_floor:        NumVal;
-  rsi_short_entry:       NumVal;
-  rsi_oversold_entry:    NumVal;
-  atr_sl_mult:           NumVal;
-  atr_tp_mult:           NumVal;
-  min_hold_bars:         NumVal;
-  sl_cooldown_bars:      NumVal;
-  consec_sl_limit:       NumVal;
-  max_dd_stop:           NumVal;
-  commission:            NumVal;
-  slippage:              NumVal;
-  risk_per_trade:        NumVal;
-  use_prev_bar_signal:   boolean;
-  initial_capital:       NumVal;
-  indicator_window:      NumVal;
-  trading_days_per_year: NumVal;
-}
-
-export interface BoardItem {
-  id:         number;
-  title:      string;
-  symbol:     string;
-  date:       string;
-  isUse:      number;   // 1: 적용 중, 0: 미적용
-  userName?:  string;
-  menuGrade?: number;   // 전략 메뉴 등급 (1~7, undefined이면 일반 전략)
-  params:     StrategyParams;
-}
-
-// Spring Boot StrategyConfigDTO 매핑
+// Spring Boot StrategyConfigDTO 매핑 (KOSPI 전략)
 export interface StrategyConfigDTO {
-  userUid?:          string;
-  userDTO?:          { userName?: string } | null;
-  id?:               number;
-  title?:            string;
-  symbol?:           string;
-  initialCapital?:   number;
-  riskPerTrade?:     number;
-  usePrevBarSignal?: boolean;
-  adxThreshold?:     number;
-  adxSidewaysFloor?: number;
-  adxPersist?:       number;
-  diGapMin?:         number;
-  rsiLongEntry?:     number;
-  rsiLongFloor?:     number;
-  rsiShortEntry?:    number;
-  rsiOversoldEntry?: number;
-  maxAddCount?:         number;
-  atrSlMult?:        number;
-  atrTpMult?:        number;
-  minHoldBars?:      number;
-  slCooldownBars?:   number;
-  consecSlLimit?:    number;
-  maxDdStop?:        number;
-  commission?:           number;
-  slippage?:             number;
-  indicatorWindow?:      number;
-  tradingDaysPerYear?:   number;
-  cooldownBarsLeft?:     number;
-  consecSlCount?:        number;
-  currentEquity?:        number;
-  peakEquity?:           number;
-  isUse?:                number;
-  menuGrade?:            number;
-  createdAt?:            string;
+  id?:                  number;
+  userUid?:             string | null; // 소유자 — null이면 관리자 지정 추천(공용) 전략
+  isPublic?:             number;       // 1=모두 사용 가능(공용), 0=본인 전용
+  name?:                 string | null; // 전략 이름
+  takeProfitPct?:       number;       // 즉시 익절 기준 % (당일 시가 대비)
+  stopLossPct?:         number;       // 즉시 손절 기준 % (매수가 대비)
+  pullbackMinPct?:      number;       // 눌림목 최소 하락폭 % (당일 고가 대비)
+  pullbackMaxPct?:      number;       // 눌림목 최대 하락폭 % (당일 고가 대비)
+  buyingVolumeRatio?:   number;       // 불타기 거래량 기준 % (현재 >= 평균 × ratio/100)
+  stopLossVolumeRatio?: number;       // 손절 거래량 기준 % (현재 >= 평균 × ratio/100)
+  pullbackVolumeRatio?: number;       // 눌림목 거래량 기준 % (현재 <= 평균 × ratio/100)
+  createdAt?:           string;
 }
-
-export const EMPTY_CUSTOM: CustomFormParams = {
-  symbol:              '',
-  adx_threshold:       '',
-  adx_sideways_floor:  '',
-  adx_persist:         '',
-  di_gap_min:          '',
-  rsi_long_entry:      '',
-  rsi_long_floor:      '',
-  rsi_short_entry:     '',
-  rsi_oversold_entry:  '',
-  atr_sl_mult:         '',
-  atr_tp_mult:         '',
-  min_hold_bars:       '',
-  sl_cooldown_bars:    '',
-  consec_sl_limit:     '',
-  max_dd_stop:         '',
-  commission:          '',
-  slippage:            '',
-  risk_per_trade:      '',
-  use_prev_bar_signal:   false,
-  initial_capital:       '',
-  indicator_window:      '',
-  trading_days_per_year: '',
-};
-
-export const DEFAULT_PARAMS: StrategyParams = {
-  symbol:              'NQ=F',
-  adx_threshold:       18.0,
-  adx_sideways_floor:  15,
-  adx_persist:         1,
-  di_gap_min:          7.0,
-  rsi_long_entry:      75,
-  rsi_long_floor:      30,
-  rsi_short_entry:     57,
-  rsi_oversold_entry:  30,
-  atr_sl_mult:         2.5,
-  atr_tp_mult:         5.0,
-  min_hold_bars:       16,
-  sl_cooldown_bars:    4,
-  consec_sl_limit:     1,
-  max_dd_stop:         0.0,
-  commission:          0.0002,
-  slippage:            0.0001,
-  risk_per_trade:      0.01,
-  use_prev_bar_signal:   true,
-  initial_capital:       10000000,
-  indicator_window:      14,
-  trading_days_per_year: 252,
-  max_add_count:         3,
-  cooldown_bars_left:    0,
-  consec_sl_count:       0,
-  current_equity:        1.0,
-  peak_equity:           1.0,
-};
 
 export type SymbolOption = { value: string; label: string; group: string };
+
+// Spring Boot StrategyMenuDTO 매핑 (매수 등급별 매수 비율)
+export interface StrategyMenuDTO {
+  id:         number;
+  name:       string;                                              // 예: "불타기 1등급"
+  menuType:   'BULLISH' | 'PULLBACK' | 'TAKE_PROFIT' | 'STOP_LOSS';
+  menuGrade:  number;
+  buyRatio:   number | null;                                       // 매수 비율 % — 매도/제외 등급은 null
+  createdAt:  string;
+}
 
 export const SYMBOL_OPTIONS: SymbolOption[] = [
   // ── 지수 ──────────────────────────────────────────
@@ -345,107 +209,3 @@ export const SYMBOL_OPTIONS: SymbolOption[] = [
   { group: '선물',    value: 'GC=F',       label: '금선물 (GC=F)' },
   { group: '선물',    value: 'CL=F',       label: '원유선물 (CL=F)' },
 ];
-
-export const APPLIED_KEY = 'strategyApplied';
-export const BACKTEST_APPLIED_KEY = 'strategyBacktestApplied';
-
-/** DTO → BoardItem 변환 */
-export function dtoToBoardItem(dto: StrategyConfigDTO): BoardItem {
-  return {
-    id:        dto.id!,
-    title:     dto.title ?? '',
-    symbol:    dto.symbol ?? '',
-    date:      dto.createdAt ?? '',
-    isUse:     dto.isUse ?? 0,
-    userName:  dto.userDTO?.userName,
-    menuGrade: dto.menuGrade,
-    params: {
-      symbol:              dto.symbol ?? '',
-      adx_threshold:       dto.adxThreshold ?? 0,
-      adx_sideways_floor:  dto.adxSidewaysFloor ?? 15,
-      adx_persist:         dto.adxPersist ?? 0,
-      di_gap_min:          dto.diGapMin ?? 10.0,
-      rsi_long_entry:      dto.rsiLongEntry ?? 0,
-      rsi_long_floor:      dto.rsiLongFloor ?? 0,
-      rsi_short_entry:     dto.rsiShortEntry ?? 0,
-      rsi_oversold_entry:  dto.rsiOversoldEntry ?? 30,
-      atr_sl_mult:         dto.atrSlMult ?? 0,
-      atr_tp_mult:         dto.atrTpMult ?? 0,
-      min_hold_bars:       dto.minHoldBars ?? 0,
-      sl_cooldown_bars:    dto.slCooldownBars ?? 0,
-      consec_sl_limit:     dto.consecSlLimit ?? 0,
-      max_dd_stop:         dto.maxDdStop ?? 0,
-      commission:          dto.commission ?? 0,
-      slippage:            dto.slippage ?? 0,
-      risk_per_trade:      dto.riskPerTrade ?? 0,
-      use_prev_bar_signal:   dto.usePrevBarSignal ?? false,
-      initial_capital:       dto.initialCapital ?? 0,
-      indicator_window:      dto.indicatorWindow ?? 14,
-      trading_days_per_year: dto.tradingDaysPerYear ?? 252,
-      max_add_count:         dto.maxAddCount ?? 3,
-      cooldown_bars_left:    dto.cooldownBarsLeft ?? 0,
-      consec_sl_count:       dto.consecSlCount ?? 0,
-      current_equity:        dto.currentEquity ?? 1.0,
-      peak_equity:           dto.peakEquity ?? 1.0,
-    },
-  };
-}
-
-/** StrategyParams + 메타 → DTO 변환 */
-export function strategyToDto(
-  params: StrategyParams,
-  title: string,
-  userUid: string,
-  id?: number,
-  menuGrade?: number | null,
-): StrategyConfigDTO {
-  return {
-    userUid,
-    ...(id !== undefined && { id }),
-    title,
-    ...(menuGrade != null && { menuGrade }),
-    symbol:           params.symbol,
-    initialCapital:   params.initial_capital,
-    riskPerTrade:     params.risk_per_trade,
-    usePrevBarSignal: params.use_prev_bar_signal,
-    adxThreshold:     params.adx_threshold,
-    adxSidewaysFloor: params.adx_sideways_floor,
-    adxPersist:       params.adx_persist,
-    diGapMin:         params.di_gap_min,
-    rsiLongEntry:     params.rsi_long_entry,
-    rsiLongFloor:     params.rsi_long_floor,
-    rsiShortEntry:    params.rsi_short_entry,
-    rsiOversoldEntry: params.rsi_oversold_entry,
-    atrSlMult:        params.atr_sl_mult,
-    atrTpMult:        params.atr_tp_mult,
-    minHoldBars:      params.min_hold_bars,
-    slCooldownBars:   params.sl_cooldown_bars,
-    consecSlLimit:    params.consec_sl_limit,
-    maxDdStop:        params.max_dd_stop,
-    commission:          params.commission,
-    slippage:            params.slippage,
-    indicatorWindow:     params.indicator_window,
-    tradingDaysPerYear:  params.trading_days_per_year,
-    maxAddCount:         params.max_add_count,
-  };
-}
-
-export function toStrategyParams(form: CustomFormParams): StrategyParams | null {
-  const numFields: (keyof CustomFormParams)[] = [
-    'adx_threshold', 'adx_sideways_floor', 'adx_persist', 'di_gap_min', 'rsi_long_entry', 'rsi_long_floor', 'rsi_short_entry', 'rsi_oversold_entry',
-    'atr_sl_mult', 'atr_tp_mult', 'min_hold_bars', 'sl_cooldown_bars',
-    'consec_sl_limit', 'max_dd_stop', 'commission', 'slippage',
-    'risk_per_trade', 'initial_capital', 'indicator_window', 'trading_days_per_year',
-  ];
-  if (!form.symbol) return null;
-  for (const k of numFields) {
-    if (form[k] === '') return null;
-  }
-  return {
-    ...form,
-    cooldown_bars_left: 0,
-    consec_sl_count:    0,
-    current_equity:     1.0,
-    peak_equity:        1.0,
-  } as unknown as StrategyParams;
-}

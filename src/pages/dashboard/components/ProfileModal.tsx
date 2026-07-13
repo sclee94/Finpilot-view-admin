@@ -23,6 +23,15 @@ export default function ProfileModal({ isOpen, onClose, user }: ProfileModalProp
   const [kisPaperAccountProduct, setKisPaperAccountProduct] = useState('01');
   const [kisSaving, setKisSaving] = useState(false);
   const [kisMsg, setKisMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwMsg, setPwMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setNewPassword('');
+    setConfirmPassword('');
+    setPwMsg(null);
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen || !user) return;
@@ -53,6 +62,33 @@ export default function ProfileModal({ isOpen, onClose, user }: ProfileModalProp
   }, [isOpen, user?.userUid]);
 
   if (!isOpen || !user) return null;
+
+  const handlePasswordChange = async () => {
+    if (!newPassword || !confirmPassword) {
+      setPwMsg({ type: 'error', text: '새 비밀번호를 입력해주세요.' });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPwMsg({ type: 'error', text: '비밀번호가 일치하지 않습니다.' });
+      return;
+    }
+    setPwSaving(true);
+    setPwMsg(null);
+    try {
+      const res = await userUpdate({ userUid: user.userUid, password: newPassword });
+      if (res.status < 400) {
+        setPwMsg({ type: 'success', text: '비밀번호가 변경되었습니다.' });
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        setPwMsg({ type: 'error', text: res.message || '변경에 실패했습니다.' });
+      }
+    } catch {
+      setPwMsg({ type: 'error', text: '서버 연결에 실패했습니다.' });
+    } finally {
+      setPwSaving(false);
+    }
+  };
 
   const handleKisSave = async () => {
     setKisSaving(true);
@@ -155,8 +191,18 @@ export default function ProfileModal({ isOpen, onClose, user }: ProfileModalProp
             </div>
           </div>
 
-          <button className="mt-5 w-full py-2.5 bg-teal-500 text-white text-sm font-semibold rounded-xl hover:bg-teal-400 transition-colors cursor-pointer whitespace-nowrap">
-            비밀번호 변경
+          {pwMsg && (
+            <p className={`mt-3 text-sm ${pwMsg.type === 'success' ? 'text-teal-400' : 'text-red-400'}`}>
+              {pwMsg.text}
+            </p>
+          )}
+
+          <button
+            onClick={handlePasswordChange}
+            disabled={pwSaving}
+            className="mt-5 w-full py-2.5 bg-teal-500 text-white text-sm font-semibold rounded-xl hover:bg-teal-400 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50"
+          >
+            {pwSaving ? '변경 중...' : '비밀번호 변경'}
           </button>
 
           {/* 카카오 알림 연동 섹션 */}

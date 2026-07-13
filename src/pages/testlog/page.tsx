@@ -4,42 +4,13 @@ import { apiClient } from '../../api/apiClient';
 import { authStorage } from '../../utils/auth';
 import { PERMISSIONS } from '../../constants';
 import type { ApiResponse, PageResponse } from '../../types/index';
+import type { StrategyConfigDTO } from '../strategy/strategyTypes';
+import { SYMBOL_OPTIONS } from '../strategy/strategyTypes';
 import Pagination from '../../components/Pagination';
 import { getSymbolName } from '../../constants/symbolNames';
+import FilterButtonGroup from '../../components/FilterButtonGroup';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-interface StrategyParams {
-  symbol:                string;
-  adx_threshold:         number;
-  adx_sideways_floor:    number;
-  adx_persist:           number;
-  rsi_long_entry:        number;
-  rsi_short_entry:       number;
-  rsi_oversold_entry:    number;
-  atr_sl_mult:           number;
-  atr_tp_mult:           number;
-  min_hold_bars:         number;
-  sl_cooldown_bars:      number;
-  consec_sl_limit:       number;
-  max_dd_stop:           number;
-  commission:            number;
-  slippage:              number;
-  risk_per_trade:        number;
-  initial_capital:       number;
-  use_prev_bar_signal:   boolean;
-  indicator_window:      number;
-  trading_days_per_year: number;
-  max_add_count:         number;
-}
-
-interface BoardItem {
-  id:     number;
-  title:  string;
-  symbol: string;
-  date:   string;
-  params: StrategyParams;
-}
 
 // BacktestDTO (BacktestTradeDTO 포함) — Java @JsonFormat: "yyyy-MM-dd HH:mm"
 interface BacktestTrade {
@@ -82,91 +53,37 @@ interface BacktestResult {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-interface StrategyConfigDTO {
-  id?:               number;
-  title?:            string;
-  symbol?:           string;
-  initialCapital?:   number;
-  riskPerTrade?:     number;
-  usePrevBarSignal?: boolean;
-  adxThreshold?:     number;
-  adxSidewaysFloor?: number;
-  adxPersist?:       number;
-  rsiLongEntry?:        number;
-  rsiShortEntry?:       number;
-  rsiOversoldEntry?:    number;
-  maxAddCount?:         number;
-  atrSlMult?:        number;
-  atrTpMult?:        number;
-  minHoldBars?:      number;
-  slCooldownBars?:   number;
-  consecSlLimit?:    number;
-  maxDdStop?:        number;
-  commission?:       number;
-  slippage?:         number;
-  indicatorWindow?:  number;
-  tradingDaysPerYear?: number;
-  isUse?:            number;
-  createdAt?:        string;
-}
-
-function dtoToApplied(dto: StrategyConfigDTO): BoardItem {
-  return {
-    id:     dto.id!,
-    title:  dto.title ?? '',
-    symbol: dto.symbol ?? '',
-    date:   dto.createdAt ?? '',
-    params: {
-      symbol:                dto.symbol ?? '',
-      adx_threshold:         dto.adxThreshold ?? 0,
-      adx_sideways_floor:    dto.adxSidewaysFloor ?? 15,
-      adx_persist:           dto.adxPersist ?? 0,
-      rsi_long_entry:        dto.rsiLongEntry ?? 0,
-      rsi_short_entry:       dto.rsiShortEntry ?? 0,
-      rsi_oversold_entry:    dto.rsiOversoldEntry ?? 30,
-      atr_sl_mult:           dto.atrSlMult ?? 0,
-      atr_tp_mult:           dto.atrTpMult ?? 0,
-      min_hold_bars:         dto.minHoldBars ?? 0,
-      sl_cooldown_bars:      dto.slCooldownBars ?? 0,
-      consec_sl_limit:       dto.consecSlLimit ?? 0,
-      max_dd_stop:           dto.maxDdStop ?? 0,
-      commission:            dto.commission ?? 0,
-      slippage:              dto.slippage ?? 0,
-      risk_per_trade:        dto.riskPerTrade ?? 0,
-      use_prev_bar_signal:   dto.usePrevBarSignal ?? false,
-      initial_capital:       dto.initialCapital ?? 0,
-      indicator_window:      dto.indicatorWindow ?? 14,
-      trading_days_per_year: dto.tradingDaysPerYear ?? 252,
-      max_add_count:         dto.maxAddCount ?? 3,
-    },
-  };
-}
-
 const RESULTS_SIZE = 15;
 
-const PARAM_LABELS: { key: keyof StrategyParams; label: string; format?: (v: unknown) => string }[] = [
-  { key: 'symbol',                label: '종목 코드' },
-  { key: 'initial_capital',       label: '초기 자본',       format: v => Number(v).toLocaleString() + ' 원' },
-  { key: 'risk_per_trade',        label: '위험 비율',        format: v => (Number(v) * 100).toFixed(1) + '%' },
-  { key: 'adx_threshold',         label: 'ADX 임계값' },
-  { key: 'adx_sideways_floor',    label: 'ADX 횡보 하한선' },
-  { key: 'adx_persist',           label: 'ADX 지속 기간' },
-  { key: 'rsi_long_entry',        label: 'RSI 롱 진입' },
-  { key: 'rsi_short_entry',       label: 'RSI 숏 진입' },
-  { key: 'rsi_oversold_entry',    label: 'RSI 과매도 반등' },
-  { key: 'atr_sl_mult',           label: 'ATR 손절 배수' },
-  { key: 'atr_tp_mult',           label: 'ATR 익절 배수' },
-  { key: 'min_hold_bars',         label: '최소 보유 봉' },
-  { key: 'sl_cooldown_bars',      label: '손절 쿨다운' },
-  { key: 'consec_sl_limit',       label: '연속 손절 한도' },
-  { key: 'max_dd_stop',           label: '최대 낙폭 정지',   format: v => Number(v) === 0 ? '비활성' : String(v) },
-  { key: 'commission',            label: '수수료',           format: v => (Number(v) * 100).toFixed(3) + '%' },
-  { key: 'slippage',              label: '슬리피지',         format: v => (Number(v) * 100).toFixed(3) + '%' },
-  { key: 'use_prev_bar_signal',   label: '이전 봉 신호',     format: v => v ? 'ON' : 'OFF' },
-  { key: 'indicator_window',      label: '지표 룩백 기간' },
-  { key: 'trading_days_per_year', label: '연간 거래일 수' },
-  { key: 'max_add_count',         label: '최대 추가 매수' },
-];
+const RESULT_LABELS: Record<string, string> = {
+  TP_THRESHOLD:    '즉시 익절',
+  SL_THRESHOLD:    '즉시 손절',
+  SCORE_TP:        '익절(스코어)',
+  SCORE_SL:        '손절(스코어)',
+  RSI_OVERBOUGHT:  '익절(RSI 과매수)',
+  EOD_FORCE_CLOSE: '강제청산',
+};
+
+function resultLabel(result: string): string {
+  return RESULT_LABELS[result] ?? result;
+}
+
+function resultBadgeClass(result: string): string {
+  if (result === 'TP_THRESHOLD' || result === 'SCORE_TP' || result === 'RSI_OVERBOUGHT') return 'bg-teal-500/20 text-teal-400';
+  if (result === 'SL_THRESHOLD' || result === 'SCORE_SL') return 'bg-red-500/20 text-red-400';
+  return 'bg-zinc-700 text-zinc-400';
+}
+
+// 포트폴리오(세션 목록) 백테스트 결과는 symbol 컬럼에 "PORTFOLIO(N종목)" 요약 라벨이 저장됨
+// — 개별 종목이 아니므로 getSymbolName()으로 풀어쓰지 않고 그대로 보여준다.
+function isPortfolioResult(symbol: string): boolean {
+  return symbol.startsWith('PORTFOLIO(');
+}
+
+function symbolDisplay(symbol: string): { name: string; code: string | null } {
+  if (isPortfolioResult(symbol)) return { name: symbol, code: null };
+  return { name: getSymbolName(symbol), code: symbol };
+}
 
 // ─── Trade Detail Modal ───────────────────────────────────────────────────────
 
@@ -202,7 +119,13 @@ function TradeDetailModal({ result, compResults, compPage, compTotalPage, compTo
         {/* Header */}
         <div className="flex items-start justify-between px-6 py-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
           <div>
-            <h2 className="text-xl font-bold text-white">{getSymbolName(result.symbol)} <span className="text-zinc-300 text-base font-normal">({result.symbol})</span> 백테스트 결과</h2>
+            <h2 className="text-xl font-bold text-white">
+              {symbolDisplay(result.symbol).name}
+              {symbolDisplay(result.symbol).code && (
+                <span className="text-zinc-300 text-base font-normal"> ({symbolDisplay(result.symbol).code})</span>
+              )}
+              {' '}백테스트 결과
+            </h2>
             <div className="flex items-center gap-3 mt-1 flex-wrap">
               <span className="text-xs text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded">
                 {result.periodStart} ~ {result.periodEnd}
@@ -260,8 +183,10 @@ function TradeDetailModal({ result, compResults, compPage, compTotalPage, compTo
                           {isSelected && <span className="ml-2 text-xs text-blue-400 font-medium">비교 대상</span>}
                         </td>
                         <td className="px-3 py-2.5 text-zinc-400">
-                          {getSymbolName(r.symbol)}
-                          <span className="text-zinc-400 ml-1 text-xs">({r.symbol})</span>
+                          {symbolDisplay(r.symbol).name}
+                          {symbolDisplay(r.symbol).code && (
+                            <span className="text-zinc-400 ml-1 text-xs">({symbolDisplay(r.symbol).code})</span>
+                          )}
                         </td>
                         <td className="px-3 py-2.5 text-zinc-200">
                           {r.periodStart} ~ {r.periodEnd}
@@ -402,14 +327,8 @@ function TradeDetailModal({ result, compResults, compPage, compTotalPage, compTo
                       <td className="px-3 py-2.5 text-right text-zinc-300">{t.shares}</td>
                       <td className="px-3 py-2.5 text-right text-zinc-400">{Number(t.positionSizePct).toFixed(1)}%</td>
                       <td className="px-3 py-2.5">
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                          t.result === 'SL' ? 'bg-red-500/20 text-red-400' :
-                          t.result === 'TP' ? 'bg-teal-500/20 text-teal-400' :
-                                              'bg-zinc-700 text-zinc-400'
-                        }`}>
-                          {t.result === 'SL' ? 'SL 손절'
-                          : t.result === 'TP' ? 'TP 익절'
-                          : t.result}
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${resultBadgeClass(t.result)}`}>
+                          {resultLabel(t.result)}
                         </span>
                       </td>
                       <td className={`px-3 py-2.5 text-right font-medium ${Number(t.returnPct) >= 0 ? 'text-teal-400' : 'text-red-400'}`}>
@@ -434,7 +353,14 @@ export default function TestLog() {
   const loginUser = authStorage.get();
   const isAdmin = (loginUser?.permission ?? 0) >= PERMISSIONS.ADMIN;
 
-  const [appliedItem, setAppliedItem] = useState<BoardItem | null>(null);
+  const [strategies,        setStrategies]        = useState<StrategyConfigDTO[]>([]);
+  const [selectedStrategyId, setSelectedStrategyId] = useState<number | null>(null);
+  const [runSymbol,         setRunSymbol]          = useState('');
+
+  // 백테스트 실행 방식: 특정 종목 1개 vs 유저의 세션 목록 전체(포트폴리오)
+  const [backtestType, setBacktestType] = useState<'SYMBOL' | 'PORTFOLIO'>('SYMBOL');
+  const [portfolioRunMode, setPortfolioRunMode] = useState<'LIVE' | 'PAPER'>('PAPER');
+  const [activeOnly, setActiveOnly] = useState(true);
 
   const [running, setRunning] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -456,42 +382,22 @@ export default function TestLog() {
   const [detailLoading, setDetailLoading]       = useState(false);
   const [deleteTarget, setDeleteTarget]         = useState<BacktestResult | null>(null);
 
-  // Applied strategy — 백테스트 전용 적용 우선, 없으면 isUse === 1 fallback
-  const fetchApplied = useCallback(async () => {
+  // 전략 목록 조회 (공용 전략 + 본인 전략)
+  const fetchStrategies = useCallback(async () => {
     const userUid = authStorage.get()?.userUid;
     if (!userUid) return;
     try {
-      const res = await apiClient.post<ApiResponse<import('../../types').PageResponse<StrategyConfigDTO>>>(
+      const res = await apiClient.post<ApiResponse<PageResponse<StrategyConfigDTO>>>(
         '/strategy/getStrategyConfigList',
         { userUid },
       );
       const list = res.data?.content ?? [];
-      // localStorage에 백테스트 전용 적용 항목이 있으면 우선 사용
-      let applied: StrategyConfigDTO | null = null;
-      try {
-        const backtestRaw = localStorage.getItem('strategyBacktestApplied');
-        if (backtestRaw) {
-          const backtestApplied = JSON.parse(backtestRaw) as { id: number };
-          applied = list.find(d => d.id === backtestApplied.id) ?? null;
-        }
-      } catch { /* ignore */ }
-      if (!applied) applied = list.find(d => d.isUse === 1) ?? null;
-      setAppliedItem(applied ? dtoToApplied(applied) : null);
+      setStrategies(list);
+      setSelectedStrategyId(prev => (prev != null && list.some(s => s.id === prev)) ? prev : (list[0]?.id ?? null));
     } catch { /* silent */ }
   }, []);
 
-  useEffect(() => {
-    fetchApplied();
-
-    // 전략 설정 탭에서 적용/해제 시 동기화
-    const handleCustom = () => fetchApplied();
-    window.addEventListener('strategyAppliedChanged', handleCustom);
-    window.addEventListener('strategyBacktestAppliedChanged', handleCustom);
-    return () => {
-      window.removeEventListener('strategyAppliedChanged', handleCustom);
-      window.removeEventListener('strategyBacktestAppliedChanged', handleCustom);
-    };
-  }, [fetchApplied]);
+  useEffect(() => { fetchStrategies(); }, [fetchStrategies]);
 
   // Timer cleanup on unmount
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
@@ -547,7 +453,7 @@ export default function TestLog() {
 
   // ── API: 실행 ──────────────────────────────────────────────────────────────
   const handleRun = async () => {
-    if (!appliedItem || running) return;
+    if (!runSymbol || !selectedStrategyId || running) return;
     const userUid = authStorage.get()?.userUid;
     if (!userUid) return;
 
@@ -556,38 +462,45 @@ export default function TestLog() {
     timerRef.current = setInterval(() => setElapsed(prev => prev + 1), 1000);
 
     try {
-      const p = appliedItem.params;
-
-      // 1) Python 백테스트 실행
       const runRes = await apiClient.post<ApiResponse<BacktestResult>>(
         '/finpilot/backtest/run',
         {
           userUid,
-          id:                 appliedItem.id,
-          title:              appliedItem.title,
-          symbol:             p.symbol,
-          adxThreshold:       p.adx_threshold,
-          adxSidewaysFloor:   p.adx_sideways_floor,
-          adxPersist:         p.adx_persist,
-          diGapMin:           p.di_gap_min,
-          rsiLongFloor:       p.rsi_long_floor,
-          rsiLongEntry:       p.rsi_long_entry,
-          rsiShortEntry:      p.rsi_short_entry,
-          rsiOversoldEntry:   p.rsi_oversold_entry,
-          atrSlMult:          p.atr_sl_mult,
-          atrTpMult:          p.atr_tp_mult,
-          minHoldBars:        p.min_hold_bars,
-          slCooldownBars:     p.sl_cooldown_bars,
-          consecSlLimit:      p.consec_sl_limit,
-          maxDdStop:          p.max_dd_stop,
-          commission:         p.commission,
-          slippage:           p.slippage,
-          riskPerTrade:       p.risk_per_trade,
-          usePrevBarSignal:   p.use_prev_bar_signal,
-          initialCapital:     p.initial_capital,
-          indicatorWindow:    p.indicator_window,
-          tradingDaysPerYear: p.trading_days_per_year,
-          maxAddCount:        p.max_add_count,
+          symbol:           runSymbol,
+          strategyConfigId: selectedStrategyId,
+        },
+      );
+
+      if (runRes.data) {
+        refreshResults(userUid, 1);
+      } else {
+        setErrorMessage(runRes.message || '백테스트 실행에 실패했습니다.');
+      }
+    } catch {
+      setErrorMessage('서버 연결에 실패했습니다.');
+    } finally {
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      setRunning(false);
+    }
+  };
+
+  // ── API: 실행 (포트폴리오 — 유저의 세션 목록 전체를 실전과 동일하게 동시 시뮬레이션) ──
+  const handleRunPortfolio = async () => {
+    if (running) return;
+    const userUid = authStorage.get()?.userUid;
+    if (!userUid) return;
+
+    setRunning(true);
+    setElapsed(0);
+    timerRef.current = setInterval(() => setElapsed(prev => prev + 1), 1000);
+
+    try {
+      const runRes = await apiClient.post<ApiResponse<BacktestResult>>(
+        '/finpilot/backtest/portfolio/run',
+        {
+          userUid,
+          mode:       portfolioRunMode,
+          activeOnly,
         },
       );
 
@@ -717,10 +630,13 @@ export default function TestLog() {
       <div className="space-y-6">
         <h1 className="text-2xl font-bold text-zinc-100">백테스트</h1>
 
-        {/* Applied Strategy Card — 일반 사용자만 표시 */}
+        {/* 백테스트 실행 — 일반 사용자만 표시 */}
         {!isAdmin && <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-zinc-200">적용된 전략 설정</h2>
+            <div>
+              <h2 className="text-lg font-semibold text-zinc-200">백테스트 실행</h2>
+              <p className="text-xs text-zinc-500 mt-0.5">실전투자와 동일한 전략 로직으로 최근 60일치 데이터를 검증합니다.</p>
+            </div>
             {running && (
               <span className="flex items-center gap-2 text-sm text-teal-400">
                 <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse"></span>
@@ -729,29 +645,92 @@ export default function TestLog() {
             )}
           </div>
 
-          {appliedItem ? (
-            <>
-              <div className="flex items-center gap-3 mb-4">
-                <span className="text-xl font-bold text-teal-300">{appliedItem.title}</span>
-                <span className="text-sm text-zinc-400 bg-zinc-800 px-3 py-1 rounded-full">{appliedItem.symbol}</span>
-                <span className="text-sm text-zinc-500">{appliedItem.date}</span>
+          {/* 백테스트 방식: 특정 종목 1개 vs 세션 목록 전체(포트폴리오) */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-zinc-300 mb-1.5">백테스트 방식</label>
+            <FilterButtonGroup
+              options={[
+                { id: 'SYMBOL',    label: '특정 종목' },
+                { id: 'PORTFOLIO', label: '세션 종목 (포트폴리오)' },
+              ]}
+              value={backtestType}
+              onChange={id => setBacktestType(id as 'SYMBOL' | 'PORTFOLIO')}
+            />
+          </div>
+
+          {backtestType === 'SYMBOL' ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-zinc-300 mb-1.5">종목</label>
+                <select
+                  value={runSymbol}
+                  onChange={e => setRunSymbol(e.target.value)}
+                  disabled={running}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-teal-500 transition-colors disabled:opacity-50"
+                >
+                  <option value="">— 종목을 선택하세요 —</option>
+                  {SYMBOL_OPTIONS.map(o => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
-                {PARAM_LABELS.map(({ key, label, format }) => {
-                  const val = appliedItem.params[key];
-                  return (
-                    <div key={key} className="bg-zinc-800 rounded-xl px-4 py-3">
-                      <p className="text-xs text-zinc-500 mb-1">{label}</p>
-                      <p className="text-sm font-semibold text-zinc-200">{format ? format(val) : String(val)}</p>
-                    </div>
-                  );
-                })}
+              <div>
+                <label className="block text-sm font-medium text-zinc-300 mb-1.5">전략 설정</label>
+                <select
+                  value={selectedStrategyId ?? ''}
+                  onChange={e => setSelectedStrategyId(e.target.value ? Number(e.target.value) : null)}
+                  disabled={running || strategies.length === 0}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-teal-500 transition-colors disabled:opacity-50"
+                >
+                  {strategies.length === 0 && <option value="">전략 설정이 없습니다</option>}
+                  {strategies.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.name || `전략 #${s.id}`} (익절 +{s.takeProfitPct}% · 손절 -{s.stopLossPct}%)
+                    </option>
+                  ))}
+                </select>
               </div>
-            </>
+            </div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-10 text-zinc-500">
-              <i className="ri-settings-3-line text-4xl mb-2"></i>
-              <p className="text-base">전략 설정에서 적용할 설정을 선택해 주세요.</p>
+            <div className="mb-6 space-y-4">
+              <p className="text-xs text-zinc-500">
+                보유 중인 트레이딩 세션 종목 전체를 실전/모의투자와 동일한 방식(불타기 Top2 필터, 세션별 전략 설정, KIS 실잔고 기준 시드머니)으로 동시 시뮬레이션합니다.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">투자 모드</label>
+                  <div className="flex bg-zinc-800 rounded-lg p-1 gap-1">
+                    {(['LIVE', 'PAPER'] as const).map(m => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setPortfolioRunMode(m)}
+                        disabled={running}
+                        className={`flex-1 px-4 py-1.5 text-sm font-semibold rounded-md transition-colors cursor-pointer disabled:opacity-50 ${
+                          portfolioRunMode === m ? 'bg-amber-500 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                        }`}
+                      >
+                        <i className={`${m === 'LIVE' ? 'ri-live-line' : 'ri-test-tube-line'} mr-1.5`}></i>
+                        {m === 'LIVE' ? '실전투자' : '모의투자'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">대상 세션</label>
+                  <button
+                    type="button"
+                    onClick={() => setActiveOnly(v => !v)}
+                    disabled={running}
+                    className="w-full flex items-center justify-between bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 disabled:opacity-50 cursor-pointer"
+                  >
+                    <span className="text-sm text-zinc-200">{activeOnly ? '활성(active) 세션만' : '전체 세션'}</span>
+                    <span className={`relative w-11 h-6 rounded-full transition-colors ${activeOnly ? 'bg-teal-500' : 'bg-zinc-600'}`}>
+                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${activeOnly ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </span>
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -761,7 +740,7 @@ export default function TestLog() {
               <i className="ri-loader-4-line animate-spin text-teal-400 text-xl shrink-0"></i>
               <div className="flex-1">
                 <p className="text-sm text-zinc-300 font-medium">백테스트 실행 중...</p>
-                <p className="text-xs text-zinc-500 mt-0.5">결과 분석까지 최대 3~5분 소요될 수 있습니다.</p>
+                <p className="text-xs text-zinc-500 mt-0.5">결과 분석까지 최대 1~2분 소요될 수 있습니다.</p>
                 <div className="mt-2 h-1 bg-zinc-700 rounded-full overflow-hidden">
                   <div className="h-full bg-teal-500 rounded-full animate-pulse w-full"></div>
                 </div>
@@ -771,10 +750,10 @@ export default function TestLog() {
           )}
 
           <button
-            onClick={handleRun}
-            disabled={!appliedItem || running}
+            onClick={backtestType === 'SYMBOL' ? handleRun : handleRunPortfolio}
+            disabled={backtestType === 'SYMBOL' ? (!runSymbol || !selectedStrategyId || running) : running}
             className={`flex items-center gap-2 px-6 py-3 rounded-xl text-base font-semibold transition-colors ${
-              !appliedItem || running
+              (backtestType === 'SYMBOL' ? (!runSymbol || !selectedStrategyId || running) : running)
                 ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
                 : 'bg-teal-500 hover:bg-teal-400 text-white cursor-pointer'
             }`}
@@ -848,8 +827,10 @@ export default function TestLog() {
                       {isAdmin && <td className="px-4 py-3.5 text-sm text-zinc-300">{r.userName ?? '-'}</td>}
                       <td className="px-4 py-3.5 text-sm font-medium text-zinc-200">{r.strategyTitle ?? '-'}</td>
                       <td className="px-4 py-3.5 text-sm font-medium text-zinc-200">
-                        {getSymbolName(r.symbol)}
-                        <span className="text-zinc-300 ml-1 text-xs font-normal">({r.symbol})</span>
+                        {symbolDisplay(r.symbol).name}
+                        {symbolDisplay(r.symbol).code && (
+                          <span className="text-zinc-300 ml-1 text-xs font-normal">({symbolDisplay(r.symbol).code})</span>
+                        )}
                       </td>
                       <td className="px-4 py-3.5 text-sm text-zinc-200">
                         {r.periodStart} ~ {r.periodEnd}

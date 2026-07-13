@@ -25,6 +25,7 @@ export interface User {
   userName: string;
   email: string;
   userPhone?: string;
+  password?: string;
   permission: number;
   status: number;
   loginToken?: string;
@@ -45,9 +46,11 @@ export interface User {
 }
 
 /**
- * trading_session 테이블 매핑
- * currentPosition: 백엔드에서 'NONE' | 'LONG' | 'SHORT' 문자열로 반환
+ * trading_session 테이블 매핑 (KOSPI 거래량+모멘텀 전략)
+ * currentPosition: 백엔드에서 'NONE' | 'LONG' 문자열로 반환 (공매도 없음)
  * active: 1=실행 중, 0=중지
+ * currentEquity: 현재잔고 / initialBalance 비율
+ * initialBalance: 수익률 계산 기준점 — 세션 생성/초기화 시점의 실제 KIS 잔고 (자동 캡처)
  */
 export interface TradingSession {
   id:               string;
@@ -55,23 +58,29 @@ export interface TradingSession {
   strategyConfigId: number | null;
   mode:             'LIVE' | 'PAPER';
   symbol:           string;
+  symbolName:       string | null;
   active:           number;
-  currentPosition:  'NONE' | 'LONG' | 'SHORT';
-  barsHeld:         number;
+  currentPosition:  'NONE' | 'LONG';
   sharesHeld:       number | null;
-  stopPrice:        number | null;
-  tpPrice:          number | null;
-  cooldownBarsLeft: number;
-  consecSlCount:    number;
-  currentEquity:    number | null;
-  peakEquity:       number;
   avgEntryPrice:    number | null;
+  currentEquity:    number | null;
+  initialBalance:   number | null;
   isStrategyUpdate: number;
   createdAt:        string;
   lastUpdatedAt:    string;
   // 백엔드 조인 필드
-  strategyConfig?:  { id: number; title: string } | null;
-  userDTO?:         { userName?: string } | null;
+  strategyConfig?: {
+    id:                   number;
+    name?:                string | null;
+    takeProfitPct?:       number;
+    stopLossPct?:         number;
+    pullbackMinPct?:      number;
+    pullbackMaxPct?:      number;
+    buyingVolumeRatio?:   number;
+    stopLossVolumeRatio?: number;
+    pullbackVolumeRatio?: number;
+  } | null;
+  userDTO?: { userName?: string } | null;
 }
 
 export interface Stock {
@@ -140,7 +149,7 @@ export interface TradeHistory {
   mode:              'LIVE' | 'PAPER';
   symbol:            string;
   symbolName:        string | null;
-  action:            'BUY' | 'SELL_SHORT' | 'CLOSE_LONG' | 'CLOSE_SHORT';
+  action:            'BUY' | 'SELL' | 'ADD_LONG' | 'SELL_SHORT' | 'CLOSE_LONG' | 'CLOSE_SHORT';
   shares:            number;
   orderStatus:       'SUCCESS' | 'FAILED';
   entryPrice:        number | null;

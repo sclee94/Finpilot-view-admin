@@ -7,6 +7,7 @@ import Stocks from "../pages/stocks/page";
 import Reports from "../pages/reports/page";
 import Settings from "../pages/settings/page";
 import Strategy from "../pages/strategy/page";
+import StrategyMenu from "../pages/strategyMenu/page";
 import Logs from "../pages/logs/page";
 import TestLog from "../pages/testlog/page";
 import Live from "../pages/live/page";
@@ -44,6 +45,10 @@ const routes: RouteObject[] = [
   {
     path: "/strategy",
     element: <Strategy />,
+  },
+  {
+    path: "/strategy-menu",
+    element: <StrategyMenu />,
   },
   {
     path: "/logs",

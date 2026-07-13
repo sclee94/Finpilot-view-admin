@@ -79,7 +79,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                 }`}
               >
                 <i className={`${item.icon} text-2xl w-9 h-9 flex items-center justify-center mr-4`}></i>
-                {item.path === '/strategy' && isRegularUser ? '전략 메뉴판' : item.label}
+                {item.label}
               </button>
             ))}
           </nav>

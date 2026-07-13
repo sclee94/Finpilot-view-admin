@@ -21,7 +21,7 @@ export default function TradeSummaryCards({ list, assetInfo }: Props) {
   const total        = list.length;
   const success      = list.filter(t => t.orderStatus === 'SUCCESS').length;
   const failed       = list.filter(t => t.orderStatus === 'FAILED').length;
-  const closeList    = list.filter(t => t.action === 'CLOSE_LONG' || t.action === 'CLOSE_SHORT');
+  const closeList    = list.filter(t => t.action === 'SELL' || t.action === 'CLOSE_LONG' || t.action === 'CLOSE_SHORT');
   const buyList      = list.filter(t => t.action === 'BUY' || t.action === 'ADD_LONG');
   const totalPnl     = closeList.reduce((s, t) => s + (t.realizedPnl ?? 0), 0);
   const buyCount     = buyList.length;

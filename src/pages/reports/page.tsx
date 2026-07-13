@@ -62,6 +62,7 @@ export default function ReportsPage() {
       ...(isAdmin ? {} : { userUid: user?.userUid ?? null }),
       ...(modeFilter   !== 'all' ? { mode:        modeFilter   } : {}),
       ...(actionFilter !== 'all' ? { action:      actionFilter } : {}),
+      ...(statusFilter !== 'all' ? { orderStatus: statusFilter } : {}),
       ...(search.trim()          ? { symbolName:  search.trim()  } : {}),
       ...(dateFrom               ? { dateFrom                  } : {}),
       ...(dateTo                 ? { dateTo                    } : {}),
@@ -69,7 +70,7 @@ export default function ReportsPage() {
     getTradeHistoryList(commonParams)
       .then(res => { if (res.status === 200) setSummaryList(res.data?.content ?? []); })
       .catch(console.error);
-  }, [modeFilter, actionFilter, search, dateFrom, dateTo]);
+  }, [modeFilter, actionFilter, statusFilter, search, dateFrom, dateTo]);
 
   // 서버사이드 페이징 + 필터링
   useEffect(() => {
@@ -106,7 +107,7 @@ export default function ReportsPage() {
       getTradingSessionList(sessionParams),
     ])
       .then(([balRes, sessRes]) => {
-        const balance  = balRes.status  === 200 ? (balRes.data?.balance  ?? 0) : 0;
+        const balance  = balRes.status  === 200 ? (balRes.data?.totalBalance  ?? 0) : 0;
         const sessions = sessRes.status === 200 ? (sessRes.data ?? []) : [];
         const holdingSessions = sessions.filter(s => s.mode === mode && s.userUid === userUid && s.currentPosition !== 'NONE');
         const stockEvalAmount = holdingSessions.reduce((sum, s) => sum + (s.sharesHeld ?? 0) * (s.avgEntryPrice ?? 0), 0);
