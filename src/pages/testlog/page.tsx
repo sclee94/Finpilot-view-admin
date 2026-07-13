@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import type { ReactNode } from 'react';
 import PageLayout from '../../components/PageLayout';
 import { apiClient } from '../../api/apiClient';
 import { authStorage } from '../../utils/auth';
@@ -11,6 +12,13 @@ import { getSymbolName } from '../../constants/symbolNames';
 import FilterButtonGroup from '../../components/FilterButtonGroup';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+interface BuyEvent {
+  time:   string;
+  price:  number;
+  shares: number;
+  action: 'BUY' | 'ADD_LONG';
+}
 
 // BacktestDTO (BacktestTradeDTO 포함) — Java @JsonFormat: "yyyy-MM-dd HH:mm"
 interface BacktestTrade {
@@ -25,10 +33,22 @@ interface BacktestTrade {
   entryPrice:       number;
   exitPrice:        number;
   shares:           number;
+  addCount?:        number;
+  buyEvents?:       string;   // JSON 문자열 — addCount>0일 때만 파싱해서 사용
   positionSizePct:  number;
   result:           string;
   returnPct:        number;
   equity:           number;
+}
+
+function parseBuyEvents(t: BacktestTrade): BuyEvent[] {
+  if (!t.buyEvents) return [];
+  try {
+    const events = JSON.parse(t.buyEvents);
+    return Array.isArray(events) ? events : [];
+  } catch {
+    return [];
+  }
 }
 
 interface BacktestResult {
@@ -85,6 +105,99 @@ function symbolDisplay(symbol: string): { name: string; code: string | null } {
   return { name: getSymbolName(symbol), code: symbol };
 }
 
+const DASH = <span className="text-zinc-600">-</span>;
+
+// 추가매수가 있던 거래는 매수/추가매수/청산을 각각 별도 행으로 쪼개서 보여준다.
+// 없는 거래는 기존처럼 한 줄(진입~청산)로 표시.
+function renderTradeRows(t: BacktestTrade, showSymbolCol: boolean) {
+  const events = (t.addCount ?? 0) > 0 ? parseBuyEvents(t) : [];
+
+  if (events.length === 0) {
+    return (
+      <tr key={t.id ?? t.tradeNo} className="hover:bg-zinc-800/40 transition-colors">
+        <td className="px-3 py-2.5 text-zinc-500">{t.tradeNo}</td>
+        {showSymbolCol && <td className="px-3 py-2.5 text-zinc-300">{t.symbol}</td>}
+        <td className="px-3 py-2.5">
+          <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+            t.direction === 'BULLISH' ? 'bg-teal-500/20 text-teal-400' : 'bg-orange-500/20 text-orange-400'
+          }`}>
+            {t.direction === 'BULLISH' ? '불타기' : t.direction === 'PULLBACK' ? '눌림목' : t.direction}
+          </span>
+        </td>
+        <td className="px-3 py-2.5 text-zinc-400">{t.entryTime}</td>
+        <td className="px-3 py-2.5 text-zinc-400">{t.exitTime}</td>
+        <td className="px-3 py-2.5 text-right text-zinc-300">{Number(t.entryPrice).toLocaleString()}</td>
+        <td className="px-3 py-2.5 text-right text-zinc-300">{Number(t.exitPrice).toLocaleString()}</td>
+        <td className="px-3 py-2.5 text-right text-zinc-300">{t.shares}</td>
+        <td className="px-3 py-2.5 text-right text-zinc-400">{Number(t.positionSizePct).toFixed(1)}%</td>
+        <td className="px-3 py-2.5">
+          <span className={`px-2 py-0.5 rounded text-xs font-medium ${resultBadgeClass(t.result)}`}>
+            {resultLabel(t.result)}
+          </span>
+        </td>
+        <td className={`px-3 py-2.5 text-right font-medium ${Number(t.returnPct) >= 0 ? 'text-teal-400' : 'text-red-400'}`}>
+          {Number(t.returnPct) >= 0 ? '+' : ''}{Number(t.returnPct).toFixed(3)}%
+        </td>
+        <td className="px-3 py-2.5 text-right text-zinc-300">{(Number(t.equity) * 100).toFixed(2)}%</td>
+      </tr>
+    );
+  }
+
+  const rows: ReactNode[] = [];
+
+  events.forEach((ev, idx) => {
+    rows.push(
+      <tr key={`${t.id ?? t.tradeNo}-buy-${idx}`} className="bg-amber-500/5 hover:bg-amber-500/10 transition-colors">
+        <td className="px-3 py-2 text-zinc-500">{t.tradeNo}</td>
+        {showSymbolCol && <td className="px-3 py-2 text-zinc-300">{t.symbol}</td>}
+        <td className="px-3 py-2">
+          <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+            ev.action === 'BUY' ? 'bg-teal-500/20 text-teal-400' : 'bg-amber-500/20 text-amber-400'
+          }`}>
+            {ev.action === 'BUY' ? '매수' : '추가매수'}
+          </span>
+        </td>
+        <td className="px-3 py-2 text-zinc-400">{ev.time}</td>
+        <td className="px-3 py-2 text-zinc-600">{DASH}</td>
+        <td className="px-3 py-2 text-right text-zinc-300">{Number(ev.price).toLocaleString()}</td>
+        <td className="px-3 py-2 text-right">{DASH}</td>
+        <td className="px-3 py-2 text-right text-zinc-300">+{ev.shares}</td>
+        <td className="px-3 py-2 text-right">{DASH}</td>
+        <td className="px-3 py-2">{DASH}</td>
+        <td className="px-3 py-2 text-right">{DASH}</td>
+        <td className="px-3 py-2 text-right">{DASH}</td>
+      </tr>
+    );
+  });
+
+  rows.push(
+    <tr key={`${t.id ?? t.tradeNo}-exit`} className="bg-amber-500/5 hover:bg-amber-500/10 transition-colors border-b-2 border-b-zinc-700">
+      <td className="px-3 py-2.5 text-zinc-500">{t.tradeNo}</td>
+      {showSymbolCol && <td className="px-3 py-2.5 text-zinc-300">{t.symbol}</td>}
+      <td className="px-3 py-2.5">
+        <span className="px-2 py-0.5 rounded text-xs font-semibold bg-red-500/20 text-red-400">청산</span>
+      </td>
+      <td className="px-3 py-2.5">{DASH}</td>
+      <td className="px-3 py-2.5 text-zinc-400">{t.exitTime}</td>
+      <td className="px-3 py-2.5 text-right">{DASH}</td>
+      <td className="px-3 py-2.5 text-right text-zinc-300">{Number(t.exitPrice).toLocaleString()}</td>
+      <td className="px-3 py-2.5 text-right text-zinc-300">{t.shares}(합계)</td>
+      <td className="px-3 py-2.5 text-right text-zinc-400">{Number(t.positionSizePct).toFixed(1)}%</td>
+      <td className="px-3 py-2.5">
+        <span className={`px-2 py-0.5 rounded text-xs font-medium ${resultBadgeClass(t.result)}`}>
+          {resultLabel(t.result)}
+        </span>
+      </td>
+      <td className={`px-3 py-2.5 text-right font-medium ${Number(t.returnPct) >= 0 ? 'text-teal-400' : 'text-red-400'}`}>
+        {Number(t.returnPct) >= 0 ? '+' : ''}{Number(t.returnPct).toFixed(3)}%
+      </td>
+      <td className="px-3 py-2.5 text-right text-zinc-300">{(Number(t.equity) * 100).toFixed(2)}%</td>
+    </tr>
+  );
+
+  return rows;
+}
+
 // ─── Trade Detail Modal ───────────────────────────────────────────────────────
 
 function TradeDetailModal({ result, compResults, compPage, compTotalPage, compTotalCount, onCompPageChange, onClose }: {
@@ -96,9 +209,27 @@ function TradeDetailModal({ result, compResults, compPage, compTotalPage, compTo
   onCompPageChange: (page: number) => void;
   onClose:          () => void;
 }) {
-  const trades = result.trades ?? [];
+  const allTrades = result.trades ?? [];
   const [showCompare, setShowCompare] = useState(false);
   const [compareTarget, setCompareTarget] = useState<BacktestResult | null>(null);
+  const [symbolFilter, setSymbolFilter] = useState<string | null>(null);
+
+  // 종목별 요약 (여러 종목 거래가 섞인 포트폴리오 백테스트 결과에서 종목별로 묶어서 봄)
+  const symbolStats = (() => {
+    const map = new Map<string, { count: number; wins: number; sumRet: number }>();
+    for (const t of allTrades) {
+      const s = map.get(t.symbol) ?? { count: 0, wins: 0, sumRet: 0 };
+      s.count += 1;
+      if (Number(t.returnPct) > 0) s.wins += 1;
+      s.sumRet += Number(t.returnPct);
+      map.set(t.symbol, s);
+    }
+    return Array.from(map.entries())
+      .map(([symbol, s]) => ({ symbol, ...s, winRate: (s.wins / s.count) * 100 }))
+      .sort((a, b) => b.sumRet - a.sumRet);
+  })();
+
+  const trades = symbolFilter ? allTrades.filter(t => t.symbol === symbolFilter) : allTrades;
 
   const COMPARE_FIELDS: { label: string; getValue: (r: BacktestResult) => string; colorFn?: (r: BacktestResult) => string }[] = [
     { label: '총 거래', getValue: r => `${r.totalTrades}건` },
@@ -275,9 +406,55 @@ function TradeDetailModal({ result, compResults, compPage, compTotalPage, compTo
           )}
         </div>
 
+        {/* 종목별 요약 — 종목이 2개 이상 섞인 결과(포트폴리오 백테스트)에서만 표시 */}
+        {symbolStats.length > 1 && (
+          <div className="px-6 pt-4 space-y-2">
+            <h3 className="text-sm font-semibold text-zinc-300">종목별 요약 ({symbolStats.length}종목)</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-700 bg-zinc-800/50">
+                    <th className="text-left px-3 py-2 text-zinc-400 font-medium">종목</th>
+                    <th className="text-right px-3 py-2 text-zinc-400 font-medium">거래수</th>
+                    <th className="text-right px-3 py-2 text-zinc-400 font-medium">승률</th>
+                    <th className="text-right px-3 py-2 text-zinc-400 font-medium">수익률 합계</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-800">
+                  <tr
+                    onClick={() => setSymbolFilter(null)}
+                    className={`cursor-pointer transition-colors ${symbolFilter === null ? 'bg-teal-500/10' : 'hover:bg-zinc-800/40'}`}
+                  >
+                    <td className="px-3 py-2 text-zinc-200 font-medium">전체</td>
+                    <td className="px-3 py-2 text-right text-zinc-300">{allTrades.length}</td>
+                    <td className="px-3 py-2 text-right text-zinc-300">-</td>
+                    <td className="px-3 py-2 text-right text-zinc-300">-</td>
+                  </tr>
+                  {symbolStats.map(s => (
+                    <tr
+                      key={s.symbol}
+                      onClick={() => setSymbolFilter(prev => prev === s.symbol ? null : s.symbol)}
+                      className={`cursor-pointer transition-colors ${symbolFilter === s.symbol ? 'bg-teal-500/10' : 'hover:bg-zinc-800/40'}`}
+                    >
+                      <td className="px-3 py-2 text-zinc-200">{s.symbol}</td>
+                      <td className="px-3 py-2 text-right text-zinc-300">{s.count}</td>
+                      <td className="px-3 py-2 text-right text-teal-400">{s.winRate.toFixed(1)}%</td>
+                      <td className={`px-3 py-2 text-right font-medium ${s.sumRet >= 0 ? 'text-teal-400' : 'text-red-400'}`}>
+                        {s.sumRet >= 0 ? '+' : ''}{s.sumRet.toFixed(2)}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {/* Trade Table */}
         <div className="px-6 pb-6 pt-4">
-          <h3 className="text-base font-semibold text-zinc-200 mb-3">개별 거래 내역 ({trades.length}건)</h3>
+          <h3 className="text-base font-semibold text-zinc-200 mb-3">
+            개별 거래 내역 ({trades.length}건{symbolFilter ? ` · ${symbolFilter}` : ''})
+          </h3>
           {trades.length === 0 ? (
             <div className="flex items-center justify-center py-12 text-zinc-500">
               거래 내역이 없습니다.
@@ -288,6 +465,7 @@ function TradeDetailModal({ result, compResults, compPage, compTotalPage, compTo
                 <thead>
                   <tr className="border-b border-zinc-700 bg-zinc-800/50">
                     <th className="text-left px-3 py-2.5 text-zinc-400 font-medium">No</th>
+                    {symbolStats.length > 1 && <th className="text-left px-3 py-2.5 text-zinc-400 font-medium">종목</th>}
                     <th className="text-left px-3 py-2.5 text-zinc-400 font-medium">방향</th>
                     <th className="text-left px-3 py-2.5 text-zinc-400 font-medium">진입 시각</th>
                     <th className="text-left px-3 py-2.5 text-zinc-400 font-medium">청산 시각</th>
@@ -301,42 +479,7 @@ function TradeDetailModal({ result, compResults, compPage, compTotalPage, compTo
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800">
-                  {trades.map(t => (
-                    <tr key={t.id ?? t.tradeNo} className="hover:bg-zinc-800/40 transition-colors">
-                      <td className="px-3 py-2.5 text-zinc-500">{t.tradeNo}</td>
-                      <td className="px-3 py-2.5">
-                        <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                          t.direction === 'BUY' || t.direction === 'LONG'
-                            ? 'bg-teal-500/20 text-teal-400'
-                            : t.direction === 'ADD_LONG'
-                            ? 'bg-blue-500/20 text-blue-400'
-                            : 'bg-red-500/20 text-red-400'
-                        }`}>
-                          {t.direction === 'BUY'      ? '매수'
-                          : t.direction === 'SELL'    ? '매도'
-                          : t.direction === 'LONG'    ? '매수 (LONG)'
-                          : t.direction === 'SHORT'   ? '매도 (SHORT)'
-                          : t.direction === 'ADD_LONG' ? '추가매수'
-                          : t.direction}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2.5 text-zinc-400">{t.entryTime}</td>
-                      <td className="px-3 py-2.5 text-zinc-400">{t.exitTime}</td>
-                      <td className="px-3 py-2.5 text-right text-zinc-300">{Number(t.entryPrice).toLocaleString()}</td>
-                      <td className="px-3 py-2.5 text-right text-zinc-300">{Number(t.exitPrice).toLocaleString()}</td>
-                      <td className="px-3 py-2.5 text-right text-zinc-300">{t.shares}</td>
-                      <td className="px-3 py-2.5 text-right text-zinc-400">{Number(t.positionSizePct).toFixed(1)}%</td>
-                      <td className="px-3 py-2.5">
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${resultBadgeClass(t.result)}`}>
-                          {resultLabel(t.result)}
-                        </span>
-                      </td>
-                      <td className={`px-3 py-2.5 text-right font-medium ${Number(t.returnPct) >= 0 ? 'text-teal-400' : 'text-red-400'}`}>
-                        {Number(t.returnPct) >= 0 ? '+' : ''}{Number(t.returnPct).toFixed(3)}%
-                      </td>
-                      <td className="px-3 py-2.5 text-right text-zinc-300">{(Number(t.equity) * 100).toFixed(2)}%</td>
-                    </tr>
-                  ))}
+                  {trades.flatMap(t => renderTradeRows(t, symbolStats.length > 1))}
                 </tbody>
               </table>
             </div>
