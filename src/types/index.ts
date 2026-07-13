@@ -66,6 +66,7 @@ export interface TradingSession {
   currentEquity:    number | null;
   initialBalance:   number | null;
   isStrategyUpdate: number;
+  isForceCloseEnabled: number;
   createdAt:        string;
   lastUpdatedAt:    string;
   // 백엔드 조인 필드

@@ -19,6 +19,7 @@ import {
   updateSessionStrategyConfigId,
   syncPosition,
   adjustCapital,
+  toggleForceCloseEnabled,
 } from '../../api/tradeApi';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -50,6 +51,19 @@ export default function Live() {
 
   // 중지/재실행/삭제 확인 팝업
   const [confirmAction, setConfirmAction] = useState<{ id: string; type: 'stop' | 'resume' | 'delete' | 'reset' } | null>(null);
+
+  // 15:18 강제청산 적용 여부 토글 (optimistic)
+  const [forceCloseMap, setForceCloseMap] = useState<Record<string, boolean>>({});
+
+  const handleToggleForceClose = async (session: TradingSession) => {
+    const next = !(forceCloseMap[session.id] ?? (session.isForceCloseEnabled !== 0));
+    setForceCloseMap(prev => ({ ...prev, [session.id]: next }));
+    try {
+      await toggleForceCloseEnabled(session.id);
+    } catch {
+      setForceCloseMap(prev => ({ ...prev, [session.id]: !next }));
+    }
+  };
 
   // 전략 변경 팝업
   const [strategyChangePopup, setStrategyChangePopup] = useState<{ sessionId: string; currentStrategyId: number | null; currentStrategyTitle: string } | null>(null);
@@ -945,6 +959,25 @@ export default function Live() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-zinc-300">{session.lastUpdatedAt}</span>
+                      {!isAdmin && (
+                        <div className="relative group flex items-center gap-1.5 bg-zinc-700/50 border border-zinc-600/50 rounded-lg px-2.5 py-1">
+                          <span className="text-xs text-zinc-400">강제청산</span>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleForceClose(session)}
+                            className={`relative w-9 h-5 rounded-full transition-colors cursor-pointer ${(forceCloseMap[session.id] ?? (session.isForceCloseEnabled !== 0)) ? 'bg-teal-500' : 'bg-zinc-600'}`}
+                          >
+                            <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${(forceCloseMap[session.id] ?? (session.isForceCloseEnabled !== 0)) ? 'translate-x-4' : 'translate-x-0'}`} />
+                          </button>
+                          <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block z-10 pointer-events-none">
+                            <div className="bg-zinc-800 border border-zinc-600 rounded-lg px-3 py-2 text-xs text-zinc-300 whitespace-nowrap shadow-lg space-y-1">
+                              <p>ON: 15:18 장마감 전 자동 강제청산</p>
+                              <p>OFF: 강제청산 없이 포지션 유지</p>
+                            </div>
+                            <div className="absolute right-3 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-zinc-600" />
+                          </div>
+                        </div>
+                      )}
                       {!isAdmin && (
                         <button
                           onClick={() => handleSyncPosition(session.id)}

@@ -50,6 +50,10 @@ export const updateSessionStrategyConfigId = (params: { id: string; strategyConf
 export const toggleStrategyUpdate = (id: string) =>
   apiClient.put<ApiResponse<null>>('/trade/toggleStrategyUpdate', { id });
 
+/** 15:18 강제청산 적용 여부 토글 - PUT /api/trade/toggleForceCloseEnabled */
+export const toggleForceCloseEnabled = (id: string) =>
+  apiClient.put<ApiResponse<null>>('/trade/toggleForceCloseEnabled', { id });
+
 /** 거래 이력 조회 - POST /api/tradeHistory/getTradeHistoryList */
 export const getTradeHistoryList = (params: {
   userUid?: string | null;
