@@ -5,12 +5,12 @@ import { apiClient } from './apiClient';
 export const getExecuteOnOff = () =>
   apiClient.post<ApiResponse<{ isEnabled: number }>>('/trade/getExecuteOnOFF');
 
-/** 실행 ON/OFF 상태 변경 - PUT /api/trade/set/executeOnOff */
-export const setExecuteOnOff = (isEnabled: number) =>
-  apiClient.put<ApiResponse<{ isEnabled: number }>>('/trade/set/executeOnOff', { isEnabled });
+/** 실행 ON/OFF 상태 변경 - PUT /api/trade/set/executeOnOff (서버가 userUid로 관리자 권한을 재확인함) */
+export const setExecuteOnOff = (isEnabled: number, userUid: string) =>
+  apiClient.put<ApiResponse<{ isEnabled: number }>>('/trade/set/executeOnOff', { isEnabled, userUid });
 
-/** 세션 목록 조회 - POST /api/trade/getTradingSessionList */
-export const getTradingSessionList = (params: Partial<{ userUid: string | null; userName: string; email: string; permission: number; status: number }>) =>
+/** 세션 목록 조회 - POST /api/trade/getTradingSessionList (서버가 userUid로 관리자 권한을 재확인함) */
+export const getTradingSessionList = (params: Partial<{ userUid: string | null; viewAll: boolean }>) =>
   apiClient.post<ApiResponse<TradingSession[]>>('/trade/getTradingSessionList', params);
 
 /** 세션 생성 - POST /api/trade/insertTradingSession */

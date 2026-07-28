@@ -90,9 +90,26 @@ export default function Live() {
 
   const handleStrategyChange = async () => {
     if (!strategyChangePopup || !selectedNewStrategy?.id) return;
+    const { sessionId } = strategyChangePopup;
+    const newStrategy = selectedNewStrategy;
     try {
-      await updateSessionStrategyConfigId({ id: strategyChangePopup.sessionId, strategyConfigId: selectedNewStrategy.id });
-      await fetchSessionList();
+      await updateSessionStrategyConfigId({ id: sessionId, strategyConfigId: newStrategy.id });
+      // API가 갱신된 세션을 돌려주지 않아서, 이미 들고 있는 선택된 전략 객체로 즉시 반영 (재조회 없이 화면 즉시 갱신)
+      setSessionList(prev => prev.map(s => s.id === sessionId ? {
+        ...s,
+        strategyConfigId: newStrategy.id!,
+        strategyConfig: {
+          id:                  newStrategy.id!,
+          name:                newStrategy.name,
+          takeProfitPct:       newStrategy.takeProfitPct,
+          stopLossPct:         newStrategy.stopLossPct,
+          pullbackMinPct:      newStrategy.pullbackMinPct,
+          pullbackMaxPct:      newStrategy.pullbackMaxPct,
+          buyingVolumeRatio:   newStrategy.buyingVolumeRatio,
+          stopLossVolumeRatio: newStrategy.stopLossVolumeRatio,
+          pullbackVolumeRatio: newStrategy.pullbackVolumeRatio,
+        },
+      } : s));
       setStrategyChangePopup(null);
       setSelectedNewStrategy(null);
     } catch {
@@ -111,10 +128,15 @@ export default function Live() {
     if (isNaN(amount) || amount === 0) { setErrorMessage('올바른 금액을 입력해주세요.'); return; }
     setCapitalSubmitting(true);
     try {
-      await adjustCapital(capitalPopup.sessionId, amount);
-      await fetchSessionList();
-      setCapitalPopup(null);
-      setCapitalAmount('');
+      const res = await adjustCapital(capitalPopup.sessionId, amount);
+      if (res.data) {
+        const updated = res.data;
+        setSessionList(prev => prev.map(s => s.id === capitalPopup.sessionId ? updated : s));
+        setCapitalPopup(null);
+        setCapitalAmount('');
+      } else {
+        setErrorMessage(res.message || '자본금 조정에 실패했습니다.');
+      }
     } catch {
       setErrorMessage('자본금 조정에 실패했습니다.');
     } finally {
@@ -155,30 +177,32 @@ export default function Live() {
   }, [isAdmin]);
 
   const handleAdminToggle = async () => {
+    const userUid = authStorage.get()?.userUid;
+    if (!userUid) return;
     const newValue = !adminToggle;
     setAdminToggle(newValue);
     try {
-      const res = await setExecuteOnOff(newValue ? 1 : 0);
+      const res = await setExecuteOnOff(newValue ? 1 : 0, userUid);
       if (res.data != null) setAdminToggle(res.data.isEnabled === 1);
     } catch {
       setAdminToggle(!newValue);
     }
   };
 
-  // 진행 세션 목록 조회
-  const fetchSessionList = useCallback(async () => {
+  // 진행 세션 목록 조회 (silent=true면 스피너로 리스트를 갈아엎지 않고 조용히 갱신 — 액션 후 후속 새로고침용)
+  const fetchSessionList = useCallback(async (silent = false) => {
     const userUid = authStorage.get()?.userUid;
     if (!isAdmin && !userUid) return;
-    setStatusLoading(true);
+    if (!silent) setStatusLoading(true);
     try {
       const res = await getTradingSessionList(
-        isAdmin ? { userUid: null, userName: '', email: '', permission: 0, status: 0 } : { userUid },
+        isAdmin ? { userUid, viewAll: true } : { userUid },
       );
       setSessionList(res.data ?? []);
     } catch { /* silent */ } finally {
-      setStatusLoading(false);
+      if (!silent) setStatusLoading(false);
     }
-  }, []);
+  }, [isAdmin]);
 
   // 세션 생성 — 현재 활성 전략 설정(싱글톤)을 조회해 strategyConfigId로 연결
   const handleCreateSession = async () => {
@@ -202,7 +226,8 @@ export default function Live() {
         strategyConfigId,
       });
       if (res.data) {
-        await fetchSessionList();
+        // 생성 응답엔 strategyConfig/symbolName 조인 정보가 없어 조용히 재조회해서 정확한 값으로 채움
+        await fetchSessionList(true);
         setInvestSymbol('');
         setInvestDropdown('');
       } else {
@@ -220,8 +245,13 @@ export default function Live() {
   const handleSyncPosition = async (id: string) => {
     setSyncingId(id);
     try {
-      await syncPosition(id);
-      await fetchSessionList();
+      const res = await syncPosition(id);
+      if (res.data) {
+        const updated = res.data;
+        setSessionList(prev => prev.map(s => s.id === id ? updated : s));
+      } else {
+        setErrorMessage(res.message || '실잔고 동기화에 실패했습니다.');
+      }
     } catch {
       setErrorMessage('실잔고 동기화에 실패했습니다.');
     } finally {
@@ -234,41 +264,45 @@ export default function Live() {
     fetchSessionList();
   }, [fetchSessionList]);
 
-  // 세션 중지 (active: 0)
+  // 세션 중지 (active: 0) — 값을 이미 알고 있으므로 즉시 반영, 실패 시 되돌림
   const handleStopSession = async (id: string) => {
+    setSessionList(prev => prev.map(s => s.id === id ? { ...s, active: 0 } : s));
     try {
       await updateTradingSession({ id, active: 0 });
-      await fetchSessionList();
     } catch {
+      setSessionList(prev => prev.map(s => s.id === id ? { ...s, active: 1 } : s));
       setErrorMessage('세션 중지에 실패했습니다.');
     }
   };
 
   // 세션 재실행 (active: 1)
   const handleResumeSession = async (id: string) => {
+    setSessionList(prev => prev.map(s => s.id === id ? { ...s, active: 1 } : s));
     try {
       await updateTradingSession({ id, active: 1 });
-      await fetchSessionList();
     } catch {
+      setSessionList(prev => prev.map(s => s.id === id ? { ...s, active: 0 } : s));
       setErrorMessage('세션 재실행에 실패했습니다.');
     }
   };
 
-  // 세션 삭제
+  // 세션 삭제 — 즉시 목록에서 제거, 실패 시 복원
   const handleDeleteSession = async (id: string) => {
+    const removed = sessionList.find(s => s.id === id);
+    setSessionList(prev => prev.filter(s => s.id !== id));
     try {
       await deleteTradingSession(id);
-      await fetchSessionList();
     } catch {
+      if (removed) setSessionList(prev => [...prev, removed]);
       setErrorMessage('세션 삭제에 실패했습니다.');
     }
   };
 
-  // 세션 초기화
+  // 세션 초기화 — 응답에 갱신된 값이 없어 조용히(스피너 없이) 재조회
   const handleResetSession = async (id: string) => {
     try {
       await resetTradingSession(id);
-      await fetchSessionList();
+      await fetchSessionList(true);
     } catch {
       setErrorMessage('세션 초기화에 실패했습니다.');
     }
@@ -553,8 +587,8 @@ export default function Live() {
                         <div><p className="text-xs text-zinc-500 mb-1">익절가 (TP)</p><p className="text-sm text-zinc-200">{t.tpPrice != null ? `₩${t.tpPrice.toLocaleString()}` : '—'}</p></div>
                       </div>
                       <div className="bg-zinc-800/50 rounded-xl px-5 py-4 grid grid-cols-2 gap-4">
-                        <div><p className="text-xs text-zinc-500 mb-1">현재 자본</p><p className="text-sm text-zinc-200">{t.currentEquity != null ? t.currentEquity.toLocaleString() : '—'}</p></div>
-                        <div><p className="text-xs text-zinc-500 mb-1">최대 자본 (Peak)</p><p className="text-sm text-zinc-200">{t.peakEquity != null ? t.peakEquity.toLocaleString() : '—'}</p></div>
+                        <div><p className="text-xs text-zinc-500 mb-1">수익률</p><p className="text-sm text-zinc-200">{t.currentEquity != null ? `${((t.currentEquity - 1) * 100).toFixed(2)}%` : '—'}</p></div>
+                        <div><p className="text-xs text-zinc-500 mb-1">최대 수익률 (Peak)</p><p className="text-sm text-zinc-200">{t.peakEquity != null ? `${((t.peakEquity - 1) * 100).toFixed(2)}%` : '—'}</p></div>
                       </div>
                       {t.orderStatus === 'FAILED' && t.errorMessage && (
                         <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl px-5 py-4">
@@ -904,7 +938,7 @@ export default function Live() {
                 </div>
               )}
               <button
-                onClick={fetchSessionList}
+                onClick={() => fetchSessionList()}
                 className="text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
                 title="새로고침"
               >
@@ -913,7 +947,7 @@ export default function Live() {
             </div>
           </div>
 
-          {statusLoading ? (
+          {statusLoading && sessionList.length === 0 ? (
             <div className="flex items-center justify-center py-10">
               <i className="ri-loader-4-line animate-spin text-teal-400 text-3xl"></i>
             </div>

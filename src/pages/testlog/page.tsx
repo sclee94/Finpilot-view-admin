@@ -553,7 +553,7 @@ export default function TestLog() {
       const res = await apiClient.post<ApiResponse<PageResponse<BacktestResult>>>(
         '/backtest/getBacktestList',
         {
-          ...(isAdmin ? { userUid: null, userName: '', email: '', permission: 0, status: 0 } : { userUid: uid }),
+          ...(isAdmin ? { userUid: loginUser?.userUid, viewAll: true } : { userUid: uid }),
           page,
           size: RESULTS_SIZE,
         },
@@ -572,7 +572,7 @@ export default function TestLog() {
       const res = await apiClient.post<ApiResponse<PageResponse<BacktestResult>>>(
         '/backtest/getBacktestList',
         {
-          ...(isAdmin ? { userUid: null, userName: '', email: '', permission: 0, status: 0 } : { userUid: uid }),
+          ...(isAdmin ? { userUid: loginUser?.userUid, viewAll: true } : { userUid: uid }),
           page,
           size: RESULTS_SIZE,
         },
@@ -615,6 +615,8 @@ export default function TestLog() {
       );
 
       if (runRes.data) {
+        // 로컬에 끼워넣지 않고 1페이지를 다시 불러옴 — 현재 필터/페이지와 무관하게 삽입되는 것 방지
+        // (results.length>0이라 스피너로 갈아엎히지 않고 조용히 갱신됨)
         refreshResults(userUid, 1);
       } else {
         setErrorMessage(runRes.message || '백테스트 실행에 실패했습니다.');
@@ -681,14 +683,29 @@ export default function TestLog() {
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return;
     const userUid = authStorage.get()?.userUid;
+    const target = deleteTarget;
+    const prevResults = results;
+    const prevCount = resultsTotalCount;
+    // 즉시 목록에서 제거 — 실패 시 복원
+    setResults(prev => prev.filter(r => r.id !== target.id));
+    setResultsTotalCount(prev => Math.max(0, prev - 1));
+    if (selectedResult?.id === target.id) setSelectedResult(null);
     try {
-      await apiClient.delete<ApiResponse<BacktestResult>>(
+      // deleteBacktest는 성공해도 data를 안 돌려주므로(항상 null) status로 성공 여부 판단
+      const res = await apiClient.delete<ApiResponse<BacktestResult>>(
         '/backtest/deleteBacktest',
-        { id: deleteTarget.id, userUid },
+        { id: target.id, userUid },
       );
-      if (selectedResult?.id === deleteTarget.id) setSelectedResult(null);
-      if (userUid) refreshResults(userUid, resultsPage);
-    } catch { /* silent */ } finally {
+      if (res.status !== 200) {
+        setResults(prevResults);
+        setResultsTotalCount(prevCount);
+        setErrorMessage(res.message || '삭제에 실패했습니다.');
+      }
+    } catch {
+      setResults(prevResults);
+      setResultsTotalCount(prevCount);
+      setErrorMessage('삭제에 실패했습니다.');
+    } finally {
       setDeleteTarget(null);
     }
   };
@@ -943,7 +960,7 @@ export default function TestLog() {
                 </tr>
               </thead>
               <tbody>
-                {resultsLoading ? (
+                {resultsLoading && results.length === 0 ? (
                   <tr>
                     <td colSpan={isAdmin ? 10 : 11} className="text-center py-16 text-zinc-500">
                       <i className="ri-loader-4-line animate-spin text-3xl block mb-2"></i>

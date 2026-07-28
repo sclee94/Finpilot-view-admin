@@ -172,16 +172,16 @@ export default function TradeDetailModal({ trade, onClose }: Props) {
             </Field>
           </div>
 
-          {/* 자본 현황 */}
+          {/* 수익률 현황 — currentEquity/peakEquity는 1.0을 시작값으로 하는 자산 비율이라 %로 환산해서 표시 */}
           <div className="bg-zinc-800/50 rounded-xl px-5 py-4 grid grid-cols-2 gap-4">
-            <Field label="현재 자본">
+            <Field label="수익률">
               <p className="text-sm text-zinc-200">
-                {trade.currentEquity != null ? trade.currentEquity.toLocaleString() : '—'}
+                {trade.currentEquity != null ? `${((trade.currentEquity - 1) * 100).toFixed(2)}%` : '—'}
               </p>
             </Field>
-            <Field label="최대 자본 (Peak)">
+            <Field label="최대 수익률 (Peak)">
               <p className="text-sm text-zinc-200">
-                {trade.peakEquity != null ? trade.peakEquity.toLocaleString() : '—'}
+                {trade.peakEquity != null ? `${((trade.peakEquity - 1) * 100).toFixed(2)}%` : '—'}
               </p>
             </Field>
           </div>

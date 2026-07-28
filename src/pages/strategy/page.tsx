@@ -19,6 +19,19 @@ interface FormState {
   buyingVolumeRatio:   NumVal;
   stopLossVolumeRatio: NumVal;
   pullbackVolumeRatio: NumVal;
+  rsiOversold:               NumVal;
+  rsiOverbought:             NumVal;
+  rsiExitMinGainPct:         NumVal;
+  scoreTakeProfitThreshold:  NumVal;
+  scoreStopLossThreshold:    NumVal;
+  volBaselineCv:             NumVal;
+  volMultMin:                NumVal;
+  volMultMax:                NumVal;
+  stopLossCooldownMinutes:  NumVal;
+  adxPeriod:                 NumVal;
+  adxThreshold:              NumVal;
+  pullbackTrendMaDays:       NumVal;
+  riskPerTradePct:           NumVal;
 }
 
 const EMPTY_FORM: FormState = {
@@ -30,6 +43,19 @@ const EMPTY_FORM: FormState = {
   buyingVolumeRatio:   '',
   stopLossVolumeRatio: '',
   pullbackVolumeRatio: '',
+  rsiOversold:               '',
+  rsiOverbought:             '',
+  rsiExitMinGainPct:         '',
+  scoreTakeProfitThreshold:  '',
+  scoreStopLossThreshold:    '',
+  volBaselineCv:             '',
+  volMultMin:                '',
+  volMultMax:                '',
+  stopLossCooldownMinutes:  '',
+  adxPeriod:                 '',
+  adxThreshold:              '',
+  pullbackTrendMaDays:       '',
+  riskPerTradePct:           '',
 };
 
 function dtoToForm(dto: StrategyConfigDTO): FormState {
@@ -42,6 +68,19 @@ function dtoToForm(dto: StrategyConfigDTO): FormState {
     buyingVolumeRatio:   dto.buyingVolumeRatio     ?? '',
     stopLossVolumeRatio: dto.stopLossVolumeRatio   ?? '',
     pullbackVolumeRatio: dto.pullbackVolumeRatio   ?? '',
+    rsiOversold:               dto.rsiOversold               ?? '',
+    rsiOverbought:             dto.rsiOverbought             ?? '',
+    rsiExitMinGainPct:         dto.rsiExitMinGainPct         ?? '',
+    scoreTakeProfitThreshold:  dto.scoreTakeProfitThreshold  ?? '',
+    scoreStopLossThreshold:    dto.scoreStopLossThreshold    ?? '',
+    volBaselineCv:             dto.volBaselineCv             ?? '',
+    volMultMin:                dto.volMultMin                ?? '',
+    volMultMax:                dto.volMultMax                ?? '',
+    stopLossCooldownMinutes:  dto.stopLossCooldownMinutes   ?? '',
+    adxPeriod:                 dto.adxPeriod                 ?? '',
+    adxThreshold:              dto.adxThreshold              ?? '',
+    pullbackTrendMaDays:       dto.pullbackTrendMaDays       ?? '',
+    riskPerTradePct:           dto.riskPerTradePct           ?? '',
   };
 }
 
@@ -198,6 +237,19 @@ export default function Strategy() {
         buyingVolumeRatio:   form.buyingVolumeRatio     as number,
         stopLossVolumeRatio: form.stopLossVolumeRatio   as number,
         pullbackVolumeRatio: form.pullbackVolumeRatio   as number,
+        rsiOversold:               form.rsiOversold               as number,
+        rsiOverbought:             form.rsiOverbought             as number,
+        rsiExitMinGainPct:         form.rsiExitMinGainPct         as number,
+        scoreTakeProfitThreshold:  form.scoreTakeProfitThreshold  as number,
+        scoreStopLossThreshold:    form.scoreStopLossThreshold    as number,
+        volBaselineCv:             form.volBaselineCv             as number,
+        volMultMin:                form.volMultMin                as number,
+        volMultMax:                form.volMultMax                as number,
+        stopLossCooldownMinutes:  form.stopLossCooldownMinutes   as number,
+        adxPeriod:                 form.adxPeriod                 as number,
+        adxThreshold:              form.adxThreshold              as number,
+        pullbackTrendMaDays:       form.pullbackTrendMaDays       as number,
+        riskPerTradePct:           form.riskPerTradePct           as number,
       };
       if (creating) {
         const res = await apiClient.post<ApiResponse<StrategyConfigDTO>>('/strategy/insertStrategyConfig', payload);
@@ -336,40 +388,11 @@ export default function Strategy() {
                 />
               </Section>
 
-              <Section title="익절 / 손절" icon="ri-shield-line">
-                <div className="grid grid-cols-2 gap-4">
-                  <NumInput
-                    label="즉시 익절 기준 (%)"
-                    desc="당일 시가 대비 이 % 이상 상승 시 즉시 익절"
-                    value={form.takeProfitPct} step={0.1} prefix="+" disabled={!canEdit}
-                    onChange={v => set('takeProfitPct', v)}
-                  />
-                  <NumInput
-                    label="즉시 손절 기준 (%)"
-                    desc="매수가 대비 이 % 이상 하락 시 즉시 손절"
-                    value={form.stopLossPct} step={0.1} prefix="-" disabled={!canEdit}
-                    onChange={v => set('stopLossPct', v)}
-                  />
-                </div>
-              </Section>
-
-              <Section title="눌림목 설정" icon="ri-arrow-down-line">
-                <RangeInput
-                  label="하락폭 범위 (%)"
-                  desc="당일 고가 대비 이 범위만큼 하락 시 눌림목 진입"
-                  min={form.pullbackMinPct} max={form.pullbackMaxPct} step={0.1} disabled={!canEdit}
-                  onChangeMin={v => set('pullbackMinPct', v)}
-                  onChangeMax={v => set('pullbackMaxPct', v)}
-                />
-              </Section>
-
-              <Section title="거래량 기준 (%)" icon="ri-bar-chart-2-line">
+              <Section title="1차 필터" icon="ri-filter-3-line">
                 <div className="bg-zinc-800/60 border border-zinc-700/50 rounded-lg px-3 py-2.5 mb-4 text-xs text-zinc-400 leading-relaxed space-y-1">
-                  <p><b className="text-zinc-300">현재 거래량</b>: 지금 시점 기준 최근 30분간 거래량</p>
-                  <p><b className="text-zinc-300">평균 거래량</b>: 오늘과 같은 시간대에서, 최근 30거래일 동안의 직전 30분간 거래량 평균</p>
-                  <p>예: 130 입력 시 → 현재 거래량이 평균의 130%일 때 조건 충족</p>
+                  <p>후보에 오르기 전에 가장 먼저 걸러내는 조건입니다. 여기서 탈락하면 정밀 판단 자체를 안 합니다.</p>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <NumInput
                     label="불타기 거래량 (≥)"
                     desc="현재 거래량이 평균 대비 이 비율 이상이면 매수 후보 포함 (거래량 급증 확인)"
@@ -377,16 +400,141 @@ export default function Strategy() {
                     onChange={v => set('buyingVolumeRatio', v)}
                   />
                   <NumInput
-                    label="손절 거래량 (≥)"
-                    desc="현재 거래량이 평균 대비 이 비율 이상이면 즉시 손절 (패닉 매도 확인)"
+                    label="손절 후 재진입 쿨다운"
+                    desc="손절(마이너스 청산) 직후 같은 종목에 재진입하지 않는 최소 대기시간"
+                    value={form.stopLossCooldownMinutes} step={5} suffix="분" disabled={!canEdit}
+                    onChange={v => set('stopLossCooldownMinutes', v)}
+                  />
+                </div>
+                <div className="mt-4">
+                  <RangeInput
+                    label="눌림목 하락폭 범위 (%)"
+                    desc="당일 고가 대비 이 범위만큼 하락 시 눌림목 후보 포함"
+                    min={form.pullbackMinPct} max={form.pullbackMaxPct} step={0.1} disabled={!canEdit}
+                    onChangeMin={v => set('pullbackMinPct', v)}
+                    onChangeMax={v => set('pullbackMaxPct', v)}
+                  />
+                </div>
+                <div className="mt-4">
+                  <NumInput
+                    label="눌림목 거래량 (≤) — 미사용"
+                    desc="예전 필터였으나 실측 검증 결과 실효성이 없어 현재 로직에서는 사용하지 않습니다. 값을 바꿔도 매매에 영향 없습니다."
+                    value={form.pullbackVolumeRatio} step={10} disabled={true}
+                    onChange={v => set('pullbackVolumeRatio', v)}
+                  />
+                </div>
+              </Section>
+
+              <Section title="2차 필터" icon="ri-shield-check-line">
+                <div className="bg-zinc-800/60 border border-zinc-700/50 rounded-lg px-3 py-2.5 mb-4 text-xs text-zinc-400 leading-relaxed space-y-1">
+                  <p>1차 필터를 통과한 후보를 정밀 판단(스코어링)하기 전에, 추세 강도로 한 번 더 거릅니다.</p>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <NumInput
+                    label="ADX 계산 기간"
+                    desc="추세강도(ADX) 계산에 사용할 봉 개수 (기본 14)"
+                    value={form.adxPeriod} step={1} suffix="봉" disabled={!canEdit}
+                    onChange={v => set('adxPeriod', v)}
+                  />
+                  <NumInput
+                    label="ADX 진입 게이트 문턱값"
+                    desc="ADX가 이 값 미만이면 추세가 약한(횡보) 구간으로 보고 신규 진입 차단 (청산엔 미적용)"
+                    value={form.adxThreshold} step={1} suffix="" disabled={!canEdit}
+                    onChange={v => set('adxThreshold', v)}
+                  />
+                  <NumInput
+                    label="눌림목 일봉 추세 게이트 (N일 이평)"
+                    desc="현재가가 최근 N일 이동평균 위(상승추세)일 때만 눌림목 진입 인정"
+                    value={form.pullbackTrendMaDays} step={1} suffix="일" disabled={!canEdit}
+                    onChange={v => set('pullbackTrendMaDays', v)}
+                  />
+                </div>
+              </Section>
+
+              <Section title="매수·매도 전략 1단계 (즉시 판단)" icon="ri-flashlight-line">
+                <div className="bg-zinc-800/60 border border-zinc-700/50 rounded-lg px-3 py-2.5 mb-4 text-xs text-zinc-400 leading-relaxed space-y-1">
+                  <p>2차 필터를 통과한 뒤, 정밀 스코어링 전에 정해진 비율을 넘으면 즉시 매수/매도가 체결됩니다.</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <NumInput
+                    label="즉시 익절 / 추격매수 방지 기준 (%)"
+                    desc="매도: 당일 시가 대비 이 % 이상이면 즉시 익절 · 매수: 이 % 이상 오른 종목은 추격매수 방지로 후보 제외"
+                    value={form.takeProfitPct} step={0.1} prefix="+" disabled={!canEdit}
+                    onChange={v => set('takeProfitPct', v)}
+                  />
+                  <NumInput
+                    label="즉시 손절 기준 (%)"
+                    desc="매수가 대비 이 % 이상 하락 시 즉시 손절 (매도 전략에서만 사용)"
+                    value={form.stopLossPct} step={0.1} prefix="-" disabled={!canEdit}
+                    onChange={v => set('stopLossPct', v)}
+                  />
+                  <NumInput
+                    label="트레이드당 리스크 상한 (%)"
+                    desc="계좌 총액 대비 이 비율만큼만 잃도록 매수 금액 상한을 산출 (손절폭이 넓을수록 매수 금액 자동 축소). 0이면 미적용"
+                    value={form.riskPerTradePct} step={0.1} disabled={!canEdit}
+                    onChange={v => set('riskPerTradePct', v)}
+                  />
+                  <NumInput
+                    label="변동성 기준값 (ATR%)"
+                    desc="평범한 30분 ATR(True Range) 기준값 — 실측 변동성과 비교해 위 두 임계값의 배수를 산출 (매수·매도 공통)"
+                    value={form.volBaselineCv} step={0.01} suffix="" disabled={!canEdit}
+                    onChange={v => set('volBaselineCv', v)}
+                  />
+                  <NumInput
+                    label="변동성 배수 하한"
+                    desc="임계값에 곱해지는 변동성 배수의 하한"
+                    value={form.volMultMin} step={0.1} suffix="배" disabled={!canEdit}
+                    onChange={v => set('volMultMin', v)}
+                  />
+                  <NumInput
+                    label="변동성 배수 상한"
+                    desc="임계값에 곱해지는 변동성 배수의 상한"
+                    value={form.volMultMax} step={0.1} suffix="배" disabled={!canEdit}
+                    onChange={v => set('volMultMax', v)}
+                  />
+                </div>
+              </Section>
+
+              <Section title="매수·매도 전략 2단계 (정밀 스코어링)" icon="ri-settings-4-line">
+                <div className="bg-zinc-800/60 border border-zinc-700/50 rounded-lg px-3 py-2.5 mb-4 text-xs text-zinc-400 leading-relaxed space-y-1">
+                  <p>1단계에서 즉시 체결되지 않은 경우, 패턴·RSI 기반으로 정밀 판단합니다. 기본값을 잘 모르면 건드리지 않는 것을 권장합니다 — 백테스트로 충분히 검증 후 변경하세요.</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <NumInput
+                    label="눌림목 과매도 기준 (RSI 14) — 매수"
+                    desc="눌림목 매수 시 RSI가 이 값 미만이어야만 진입 인정 (필수 조건)"
+                    value={form.rsiOversold} step={1} suffix="" disabled={!canEdit}
+                    onChange={v => set('rsiOversold', v)}
+                  />
+                  <NumInput
+                    label="손절 거래량 (≥) — 매도"
+                    desc="현재 거래량이 평균 대비 이 비율 이상이어야 손절 스코어링 진행 (패닉 매도 확인)"
                     value={form.stopLossVolumeRatio} step={10} disabled={!canEdit}
                     onChange={v => set('stopLossVolumeRatio', v)}
                   />
                   <NumInput
-                    label="눌림목 거래량 (≤)"
-                    desc="현재 거래량이 평균 대비 이 비율 이하면 매수 후보 포함 (거래량 감소 확인)"
-                    value={form.pullbackVolumeRatio} step={10} disabled={!canEdit}
-                    onChange={v => set('pullbackVolumeRatio', v)}
+                    label="과매수 기준 (RSI 14) — 매도"
+                    desc="보유 중 수익 상태에서 RSI가 이 값을 초과하면 조기청산 강화"
+                    value={form.rsiOverbought} step={1} suffix="" disabled={!canEdit}
+                    onChange={v => set('rsiOverbought', v)}
+                  />
+                  <NumInput
+                    label="조기청산 최소 수익률 — 매도"
+                    desc="RSI 과매수 조기청산은 매수가 대비 이 수익률 이상일 때만 발동"
+                    value={form.rsiExitMinGainPct} step={0.1} disabled={!canEdit}
+                    onChange={v => set('rsiExitMinGainPct', v)}
+                  />
+                  <NumInput
+                    label="익절 스코어링 문턱값 — 매도"
+                    desc="이동평균 방향+연속 하락 합산(0~4점)이 이 값 이상이면 익절 매도"
+                    value={form.scoreTakeProfitThreshold} step={1} suffix="점" disabled={!canEdit}
+                    onChange={v => set('scoreTakeProfitThreshold', v)}
+                  />
+                  <NumInput
+                    label="손절 스코어링 문턱값 — 매도"
+                    desc="이동평균 방향+연속 하락 합산(0~4점)이 이 값 이상이면 손절 매도"
+                    value={form.scoreStopLossThreshold} step={1} suffix="점" disabled={!canEdit}
+                    onChange={v => set('scoreStopLossThreshold', v)}
                   />
                 </div>
               </Section>

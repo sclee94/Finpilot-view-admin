@@ -25,6 +25,9 @@ export default function ProfileModal({ isOpen, onClose, user }: ProfileModalProp
   const [kisMsg, setKisMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [pwSaving, setPwSaving] = useState(false);
   const [pwMsg, setPwMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [tradingIntervalMinutes, setTradingIntervalMinutes] = useState(15);
+  const [intervalSaving, setIntervalSaving] = useState(false);
+  const [intervalMsg, setIntervalMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -46,8 +49,9 @@ export default function ProfileModal({ isOpen, onClose, user }: ProfileModalProp
         setKisPaperAppSecret(u.kisPaperAppSecret ?? '');
         setKisPaperAccountNo(u.kisPaperAccountNo ?? '');
         setKisPaperAccountProduct(u.kisPaperAccountProduct ?? '01');
+        setTradingIntervalMinutes(u.tradingIntervalMinutes ?? 15);
         const stored = authStorage.get();
-        if (stored) authStorage.save({ ...stored, kisAppKey: u.kisAppKey, kisAppSecret: u.kisAppSecret, kisAccountNo: u.kisAccountNo, kisAccountProduct: u.kisAccountProduct, kisPaperAppKey: u.kisPaperAppKey, kisPaperAppSecret: u.kisPaperAppSecret, kisPaperAccountNo: u.kisPaperAccountNo, kisPaperAccountProduct: u.kisPaperAccountProduct });
+        if (stored) authStorage.save({ ...stored, kisAppKey: u.kisAppKey, kisAppSecret: u.kisAppSecret, kisAccountNo: u.kisAccountNo, kisAccountProduct: u.kisAccountProduct, kisPaperAppKey: u.kisPaperAppKey, kisPaperAppSecret: u.kisPaperAppSecret, kisPaperAccountNo: u.kisPaperAccountNo, kisPaperAccountProduct: u.kisPaperAccountProduct, tradingIntervalMinutes: u.tradingIntervalMinutes });
       }
     }).catch(() => {
       setKisAppKey(user.kisAppKey ?? '');
@@ -58,6 +62,7 @@ export default function ProfileModal({ isOpen, onClose, user }: ProfileModalProp
       setKisPaperAppSecret(user.kisPaperAppSecret ?? '');
       setKisPaperAccountNo(user.kisPaperAccountNo ?? '');
       setKisPaperAccountProduct(user.kisPaperAccountProduct ?? '01');
+      setTradingIntervalMinutes(user.tradingIntervalMinutes ?? 15);
     });
   }, [isOpen, user?.userUid]);
 
@@ -87,6 +92,29 @@ export default function ProfileModal({ isOpen, onClose, user }: ProfileModalProp
       setPwMsg({ type: 'error', text: '서버 연결에 실패했습니다.' });
     } finally {
       setPwSaving(false);
+    }
+  };
+
+  const handleIntervalSave = async (value: number) => {
+    const previous = tradingIntervalMinutes;
+    setTradingIntervalMinutes(value);
+    setIntervalSaving(true);
+    setIntervalMsg(null);
+    try {
+      const res = await userUpdate({ userUid: user.userUid, tradingIntervalMinutes: value });
+      if (res.status < 400) {
+        setIntervalMsg({ type: 'success', text: '매매 주기가 저장되었습니다.' });
+        const stored = authStorage.get();
+        if (stored) authStorage.save({ ...stored, tradingIntervalMinutes: value });
+      } else {
+        setTradingIntervalMinutes(previous);
+        setIntervalMsg({ type: 'error', text: res.message || '저장에 실패했습니다.' });
+      }
+    } catch {
+      setTradingIntervalMinutes(previous);
+      setIntervalMsg({ type: 'error', text: '서버 연결에 실패했습니다.' });
+    } finally {
+      setIntervalSaving(false);
     }
   };
 
@@ -204,6 +232,34 @@ export default function ProfileModal({ isOpen, onClose, user }: ProfileModalProp
           >
             {pwSaving ? '변경 중...' : '비밀번호 변경'}
           </button>
+
+          {/* 자동매매 판단 주기 */}
+          <div className="mt-6 pt-5 border-t border-zinc-800">
+            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">자동매매 판단 주기</p>
+            <p className="text-xs text-zinc-500 mb-4">이 주기마다 보유/후보 종목을 다시 판단합니다. 백테스트에도 동일하게 적용됩니다.</p>
+            <div className="grid grid-cols-4 gap-2">
+              {[5, 10, 15, 30].map((min) => (
+                <button
+                  key={min}
+                  type="button"
+                  disabled={intervalSaving}
+                  onClick={() => handleIntervalSave(min)}
+                  className={`py-2.5 text-sm font-semibold rounded-xl border transition-colors cursor-pointer disabled:opacity-50 ${
+                    tradingIntervalMinutes === min
+                      ? 'bg-teal-500/15 border-teal-500 text-teal-300'
+                      : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-zinc-600'
+                  }`}
+                >
+                  {min}분
+                </button>
+              ))}
+            </div>
+            {intervalMsg && (
+              <p className={`mt-3 text-sm ${intervalMsg.type === 'success' ? 'text-teal-400' : 'text-red-400'}`}>
+                {intervalMsg.text}
+              </p>
+            )}
+          </div>
 
           {/* 카카오 알림 연동 섹션 */}
           <div className="mt-6 pt-5 border-t border-zinc-800">

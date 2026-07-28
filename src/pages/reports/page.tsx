@@ -34,7 +34,8 @@ const PAGE_SIZE = 15;
 type SortField = 'createdAt' | 'entryAt' | 'exitAt' | 'realizedPnl' | null;
 type SortDir = 'asc' | 'desc';
 
-const today = new Date().toISOString().slice(0, 10);
+// toISOString()은 UTC 기준이라 새벽 0~9시 KST엔 하루 전 날짜가 나옴 — 거래소 기준(KST)으로 고정
+const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date());
 
 export default function ReportsPage() {
   const user    = authStorage.get();

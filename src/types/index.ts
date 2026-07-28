@@ -43,6 +43,7 @@ export interface User {
   kisPaperAccountProduct?: string;
   kisPaperAccessToken?: string;
   kisPaperTokenExpiredAt?: string;
+  tradingIntervalMinutes?: number; // 자동매매 판단 주기(분) — 5/10/15/30 중 선택, 기본 15
 }
 
 /**
