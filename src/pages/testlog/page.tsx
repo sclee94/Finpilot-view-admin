@@ -6,10 +6,11 @@ import { authStorage } from '../../utils/auth';
 import { PERMISSIONS } from '../../constants';
 import type { ApiResponse, PageResponse } from '../../types/index';
 import type { StrategyConfigDTO } from '../strategy/strategyTypes';
-import { SYMBOL_OPTIONS } from '../strategy/strategyTypes';
 import Pagination from '../../components/Pagination';
 import { getSymbolName } from '../../constants/symbolNames';
 import FilterButtonGroup from '../../components/FilterButtonGroup';
+import { useEnterConfirm } from '../../hooks/useEnterConfirm';
+import SymbolPicker from '../../components/SymbolPicker';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -710,6 +711,11 @@ export default function TestLog() {
     }
   };
 
+  // 커스텀 확인/에러 팝업은 브라우저 네이티브 confirm/alert과 달리 Enter 키를 기본 지원하지
+  // 않으므로 직접 연결 (에러 팝업은 확인 버튼 하나뿐이라 Enter=닫기)
+  useEnterConfirm(!!deleteTarget, handleDeleteConfirm);
+  useEnterConfirm(!!errorMessage, () => setErrorMessage(''));
+
   return (
     <PageLayout>
       {/* 거래 내역 팝업 */}
@@ -822,17 +828,7 @@ export default function TestLog() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
               <div>
                 <label className="block text-sm font-medium text-zinc-300 mb-1.5">종목</label>
-                <select
-                  value={runSymbol}
-                  onChange={e => setRunSymbol(e.target.value)}
-                  disabled={running}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-teal-500 transition-colors disabled:opacity-50"
-                >
-                  <option value="">— 종목을 선택하세요 —</option>
-                  {SYMBOL_OPTIONS.map(o => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
+                <SymbolPicker value={runSymbol} onChange={setRunSymbol} disabled={running} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-zinc-300 mb-1.5">전략 설정</label>

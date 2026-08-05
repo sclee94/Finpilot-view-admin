@@ -46,6 +46,16 @@ export interface User {
   tradingIntervalMinutes?: number; // 자동매매 판단 주기(분) — 5/10/15/30 중 선택, 기본 15
 }
 
+/** symbol_universe 테이블 매핑 — 실전투자 탭 종목 선택 리스트(코스피200/나스닥100/지수).
+ * lastPrice는 매일 01:00 배치(yfinance)로 갱신 — 갱신 전이면 null */
+export interface SymbolUniverse {
+  symbol:         string;
+  symbolName:     string;
+  category:       'KOSPI200' | 'NASDAQ100' | 'INDEX';
+  lastPrice:      number | null;
+  priceUpdatedAt: string | null;
+}
+
 /**
  * trading_session 테이블 매핑 (KOSPI 거래량+모멘텀 전략)
  * currentPosition: 백엔드에서 'NONE' | 'LONG' 문자열로 반환 (공매도 없음)

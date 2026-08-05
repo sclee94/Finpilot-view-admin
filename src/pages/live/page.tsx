@@ -4,9 +4,10 @@ import { authStorage } from '../../utils/auth';
 import { PERMISSIONS } from '../../constants';
 import type { ApiResponse, TradingSession, TradeHistory } from '../../types/index';
 import type { StrategyConfigDTO } from '../strategy/strategyTypes';
-import { SYMBOL_OPTIONS } from '../strategy/strategyTypes';
 import { getSymbolName } from '../../constants/symbolNames';
 import { apiClient } from '../../api/apiClient';
+import { useEnterConfirm } from '../../hooks/useEnterConfirm';
+import SymbolPicker from '../../components/SymbolPicker';
 import {
   getExecuteOnOff,
   setExecuteOnOff,
@@ -17,6 +18,7 @@ import {
   resetTradingSession,
   getTradeHistoryList,
   updateSessionStrategyConfigId,
+  updateSessionStrategyConfigIdBulk,
   syncPosition,
   adjustCapital,
   toggleForceCloseEnabled,
@@ -65,14 +67,14 @@ export default function Live() {
     }
   };
 
-  // 전략 변경 팝업
-  const [strategyChangePopup, setStrategyChangePopup] = useState<{ sessionId: string; currentStrategyId: number | null; currentStrategyTitle: string } | null>(null);
+  // 전략 변경 팝업 — sessionId가 null이면 해당 mode 전체 세션 일괄변경
+  const [strategyChangePopup, setStrategyChangePopup] = useState<{ sessionId: string | null; mode: 'LIVE' | 'PAPER'; currentStrategyId: number | null; currentStrategyTitle: string } | null>(null);
   const [strategyList, setStrategyList] = useState<StrategyConfigDTO[]>([]);
   const [strategyListLoading, setStrategyListLoading] = useState(false);
   const [selectedNewStrategy, setSelectedNewStrategy] = useState<StrategyConfigDTO | null>(null);
+  const [bulkStrategySubmitting, setBulkStrategySubmitting] = useState(false);
 
-  const openStrategyChangePopup = useCallback(async (sessionId: string, currentStrategyId: number | null, currentStrategyTitle: string) => {
-    setStrategyChangePopup({ sessionId, currentStrategyId, currentStrategyTitle });
+  const loadStrategyListForPopup = useCallback(async () => {
     setSelectedNewStrategy(null);
     const userUid = authStorage.get()?.userUid;
     if (!userUid) return;
@@ -88,32 +90,62 @@ export default function Live() {
     }
   }, []);
 
+  const openStrategyChangePopup = useCallback((sessionId: string, mode: 'LIVE' | 'PAPER', currentStrategyId: number | null, currentStrategyTitle: string) => {
+    setStrategyChangePopup({ sessionId, mode, currentStrategyId, currentStrategyTitle });
+    loadStrategyListForPopup();
+  }, [loadStrategyListForPopup]);
+
+  const openBulkStrategyChangePopup = useCallback((mode: 'LIVE' | 'PAPER') => {
+    setStrategyChangePopup({ sessionId: null, mode, currentStrategyId: null, currentStrategyTitle: '' });
+    loadStrategyListForPopup();
+  }, [loadStrategyListForPopup]);
+
   const handleStrategyChange = async () => {
     if (!strategyChangePopup || !selectedNewStrategy?.id) return;
-    const { sessionId } = strategyChangePopup;
+    const { sessionId, mode } = strategyChangePopup;
     const newStrategy = selectedNewStrategy;
+    const strategyConfigPatch: NonNullable<TradingSession['strategyConfig']> = {
+      id:                  newStrategy.id!,
+      name:                newStrategy.name,
+      takeProfitPct:       newStrategy.takeProfitPct,
+      stopLossPct:         newStrategy.stopLossPct,
+      pullbackMinPct:      newStrategy.pullbackMinPct,
+      pullbackMaxPct:      newStrategy.pullbackMaxPct,
+      buyingVolumeRatio:   newStrategy.buyingVolumeRatio,
+      stopLossVolumeRatio: newStrategy.stopLossVolumeRatio,
+      pullbackVolumeRatio: newStrategy.pullbackVolumeRatio,
+    };
     try {
-      await updateSessionStrategyConfigId({ id: sessionId, strategyConfigId: newStrategy.id });
-      // API가 갱신된 세션을 돌려주지 않아서, 이미 들고 있는 선택된 전략 객체로 즉시 반영 (재조회 없이 화면 즉시 갱신)
-      setSessionList(prev => prev.map(s => s.id === sessionId ? {
-        ...s,
-        strategyConfigId: newStrategy.id!,
-        strategyConfig: {
-          id:                  newStrategy.id!,
-          name:                newStrategy.name,
-          takeProfitPct:       newStrategy.takeProfitPct,
-          stopLossPct:         newStrategy.stopLossPct,
-          pullbackMinPct:      newStrategy.pullbackMinPct,
-          pullbackMaxPct:      newStrategy.pullbackMaxPct,
-          buyingVolumeRatio:   newStrategy.buyingVolumeRatio,
-          stopLossVolumeRatio: newStrategy.stopLossVolumeRatio,
-          pullbackVolumeRatio: newStrategy.pullbackVolumeRatio,
-        },
-      } : s));
+      if (sessionId == null) {
+        // 일괄 변경 — 해당 모드(LIVE/PAPER) 전체 세션(실행중+중지됨 포함)
+        const userUid = authStorage.get()?.userUid;
+        if (!userUid) return;
+        setBulkStrategySubmitting(true);
+        const res = await updateSessionStrategyConfigIdBulk({ userUid, mode, strategyConfigId: newStrategy.id });
+        if (res.status >= 400) {
+          setErrorMessage(res.message || '전략 일괄 변경에 실패했습니다.');
+          return;
+        }
+        setSessionList(prev => prev.map(s => (s.mode === mode && s.userUid === userUid) ? {
+          ...s,
+          strategyConfigId: newStrategy.id!,
+          strategyConfig: strategyConfigPatch,
+        } : s));
+      } else {
+        await updateSessionStrategyConfigId({ id: sessionId, strategyConfigId: newStrategy.id });
+        // API가 갱신된 세션을 돌려주지 않아서, 이미 들고 있는 선택된 전략 객체로 즉시 반영 (재조회 없이 화면 즉시 갱신)
+        setSessionList(prev => prev.map(s => s.id === sessionId ? {
+          ...s,
+          strategyConfigId: newStrategy.id!,
+          strategyConfig: strategyConfigPatch,
+        } : s));
+      }
       setStrategyChangePopup(null);
       setSelectedNewStrategy(null);
     } catch {
-      setErrorMessage('전략 변경에 실패했습니다.');
+      setErrorMessage(sessionId == null ? '전략 일괄 변경에 실패했습니다.' : '전략 변경에 실패했습니다.');
+    } finally {
+      setBulkStrategySubmitting(false);
     }
   };
 
@@ -308,6 +340,22 @@ export default function Live() {
     }
   };
 
+  // 중지/재실행/초기화/삭제 확인 팝업의 "확인" 버튼 클릭과 동일한 동작 — Enter 키로도 실행되도록 분리
+  const handleConfirmActionExecute = async () => {
+    if (!confirmAction) return;
+    const { id, type } = confirmAction;
+    setConfirmAction(null);
+    if (type === 'stop') await handleStopSession(id);
+    else if (type === 'resume') await handleResumeSession(id);
+    else if (type === 'reset') await handleResetSession(id);
+    else await handleDeleteSession(id);
+  };
+
+  // 커스텀 확인 팝업들은 브라우저 네이티브 confirm()과 달리 Enter 키를 기본 지원하지 않으므로 직접 연결
+  useEnterConfirm(!!confirmAction, handleConfirmActionExecute);
+  useEnterConfirm(!!capitalPopup && !capitalSubmitting, handleAdjustCapital);
+  useEnterConfirm(!!strategyChangePopup && !!selectedNewStrategy?.id && !bulkStrategySubmitting, handleStrategyChange);
+
   // 보유 수량 1주 이상인 세션을 상단에 노출
   const visibleSessions = sessionList
     .filter(s => s.mode === sessionTab)
@@ -322,8 +370,14 @@ export default function Live() {
             {/* 헤더 */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 shrink-0">
               <div>
-                <h2 className="text-base font-bold text-zinc-100">전략 변경</h2>
-                <p className="text-xs text-zinc-500 mt-0.5">현재: <span className="text-zinc-300">{strategyChangePopup.currentStrategyTitle || '-'}</span></p>
+                <h2 className="text-base font-bold text-zinc-100">
+                  {strategyChangePopup.sessionId == null ? `전략 일괄 변경 (${strategyChangePopup.mode === 'LIVE' ? '실전투자' : '모의투자'})` : '전략 변경'}
+                </h2>
+                {strategyChangePopup.sessionId == null ? (
+                  <p className="text-xs text-zinc-500 mt-0.5">{strategyChangePopup.mode === 'LIVE' ? '실전투자' : '모의투자'} 세션 전체(실행중+중지됨)에 적용됩니다</p>
+                ) : (
+                  <p className="text-xs text-zinc-500 mt-0.5">현재: <span className="text-zinc-300">{strategyChangePopup.currentStrategyTitle || '-'}</span></p>
+                )}
               </div>
               <button
                 onClick={() => { setStrategyChangePopup(null); setSelectedNewStrategy(null); }}
@@ -403,14 +457,14 @@ export default function Live() {
                 </button>
                 <button
                   onClick={handleStrategyChange}
-                  disabled={!selectedNewStrategy}
+                  disabled={!selectedNewStrategy || bulkStrategySubmitting}
                   className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
-                    selectedNewStrategy
+                    selectedNewStrategy && !bulkStrategySubmitting
                       ? 'bg-teal-500 hover:bg-teal-400 text-white cursor-pointer'
                       : 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
                   }`}
                 >
-                  변경하기
+                  {bulkStrategySubmitting ? '변경 중...' : strategyChangePopup.sessionId == null ? '일괄 변경하기' : '변경하기'}
                 </button>
               </div>
             </div>
@@ -489,14 +543,7 @@ export default function Live() {
                 취소
               </button>
               <button
-                onClick={async () => {
-                  const { id, type } = confirmAction;
-                  setConfirmAction(null);
-                  if (type === 'stop') await handleStopSession(id);
-                  else if (type === 'resume') await handleResumeSession(id);
-                  else if (type === 'reset') await handleResetSession(id);
-                  else await handleDeleteSession(id);
-                }}
+                onClick={handleConfirmActionExecute}
                 className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-colors cursor-pointer text-white ${
                   confirmAction.type === 'stop' ? 'bg-amber-500 hover:bg-amber-400'
                   : confirmAction.type === 'resume' ? 'bg-teal-500 hover:bg-teal-400'
@@ -828,22 +875,10 @@ export default function Live() {
                 </div>
               </div>
               {investSymbolMode === 'dropdown' ? (
-                <select
+                <SymbolPicker
                   value={investDropdown}
-                  onChange={e => { setInvestDropdown(e.target.value); setInvestSymbol(e.target.value); }}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-teal-500 transition-colors"
-                >
-                  <option value="" disabled>— 종목을 선택하세요 —</option>
-                  {Object.entries(
-                    SYMBOL_OPTIONS.reduce<Record<string, typeof SYMBOL_OPTIONS>>((acc, o) => {
-                      (acc[o.group] ??= []).push(o); return acc;
-                    }, {})
-                  ).map(([g, opts]) => (
-                    <optgroup key={g} label={g}>
-                      {opts.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                    </optgroup>
-                  ))}
-                </select>
+                  onChange={v => { setInvestDropdown(v); setInvestSymbol(v); }}
+                />
               ) : (
                 <input
                   type="text"
@@ -937,6 +972,15 @@ export default function Live() {
                   </button>
                 </div>
               )}
+              {!isAdmin && sessionList.some(s => s.mode === sessionTab) && (
+                <button
+                  type="button"
+                  onClick={() => openBulkStrategyChangePopup(sessionTab)}
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors cursor-pointer"
+                >
+                  <i className="ri-swap-line mr-1"></i>전략 일괄변경
+                </button>
+              )}
               <button
                 onClick={() => fetchSessionList()}
                 className="text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
@@ -983,7 +1027,7 @@ export default function Live() {
                         <span
                           className="text-xs text-teal-300 bg-teal-500/10 px-2 py-0.5 rounded-md cursor-pointer hover:bg-teal-500/20 transition-colors"
                           title={`익절 +${session.strategyConfig.takeProfitPct}% · 손절 -${session.strategyConfig.stopLossPct}% (클릭해서 변경)`}
-                          onClick={() => openStrategyChangePopup(session.id, session.strategyConfigId, session.strategyConfig!.name || `전략 #${session.strategyConfigId}`)}
+                          onClick={() => openStrategyChangePopup(session.id, session.mode, session.strategyConfigId, session.strategyConfig!.name || `전략 #${session.strategyConfigId}`)}
                         >
                           {session.strategyConfig.name || `전략 #${session.strategyConfigId}`}
                         </span>

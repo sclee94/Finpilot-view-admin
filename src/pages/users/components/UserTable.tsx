@@ -9,6 +9,7 @@ import FilterSelect from '../../../components/FilterSelect';
 import UserModal from './UserModal';
 import UserDetailModal from './UserDetailModal';
 import { useTableFilter } from '../../../hooks/useTableFilter';
+import { useEnterConfirm } from '../../../hooks/useEnterConfirm';
 import { getPermissionLabel, getPermissionBadgeVariant, getStatusLabel, getStatusBadgeVariant } from '../../../utils/userHelpers';
 
 interface UserTableProps {
@@ -73,6 +74,9 @@ export default function UserTable({ users, onUpdateUser, onDeleteUser }: UserTab
       setDeleteTarget(null);
     }
   };
+
+  // 삭제 확인 팝업은 브라우저 네이티브 confirm()과 달리 Enter 키를 기본 지원하지 않으므로 직접 연결
+  useEnterConfirm(!!deleteTarget, handleDeleteConfirm);
 
   return (
     <div className="space-y-4">

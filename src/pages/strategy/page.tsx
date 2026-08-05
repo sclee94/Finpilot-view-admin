@@ -32,6 +32,8 @@ interface FormState {
   adxThreshold:              NumVal;
   pullbackTrendMaDays:       NumVal;
   riskPerTradePct:           NumVal;
+  gradeCutoffBullish:        NumVal;
+  gradeCutoffPullback:       NumVal;
 }
 
 const EMPTY_FORM: FormState = {
@@ -42,7 +44,7 @@ const EMPTY_FORM: FormState = {
   pullbackMaxPct:      '',
   buyingVolumeRatio:   '',
   stopLossVolumeRatio: '',
-  pullbackVolumeRatio: '',
+  pullbackVolumeRatio: 80, // 미사용(disabled) 필드 — 사용자가 값을 채울 방법이 없으므로 DB 기본값으로 미리 채워둠 (안 그러면 새 전략 생성 시 isFormValid가 영원히 false)
   rsiOversold:               '',
   rsiOverbought:             '',
   rsiExitMinGainPct:         '',
@@ -56,6 +58,8 @@ const EMPTY_FORM: FormState = {
   adxThreshold:              '',
   pullbackTrendMaDays:       '',
   riskPerTradePct:           '',
+  gradeCutoffBullish:        '',
+  gradeCutoffPullback:       '',
 };
 
 function dtoToForm(dto: StrategyConfigDTO): FormState {
@@ -81,7 +85,46 @@ function dtoToForm(dto: StrategyConfigDTO): FormState {
     adxThreshold:              dto.adxThreshold              ?? '',
     pullbackTrendMaDays:       dto.pullbackTrendMaDays       ?? '',
     riskPerTradePct:           dto.riskPerTradePct           ?? '',
+    gradeCutoffBullish:        dto.gradeCutoffBullish        ?? '',
+    gradeCutoffPullback:       dto.gradeCutoffPullback       ?? '',
   };
+}
+
+// ─── 매수/매도/공통 색상 구분 ───────────────────────────────────────────────────
+// 각 파라미터가 실제 전략 로직(kospi_strategy.py / api.py)의 매수 판단, 매도 판단,
+// 혹은 둘 다에 쓰이는지에 따라 색으로 구분한다 — 값을 고칠 때 어느 쪽에 영향을 주는지
+// 한눈에 알 수 있도록.
+type FieldCategory = 'buy' | 'sell' | 'common';
+
+const CATEGORY_STYLE: Record<FieldCategory, { label: string; text: string; badgeBg: string; border: string }> = {
+  buy:    { label: '매수', text: 'text-emerald-400', badgeBg: 'bg-emerald-500/15', border: 'border-emerald-500/40' },
+  sell:   { label: '매도', text: 'text-rose-400',    badgeBg: 'bg-rose-500/15',    border: 'border-rose-500/40' },
+  common: { label: '공통', text: 'text-amber-400',   badgeBg: 'bg-amber-500/15',   border: 'border-amber-500/40' },
+};
+
+function CategoryBadge({ category }: { category: FieldCategory }) {
+  const s = CATEGORY_STYLE[category];
+  return (
+    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold ${s.badgeBg} ${s.text}`}>
+      {s.label}
+    </span>
+  );
+}
+
+function CategoryLegend() {
+  return (
+    <div className="flex items-center gap-4 px-4 py-2.5 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-400">
+      <span className="text-zinc-500">색상 안내:</span>
+      {(Object.keys(CATEGORY_STYLE) as FieldCategory[]).map(cat => (
+        <span key={cat} className="inline-flex items-center gap-1.5">
+          <CategoryBadge category={cat} />
+          <span>
+            {cat === 'buy' ? '매수 판단에만 영향' : cat === 'sell' ? '매도 판단에만 영향' : '매수·매도 둘 다에 영향'}
+          </span>
+        </span>
+      ))}
+    </div>
+  );
 }
 
 // ─── UI Components ────────────────────────────────────────────────────────────
@@ -99,14 +142,18 @@ function Section({ title, icon, children }: { title: string; icon: string; child
 }
 
 function NumInput({
-  label, desc, value, onChange, step = 0.1, suffix = '%', prefix = '', disabled = false,
+  label, desc, value, onChange, step = 0.1, suffix = '%', prefix = '', disabled = false, category,
 }: {
   label: string; desc: string; value: NumVal;
   onChange: (v: NumVal) => void; step?: number; suffix?: string; prefix?: string; disabled?: boolean;
+  category: FieldCategory;
 }) {
   return (
-    <div>
-      <label className="block text-sm font-medium text-zinc-300 mb-0.5">{label}</label>
+    <div className={`pl-3 border-l-2 ${CATEGORY_STYLE[category].border}`}>
+      <div className="flex items-center gap-1.5 mb-0.5">
+        <label className="block text-sm font-medium text-zinc-300">{label}</label>
+        <CategoryBadge category={category} />
+      </div>
       <p className="text-xs text-zinc-500 mb-2">{desc}</p>
       <div className="flex items-center gap-2">
         {prefix && <span className="text-sm text-zinc-500 shrink-0">{prefix}</span>}
@@ -129,15 +176,19 @@ function NumInput({
 }
 
 function RangeInput({
-  label, desc, min, max, onChangeMin, onChangeMax, step = 0.1, suffix = '%', disabled = false,
+  label, desc, min, max, onChangeMin, onChangeMax, step = 0.1, suffix = '%', disabled = false, category,
 }: {
   label: string; desc: string; min: NumVal; max: NumVal;
   onChangeMin: (v: NumVal) => void; onChangeMax: (v: NumVal) => void; step?: number; suffix?: string; disabled?: boolean;
+  category: FieldCategory;
 }) {
   const parse = (v: string) => v === '' ? '' : parseFloat(v);
   return (
-    <div>
-      <label className="block text-sm font-medium text-zinc-300 mb-0.5">{label}</label>
+    <div className={`pl-3 border-l-2 ${CATEGORY_STYLE[category].border}`}>
+      <div className="flex items-center gap-1.5 mb-0.5">
+        <label className="block text-sm font-medium text-zinc-300">{label}</label>
+        <CategoryBadge category={category} />
+      </div>
       <p className="text-xs text-zinc-500 mb-2">{desc}</p>
       <div className="flex items-center gap-2">
         <input
@@ -250,6 +301,8 @@ export default function Strategy() {
         adxThreshold:              form.adxThreshold              as number,
         pullbackTrendMaDays:       form.pullbackTrendMaDays       as number,
         riskPerTradePct:           form.riskPerTradePct           as number,
+        gradeCutoffBullish:        form.gradeCutoffBullish        as number,
+        gradeCutoffPullback:       form.gradeCutoffPullback       as number,
       };
       if (creating) {
         const res = await apiClient.post<ApiResponse<StrategyConfigDTO>>('/strategy/insertStrategyConfig', payload);
@@ -369,6 +422,8 @@ export default function Strategy() {
             </div>
           )}
 
+          {!creating && !selected ? null : <CategoryLegend />}
+
           {!creating && !selected ? (
             <div className="py-16 text-center text-zinc-500">
               <i className="ri-settings-3-line text-4xl block mb-2"></i>
@@ -396,13 +451,13 @@ export default function Strategy() {
                   <NumInput
                     label="불타기 거래량 (≥)"
                     desc="현재 거래량이 평균 대비 이 비율 이상이면 매수 후보 포함 (거래량 급증 확인)"
-                    value={form.buyingVolumeRatio} step={10} disabled={!canEdit}
+                    value={form.buyingVolumeRatio} step={10} disabled={!canEdit} category="buy"
                     onChange={v => set('buyingVolumeRatio', v)}
                   />
                   <NumInput
                     label="손절 후 재진입 쿨다운"
                     desc="손절(마이너스 청산) 직후 같은 종목에 재진입하지 않는 최소 대기시간"
-                    value={form.stopLossCooldownMinutes} step={5} suffix="분" disabled={!canEdit}
+                    value={form.stopLossCooldownMinutes} step={5} suffix="분" disabled={!canEdit} category="buy"
                     onChange={v => set('stopLossCooldownMinutes', v)}
                   />
                 </div>
@@ -410,7 +465,7 @@ export default function Strategy() {
                   <RangeInput
                     label="눌림목 하락폭 범위 (%)"
                     desc="당일 고가 대비 이 범위만큼 하락 시 눌림목 후보 포함"
-                    min={form.pullbackMinPct} max={form.pullbackMaxPct} step={0.1} disabled={!canEdit}
+                    min={form.pullbackMinPct} max={form.pullbackMaxPct} step={0.1} disabled={!canEdit} category="buy"
                     onChangeMin={v => set('pullbackMinPct', v)}
                     onChangeMax={v => set('pullbackMaxPct', v)}
                   />
@@ -419,7 +474,7 @@ export default function Strategy() {
                   <NumInput
                     label="눌림목 거래량 (≤) — 미사용"
                     desc="예전 필터였으나 실측 검증 결과 실효성이 없어 현재 로직에서는 사용하지 않습니다. 값을 바꿔도 매매에 영향 없습니다."
-                    value={form.pullbackVolumeRatio} step={10} disabled={true}
+                    value={form.pullbackVolumeRatio} step={10} disabled={true} category="buy"
                     onChange={v => set('pullbackVolumeRatio', v)}
                   />
                 </div>
@@ -433,20 +488,32 @@ export default function Strategy() {
                   <NumInput
                     label="ADX 계산 기간"
                     desc="추세강도(ADX) 계산에 사용할 봉 개수 (기본 14)"
-                    value={form.adxPeriod} step={1} suffix="봉" disabled={!canEdit}
+                    value={form.adxPeriod} step={1} suffix="봉" disabled={!canEdit} category="buy"
                     onChange={v => set('adxPeriod', v)}
                   />
                   <NumInput
                     label="ADX 진입 게이트 문턱값"
                     desc="ADX가 이 값 미만이면 추세가 약한(횡보) 구간으로 보고 신규 진입 차단 (청산엔 미적용)"
-                    value={form.adxThreshold} step={1} suffix="" disabled={!canEdit}
+                    value={form.adxThreshold} step={1} suffix="" disabled={!canEdit} category="buy"
                     onChange={v => set('adxThreshold', v)}
                   />
                   <NumInput
                     label="눌림목 일봉 추세 게이트 (N일 이평)"
                     desc="현재가가 최근 N일 이동평균 위(상승추세)일 때만 눌림목 진입 인정"
-                    value={form.pullbackTrendMaDays} step={1} suffix="일" disabled={!canEdit}
+                    value={form.pullbackTrendMaDays} step={1} suffix="일" disabled={!canEdit} category="buy"
                     onChange={v => set('pullbackTrendMaDays', v)}
+                  />
+                  <NumInput
+                    label="시장+종목 상대강도 컷오프 (불타기)"
+                    desc="시장+종목 합산 등급(1~15, 낮을수록 좋음)이 이 값보다 나쁘면 불타기 후보 차단. 기본 12 — 값을 낮출수록(예: 10) 더 엄격해져 거래는 줄지만 낯선 종목군에서도 안정적, 높일수록(예: 14+) 튜닝된 종목에서 더 잘 통함"
+                    value={form.gradeCutoffBullish} step={1} disabled={!canEdit} category="buy"
+                    onChange={v => set('gradeCutoffBullish', v)}
+                  />
+                  <NumInput
+                    label="시장+종목 상대강도 컷오프 (눌림목)"
+                    desc="시장+종목 합산 등급이 이 값보다 나쁘면 눌림목 후보 차단(시장+종목 둘 다 당일 하락일 때만 걸리도록 느슨하게, 기본 14)"
+                    value={form.gradeCutoffPullback} step={1} disabled={!canEdit} category="buy"
+                    onChange={v => set('gradeCutoffPullback', v)}
                   />
                 </div>
               </Section>
@@ -459,37 +526,37 @@ export default function Strategy() {
                   <NumInput
                     label="즉시 익절 / 추격매수 방지 기준 (%)"
                     desc="매도: 당일 시가 대비 이 % 이상이면 즉시 익절 · 매수: 이 % 이상 오른 종목은 추격매수 방지로 후보 제외"
-                    value={form.takeProfitPct} step={0.1} prefix="+" disabled={!canEdit}
+                    value={form.takeProfitPct} step={0.1} prefix="+" disabled={!canEdit} category="common"
                     onChange={v => set('takeProfitPct', v)}
                   />
                   <NumInput
                     label="즉시 손절 기준 (%)"
                     desc="매수가 대비 이 % 이상 하락 시 즉시 손절 (매도 전략에서만 사용)"
-                    value={form.stopLossPct} step={0.1} prefix="-" disabled={!canEdit}
+                    value={form.stopLossPct} step={0.1} prefix="-" disabled={!canEdit} category="sell"
                     onChange={v => set('stopLossPct', v)}
                   />
                   <NumInput
                     label="트레이드당 리스크 상한 (%)"
                     desc="계좌 총액 대비 이 비율만큼만 잃도록 매수 금액 상한을 산출 (손절폭이 넓을수록 매수 금액 자동 축소). 0이면 미적용"
-                    value={form.riskPerTradePct} step={0.1} disabled={!canEdit}
+                    value={form.riskPerTradePct} step={0.1} disabled={!canEdit} category="buy"
                     onChange={v => set('riskPerTradePct', v)}
                   />
                   <NumInput
                     label="변동성 기준값 (ATR%)"
                     desc="평범한 30분 ATR(True Range) 기준값 — 실측 변동성과 비교해 위 두 임계값의 배수를 산출 (매수·매도 공통)"
-                    value={form.volBaselineCv} step={0.01} suffix="" disabled={!canEdit}
+                    value={form.volBaselineCv} step={0.01} suffix="" disabled={!canEdit} category="common"
                     onChange={v => set('volBaselineCv', v)}
                   />
                   <NumInput
                     label="변동성 배수 하한"
                     desc="임계값에 곱해지는 변동성 배수의 하한"
-                    value={form.volMultMin} step={0.1} suffix="배" disabled={!canEdit}
+                    value={form.volMultMin} step={0.1} suffix="배" disabled={!canEdit} category="common"
                     onChange={v => set('volMultMin', v)}
                   />
                   <NumInput
                     label="변동성 배수 상한"
                     desc="임계값에 곱해지는 변동성 배수의 상한"
-                    value={form.volMultMax} step={0.1} suffix="배" disabled={!canEdit}
+                    value={form.volMultMax} step={0.1} suffix="배" disabled={!canEdit} category="common"
                     onChange={v => set('volMultMax', v)}
                   />
                 </div>
@@ -503,37 +570,37 @@ export default function Strategy() {
                   <NumInput
                     label="눌림목 과매도 기준 (RSI 14) — 매수"
                     desc="눌림목 매수 시 RSI가 이 값 미만이어야만 진입 인정 (필수 조건)"
-                    value={form.rsiOversold} step={1} suffix="" disabled={!canEdit}
+                    value={form.rsiOversold} step={1} suffix="" disabled={!canEdit} category="buy"
                     onChange={v => set('rsiOversold', v)}
                   />
                   <NumInput
                     label="손절 거래량 (≥) — 매도"
                     desc="현재 거래량이 평균 대비 이 비율 이상이어야 손절 스코어링 진행 (패닉 매도 확인)"
-                    value={form.stopLossVolumeRatio} step={10} disabled={!canEdit}
+                    value={form.stopLossVolumeRatio} step={10} disabled={!canEdit} category="sell"
                     onChange={v => set('stopLossVolumeRatio', v)}
                   />
                   <NumInput
                     label="과매수 기준 (RSI 14) — 매도"
                     desc="보유 중 수익 상태에서 RSI가 이 값을 초과하면 조기청산 강화"
-                    value={form.rsiOverbought} step={1} suffix="" disabled={!canEdit}
+                    value={form.rsiOverbought} step={1} suffix="" disabled={!canEdit} category="sell"
                     onChange={v => set('rsiOverbought', v)}
                   />
                   <NumInput
                     label="조기청산 최소 수익률 — 매도"
                     desc="RSI 과매수 조기청산은 매수가 대비 이 수익률 이상일 때만 발동"
-                    value={form.rsiExitMinGainPct} step={0.1} disabled={!canEdit}
+                    value={form.rsiExitMinGainPct} step={0.1} disabled={!canEdit} category="sell"
                     onChange={v => set('rsiExitMinGainPct', v)}
                   />
                   <NumInput
                     label="익절 스코어링 문턱값 — 매도"
                     desc="이동평균 방향+연속 하락 합산(0~4점)이 이 값 이상이면 익절 매도"
-                    value={form.scoreTakeProfitThreshold} step={1} suffix="점" disabled={!canEdit}
+                    value={form.scoreTakeProfitThreshold} step={1} suffix="점" disabled={!canEdit} category="sell"
                     onChange={v => set('scoreTakeProfitThreshold', v)}
                   />
                   <NumInput
                     label="손절 스코어링 문턱값 — 매도"
                     desc="이동평균 방향+연속 하락 합산(0~4점)이 이 값 이상이면 손절 매도"
-                    value={form.scoreStopLossThreshold} step={1} suffix="점" disabled={!canEdit}
+                    value={form.scoreStopLossThreshold} step={1} suffix="점" disabled={!canEdit} category="sell"
                     onChange={v => set('scoreStopLossThreshold', v)}
                   />
                 </div>

@@ -46,6 +46,10 @@ export const resetTradingSession = (id: string) =>
 export const updateSessionStrategyConfigId = (params: { id: string; strategyConfigId: number }) =>
   apiClient.put<ApiResponse<TradingSession>>('/trade/updateStrategyConfigId', params);
 
+/** 세션 전략 일괄 변경 (userUid+mode 전체 세션) - PUT /api/trade/updateStrategyConfigIdBulk */
+export const updateSessionStrategyConfigIdBulk = (params: { userUid: string; mode: 'LIVE' | 'PAPER'; strategyConfigId: number }) =>
+  apiClient.put<ApiResponse<TradingSession>>('/trade/updateStrategyConfigIdBulk', params);
+
 /** 전략 자동 업데이트 토글 - PUT /api/trade/toggleStrategyUpdate */
 export const toggleStrategyUpdate = (id: string) =>
   apiClient.put<ApiResponse<null>>('/trade/toggleStrategyUpdate', { id });
