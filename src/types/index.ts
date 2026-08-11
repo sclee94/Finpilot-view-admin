@@ -47,12 +47,14 @@ export interface User {
 }
 
 /** symbol_universe 테이블 매핑 — 실전투자 탭 종목 선택 리스트(코스피200/나스닥100/지수).
- * lastPrice는 매일 01:00 배치(yfinance)로 갱신 — 갱신 전이면 null */
+ * lastPrice/marketCap은 매일 01:00 배치(yfinance)로 갱신 — 갱신 전이면 null.
+ * 정렬 기준은 marketCap 내림차순 (지수는 시가총액 개념이 없어 항상 null → 맨 뒤) */
 export interface SymbolUniverse {
   symbol:         string;
   symbolName:     string;
   category:       'KOSPI200' | 'NASDAQ100' | 'INDEX';
   lastPrice:      number | null;
+  marketCap:      number | null;
   priceUpdatedAt: string | null;
 }
 

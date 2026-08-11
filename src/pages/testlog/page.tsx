@@ -95,14 +95,14 @@ function resultBadgeClass(result: string): string {
   return 'bg-zinc-700 text-zinc-400';
 }
 
-// 포트폴리오(세션 목록) 백테스트 결과는 symbol 컬럼에 "PORTFOLIO(N종목)" 요약 라벨이 저장됨
-// — 개별 종목이 아니므로 getSymbolName()으로 풀어쓰지 않고 그대로 보여준다.
-function isPortfolioResult(symbol: string): boolean {
-  return symbol.startsWith('PORTFOLIO(');
+// 포트폴리오(세션 목록)/랜덤종목 백테스트 결과는 symbol 컬럼에 "PORTFOLIO(N종목)"/"RANDOM(카테고리,N종목)"
+// 요약 라벨이 저장됨 — 개별 종목이 아니므로 getSymbolName()으로 풀어쓰지 않고 그대로 보여준다.
+function isAggregateResult(symbol: string): boolean {
+  return symbol.startsWith('PORTFOLIO(') || symbol.startsWith('RANDOM(');
 }
 
 function symbolDisplay(symbol: string): { name: string; code: string | null } {
-  if (isPortfolioResult(symbol)) return { name: symbol, code: null };
+  if (isAggregateResult(symbol)) return { name: symbol, code: null };
   return { name: getSymbolName(symbol), code: symbol };
 }
 
@@ -501,10 +501,12 @@ export default function TestLog() {
   const [selectedStrategyId, setSelectedStrategyId] = useState<number | null>(null);
   const [runSymbol,         setRunSymbol]          = useState('');
 
-  // 백테스트 실행 방식: 특정 종목 1개 vs 유저의 세션 목록 전체(포트폴리오)
-  const [backtestType, setBacktestType] = useState<'SYMBOL' | 'PORTFOLIO'>('SYMBOL');
+  // 백테스트 실행 방식: 특정 종목 1개 vs 유저의 세션 목록 전체(포트폴리오) vs 카테고리 내 랜덤 20종목
+  const [backtestType, setBacktestType] = useState<'SYMBOL' | 'PORTFOLIO' | 'RANDOM'>('SYMBOL');
   const [portfolioRunMode, setPortfolioRunMode] = useState<'LIVE' | 'PAPER'>('PAPER');
   const [activeOnly, setActiveOnly] = useState(true);
+  const [randomCategory, setRandomCategory] = useState<'KOSPI200' | 'NASDAQ100'>('KOSPI200');
+  const [randomApplyForceClose, setRandomApplyForceClose] = useState(true);
 
   const [running, setRunning] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -647,6 +649,40 @@ export default function TestLog() {
           userUid,
           mode:       portfolioRunMode,
           activeOnly,
+        },
+      );
+
+      if (runRes.data) {
+        refreshResults(userUid, 1);
+      } else {
+        setErrorMessage(runRes.message || '백테스트 실행에 실패했습니다.');
+      }
+    } catch {
+      setErrorMessage('서버 연결에 실패했습니다.');
+    } finally {
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      setRunning(false);
+    }
+  };
+
+  // ── API: 실행 (랜덤 종목 — 카테고리 안에서 무작위 20종목에 단일 전략 일괄적용) ──
+  const handleRunRandom = async () => {
+    if (!selectedStrategyId || running) return;
+    const userUid = authStorage.get()?.userUid;
+    if (!userUid) return;
+
+    setRunning(true);
+    setElapsed(0);
+    timerRef.current = setInterval(() => setElapsed(prev => prev + 1), 1000);
+
+    try {
+      const runRes = await apiClient.post<ApiResponse<BacktestResult>>(
+        '/finpilot/backtest/random/run',
+        {
+          userUid,
+          category:          randomCategory,
+          strategyConfigId:  selectedStrategyId,
+          applyForceClose:   randomApplyForceClose,
         },
       );
 
@@ -818,9 +854,10 @@ export default function TestLog() {
               options={[
                 { id: 'SYMBOL',    label: '특정 종목' },
                 { id: 'PORTFOLIO', label: '세션 종목 (포트폴리오)' },
+                { id: 'RANDOM',    label: '랜덤 종목' },
               ]}
               value={backtestType}
-              onChange={id => setBacktestType(id as 'SYMBOL' | 'PORTFOLIO')}
+              onChange={id => setBacktestType(id as 'SYMBOL' | 'PORTFOLIO' | 'RANDOM')}
             />
           </div>
 
@@ -847,7 +884,7 @@ export default function TestLog() {
                 </select>
               </div>
             </div>
-          ) : (
+          ) : backtestType === 'PORTFOLIO' ? (
             <div className="mb-6 space-y-4">
               <p className="text-xs text-zinc-500">
                 보유 중인 트레이딩 세션 종목 전체를 실전/모의투자와 동일한 방식(불타기 Top2 필터, 세션별 전략 설정, KIS 실잔고 기준 시드머니)으로 동시 시뮬레이션합니다.
@@ -888,6 +925,62 @@ export default function TestLog() {
                 </div>
               </div>
             </div>
+          ) : (
+            <div className="mb-6 space-y-4">
+              <p className="text-xs text-zinc-500">
+                선택한 카테고리(코스피200/나스닥100) 안에서 무작위로 20종목을 뽑아, 한 가지 전략을 전 종목에 동일하게 적용해 포트폴리오처럼 동시 시뮬레이션합니다.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">종목 카테고리</label>
+                  <div className="flex bg-zinc-800 rounded-lg p-1 gap-1">
+                    {([{ id: 'KOSPI200', label: '코스피200' }, { id: 'NASDAQ100', label: '나스닥100' }] as const).map(c => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setRandomCategory(c.id)}
+                        disabled={running}
+                        className={`flex-1 px-4 py-1.5 text-sm font-semibold rounded-md transition-colors cursor-pointer disabled:opacity-50 ${
+                          randomCategory === c.id ? 'bg-teal-500 text-white' : 'text-zinc-400 hover:text-zinc-200'
+                        }`}
+                      >
+                        {c.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">15:18 강제청산</label>
+                  <button
+                    type="button"
+                    onClick={() => setRandomApplyForceClose(v => !v)}
+                    disabled={running}
+                    className="w-full flex items-center justify-between bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 disabled:opacity-50 cursor-pointer"
+                  >
+                    <span className="text-sm text-zinc-200">{randomApplyForceClose ? '적용함' : '적용 안 함(이월)'}</span>
+                    <span className={`relative w-11 h-6 rounded-full transition-colors ${randomApplyForceClose ? 'bg-teal-500' : 'bg-zinc-600'}`}>
+                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${randomApplyForceClose ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </span>
+                  </button>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">전략 설정 (전 종목 일괄 적용)</label>
+                  <select
+                    value={selectedStrategyId ?? ''}
+                    onChange={e => setSelectedStrategyId(e.target.value ? Number(e.target.value) : null)}
+                    disabled={running || strategies.length === 0}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-teal-500 transition-colors disabled:opacity-50"
+                  >
+                    {strategies.length === 0 && <option value="">전략 설정이 없습니다</option>}
+                    {strategies.map(s => (
+                      <option key={s.id} value={s.id}>
+                        {s.name || `전략 #${s.id}`} (익절 +{s.takeProfitPct}% · 손절 -{s.stopLossPct}%)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Loading Bar */}
@@ -906,10 +999,16 @@ export default function TestLog() {
           )}
 
           <button
-            onClick={backtestType === 'SYMBOL' ? handleRun : handleRunPortfolio}
-            disabled={backtestType === 'SYMBOL' ? (!runSymbol || !selectedStrategyId || running) : running}
+            onClick={backtestType === 'SYMBOL' ? handleRun : backtestType === 'PORTFOLIO' ? handleRunPortfolio : handleRunRandom}
+            disabled={
+              backtestType === 'SYMBOL' ? (!runSymbol || !selectedStrategyId || running) :
+              backtestType === 'RANDOM' ? (!selectedStrategyId || running) :
+              running
+            }
             className={`flex items-center gap-2 px-6 py-3 rounded-xl text-base font-semibold transition-colors ${
-              (backtestType === 'SYMBOL' ? (!runSymbol || !selectedStrategyId || running) : running)
+              (backtestType === 'SYMBOL' ? (!runSymbol || !selectedStrategyId || running) :
+               backtestType === 'RANDOM' ? (!selectedStrategyId || running) :
+               running)
                 ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
                 : 'bg-teal-500 hover:bg-teal-400 text-white cursor-pointer'
             }`}

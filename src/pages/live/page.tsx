@@ -4,10 +4,12 @@ import { authStorage } from '../../utils/auth';
 import { PERMISSIONS } from '../../constants';
 import type { ApiResponse, TradingSession, TradeHistory } from '../../types/index';
 import type { StrategyConfigDTO } from '../strategy/strategyTypes';
+import type { ScreenerResult, ScreenerRecommendation } from './screenerTypes';
 import { getSymbolName } from '../../constants/symbolNames';
 import { apiClient } from '../../api/apiClient';
 import { useEnterConfirm } from '../../hooks/useEnterConfirm';
 import SymbolPicker from '../../components/SymbolPicker';
+import { recommendScreener } from '../../api/screenerApi';
 import {
   getExecuteOnOff,
   setExecuteOnOff,
@@ -44,6 +46,14 @@ export default function Live() {
   const [sessionList, setSessionList]   = useState<TradingSession[]>([]);
   const [statusLoading, setStatusLoading] = useState(false);
   const [errorMessage, setErrorMessage]   = useState('');
+
+  // 종목 추천받기(스크리너) — 자동매매와 분리된 읽기전용, 추천 클릭 시에만 세션 생성
+  const [screenerLimit, setScreenerLimit]   = useState(20);
+  const [screenerLoading, setScreenerLoading] = useState(false);
+  const [screenerError, setScreenerError]   = useState('');
+  const [screenerResult, setScreenerResult] = useState<ScreenerResult | null>(null);
+  const [addingSymbol, setAddingSymbol]     = useState<string | null>(null);
+  const [addedSymbols, setAddedSymbols]     = useState<Set<string>>(new Set());
 
   // 투자 모드 (기본값 없음)
   const [investMode, setInvestMode] = useState<'LIVE' | 'PAPER' | null>(null);
@@ -269,6 +279,78 @@ export default function Live() {
       setErrorMessage('서버 연결에 실패했습니다.');
     } finally {
       setInvesting(false);
+    }
+  };
+
+  // 종목 추천받기 — 그 시점 코스피200을 스캔해 BUY 후보만 보여줌(세션/주문 생성 없음)
+  const handleFetchRecommendations = async () => {
+    if (!investMode || screenerLoading) return;
+    const userUid = authStorage.get()?.userUid;
+    if (!userUid) return;
+
+    setScreenerLoading(true);
+    setScreenerError('');
+    setScreenerResult(null);
+    try {
+      const strategyRes = await apiClient.post<ApiResponse<import('../../types').PageResponse<StrategyConfigDTO>>>(
+        '/strategy/getStrategyConfigList',
+        {},
+      );
+      const strategyConfigId = strategyRes.data?.content?.[0]?.id ?? null;
+      if (!strategyConfigId) {
+        setScreenerError('적용 가능한 전략 설정을 찾을 수 없습니다.');
+        return;
+      }
+
+      const res = await recommendScreener({
+        userUid,
+        category: 'KOSPI200',
+        strategyConfigId,
+        isLive: investMode === 'LIVE',
+        limit: screenerLimit,
+      });
+      if (res.data) {
+        setScreenerResult(res.data);
+        setAddedSymbols(new Set());
+      } else {
+        setScreenerError(res.message || '추천 조회에 실패했습니다.');
+      }
+    } catch {
+      setScreenerError('서버 연결에 실패했습니다. 스캔 종목 수를 줄여서 다시 시도해보세요.');
+    } finally {
+      setScreenerLoading(false);
+    }
+  };
+
+  // 추천 종목을 세션으로 추가 — 사용자가 직접 눌러야만 생성됨(자동 실행 아님).
+  // strategyConfigId는 백엔드가 방향별로 이미 정해서 내려준 값을 그대로 쓴다(평균회귀는
+  // 전용 TP0.6/SL1.5 전략에 반드시 연결돼야 신호가 검증된 그대로 동작함 — 재조회해서
+  // 임의의 기본전략으로 덮어쓰면 안 됨).
+  const handleAddRecommendation = async (rec: ScreenerRecommendation) => {
+    if (!investMode || addingSymbol) return;
+    const userUid = authStorage.get()?.userUid;
+    if (!userUid) return;
+
+    const key = `${rec.symbol}:${rec.direction}`;
+    setAddingSymbol(key);
+    setErrorMessage('');
+    try {
+      const res = await insertTradingSession({
+        userUid,
+        symbol: rec.symbol,
+        mode: investMode,
+        strategyConfigId: rec.strategyConfigId,
+      });
+      if (res.data) {
+        setAddedSymbols(prev => new Set(prev).add(key));
+        await fetchSessionList(true);
+      } else {
+        setErrorMessage(res.message || '세션 추가에 실패했습니다.');
+      }
+    } catch {
+      setErrorMessage('서버 연결에 실패했습니다.');
+    } finally {
+      setAddingSymbol(null);
     }
   };
 
@@ -932,6 +1014,106 @@ export default function Live() {
             }
           </button>
           <p className="text-xs text-zinc-600 mt-3">전략은 시장 상황에 따라 자동으로 적용됩니다.</p>
+        </div>}
+
+        {/* 종목 추천받기 카드 — 일반 사용자만 표시. 읽기전용 스캔 결과이며, "세션 추가"를
+            직접 눌러야만 세션이 생성됨(자동매매 스케줄러와 분리) */}
+        {!isAdmin && <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-zinc-200">종목 추천받기</h2>
+            <span className="text-xs text-zinc-600">코스피200 · 그 시점 시장 스캔</span>
+          </div>
+
+          <div className="flex items-center gap-3 mb-5">
+            <span className="text-sm font-medium text-zinc-400">스캔 종목 수</span>
+            <input
+              type="number"
+              min={5}
+              max={100}
+              value={screenerLimit}
+              onChange={e => setScreenerLimit(Math.max(5, Math.min(100, Number(e.target.value) || 20)))}
+              className="w-20 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-zinc-100 focus:outline-none focus:border-teal-500 transition-colors"
+            />
+            <span className="text-xs text-zinc-600">시가총액 상위 순 · 많을수록 오래 걸려요(최대 100)</span>
+          </div>
+
+          <button
+            onClick={handleFetchRecommendations}
+            disabled={!investMode || screenerLoading}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl text-base font-semibold transition-colors ${
+              !investMode || screenerLoading
+                ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
+                : 'bg-teal-500 hover:bg-teal-400 text-white cursor-pointer'
+            }`}
+          >
+            {screenerLoading
+              ? <><i className="ri-loader-4-line animate-spin text-lg"></i>스캔 중... (최대 몇 분 걸릴 수 있어요)</>
+              : <><i className="ri-search-line text-lg"></i>추천받기</>
+            }
+          </button>
+          {!investMode && <p className="text-xs text-amber-500 mt-2">위 "세션 생성" 카드에서 거래 모드(실전/모의)를 먼저 선택해주세요.</p>}
+          {screenerError && <p className="text-xs text-red-400 mt-2">{screenerError}</p>}
+
+          {screenerResult && (
+            <div className="mt-5 space-y-2">
+              <p className="text-xs text-zinc-500 mb-3">
+                {screenerResult.scannedCount}종목 스캔 · {screenerResult.recommendations.length}건 추천
+                {screenerResult.skippedNoDataCount > 0 && ` · ${screenerResult.skippedNoDataCount}건 데이터 부족 제외`}
+              </p>
+              {screenerResult.recommendations.length === 0 ? (
+                <p className="text-sm text-zinc-500 py-6 text-center">지금 조건을 만족하는 종목이 없습니다.</p>
+              ) : (
+                [...screenerResult.recommendations]
+                  .sort((a, b) => Number(b.validated) - Number(a.validated))  // 검증된 평균회귀를 위로
+                  .map(rec => {
+                  const added = addedSymbols.has(`${rec.symbol}:${rec.direction}`);
+                  const dirLabel = rec.direction === 'BULLISH' ? '불타기' : rec.direction === 'PULLBACK' ? '눌림목' : '평균회귀';
+                  return (
+                    <div key={`${rec.symbol}:${rec.direction}`} className="flex items-center justify-between bg-zinc-800/60 border border-zinc-700 rounded-xl px-4 py-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="shrink-0 flex flex-col items-center gap-1">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                            rec.direction === 'BULLISH' ? 'bg-teal-500/20 text-teal-300'
+                              : rec.direction === 'PULLBACK' ? 'bg-sky-500/20 text-sky-300'
+                              : 'bg-amber-500/20 text-amber-300'
+                          }`}>
+                            {dirLabel}
+                          </span>
+                          <span className={`text-[10px] font-semibold ${rec.validated ? 'text-amber-400' : 'text-zinc-600'}`}>
+                            {rec.validated ? '검증됨' : '참고용'}
+                          </span>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-zinc-100 truncate">{rec.symbolName ?? rec.symbol}</p>
+                          <p className="text-xs text-zinc-500 truncate">
+                            {rec.symbol} · {rec.currentPrice.toLocaleString()}원
+                            {rec.marketGrade != null && ` · 상대강도 ${rec.marketGrade}등급`}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleAddRecommendation(rec)}
+                        disabled={added || addingSymbol === `${rec.symbol}:${rec.direction}` || rec.strategyConfigId == null}
+                        title={rec.strategyConfigId == null ? '연결할 전략을 찾지 못했습니다' : undefined}
+                        className={`shrink-0 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                          added || rec.strategyConfigId == null
+                            ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
+                            : 'bg-teal-500 hover:bg-teal-400 text-white cursor-pointer'
+                        }`}
+                      >
+                        {added
+                          ? <><i className="ri-check-line mr-1"></i>추가됨</>
+                          : addingSymbol === `${rec.symbol}:${rec.direction}`
+                            ? <i className="ri-loader-4-line animate-spin"></i>
+                            : <><i className="ri-add-line mr-1"></i>세션 추가</>
+                        }
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
         </div>}
 
         {/* 진행 섹션 */}

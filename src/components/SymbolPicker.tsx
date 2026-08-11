@@ -2,6 +2,13 @@ import { useState, useEffect } from 'react';
 import { getSymbolsByCategory, SYMBOL_CATEGORIES, type SymbolCategory } from '../api/symbolApi';
 import type { SymbolUniverse } from '../types';
 
+/** 시가총액을 조/억 단위로 축약 표시 (원화·달러 공통 — 자릿수 크기로만 표현) */
+function formatMarketCap(marketCap: number): string {
+  if (marketCap >= 1e12) return `${(marketCap / 1e12).toFixed(1)}조`;
+  if (marketCap >= 1e8) return `${Math.round(marketCap / 1e8).toLocaleString()}억`;
+  return marketCap.toLocaleString();
+}
+
 interface SymbolPickerProps {
   value: string;
   onChange: (symbol: string) => void;
@@ -53,7 +60,9 @@ export default function SymbolPicker({ value, onChange, disabled = false, defaul
         </option>
         {symbols.map(s => (
           <option key={s.symbol} value={s.symbol}>
-            {s.symbolName} ({s.symbol}){s.lastPrice != null ? ` · ${s.lastPrice.toLocaleString()}` : ''}
+            {s.symbolName} ({s.symbol})
+            {s.marketCap != null ? ` · 시총 ${formatMarketCap(s.marketCap)}` : ''}
+            {s.lastPrice != null ? ` · ${s.lastPrice.toLocaleString()}` : ''}
           </option>
         ))}
       </select>
