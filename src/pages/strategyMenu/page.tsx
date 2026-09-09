@@ -85,6 +85,9 @@ export default function StrategyMenu() {
             <Section title="눌림목 (하락 후 반등)" icon="ri-arrow-down-line">
               {byType('PULLBACK').map(m => <MenuRow key={m.id} menu={m} />)}
             </Section>
+            <Section title="당일 저점 매수" icon="ri-arrow-down-circle-line">
+              {byType('DAYLOW').map(m => <MenuRow key={m.id} menu={m} />)}
+            </Section>
             <Section title="익절 / 손절 (매도 판단)" icon="ri-shield-line">
               <p className="text-xs text-zinc-500 mb-2">보유 수량 전량을 매도할지 여부를 판단하는 등급입니다 (매수 비율과 무관).</p>
               {[...byType('TAKE_PROFIT'), ...byType('STOP_LOSS')].map(m => <MenuRow key={m.id} menu={m} />)}

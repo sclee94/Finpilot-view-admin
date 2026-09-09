@@ -55,7 +55,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
               className="flex flex-col items-center cursor-pointer hover:opacity-80 transition-opacity"
             >
               <img
-                src="https://public.readdy.ai/ai/img_res/1e74d93b-2151-4e20-b57f-a5c03641098e.png"
+                src="/finpilot/static/admin/images/finpilot-logo.png"
                 alt="Logo"
                 className="h-14 w-auto object-contain"
               />

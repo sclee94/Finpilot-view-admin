@@ -14,6 +14,7 @@ interface Props {
 const ACTION_STYLE: Record<string, string> = {
   BUY:         'bg-teal-500/20 text-teal-300',
   ADD_LONG:    'bg-blue-500/20 text-blue-300',
+  SELL:        'bg-sky-500/20 text-sky-300',
   SELL_SHORT:  'bg-rose-500/20 text-rose-300',
   CLOSE_LONG:  'bg-sky-500/20 text-sky-300',
   CLOSE_SHORT: 'bg-orange-500/20 text-orange-300',
@@ -21,10 +22,25 @@ const ACTION_STYLE: Record<string, string> = {
 const ACTION_LABEL: Record<string, string> = {
   BUY:         '매수',
   ADD_LONG:    '추가매수',
+  SELL:        '매도',
   SELL_SHORT:  '공매도',
   CLOSE_LONG:  '청산(롱)',
   CLOSE_SHORT: '청산(숏)',
 };
+
+// 매도 사유 문자열(Python reason)은 익절/손절 스코어링 둘 다 "SCORE_4"로 겹쳐서 신뢰 불가 —
+// 손익 부호(realizedPnl)가 유일하게 신뢰 가능한 익절/손절 판단 기준 (Java 쪽과 동일한 원칙,
+// TradingSessionServiceImpl의 isLossExit 계산부 주석 참고).
+function PnlBadge({ pnl }: { pnl: number }) {
+  const isProfit = pnl >= 0;
+  return (
+    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${
+      isProfit ? 'bg-teal-500/20 text-teal-400' : 'bg-red-500/20 text-red-400'
+    }`}>
+      {isProfit ? '익절' : '손절'}
+    </span>
+  );
+}
 const MODE_STYLE: Record<string, string> = {
   LIVE:  'bg-amber-500/20 text-amber-300',
   PAPER: 'bg-blue-500/20 text-blue-300',
@@ -93,7 +109,7 @@ export default function TradeTable({ paginated, sortField, sortDir, onSort, onRo
       ) : (
         <div className="min-w-[1280px]">
           {paginated.map((item, idx) => {
-            const isClose = item.action === 'CLOSE_LONG' || item.action === 'CLOSE_SHORT';
+            const isClose = item.action === 'SELL' || item.action === 'CLOSE_LONG' || item.action === 'CLOSE_SHORT';
             const pnlColor = item.realizedPnl != null && item.realizedPnl >= 0 ? 'text-sky-400' : 'text-rose-400';
 
             return (
@@ -157,11 +173,14 @@ export default function TradeTable({ paginated, sortField, sortDir, onSort, onRo
                 <Dt value={item.exitAt} />
 
                 {/* 실현손익 */}
-                <span className={`text-right text-xs font-semibold ${isClose && item.realizedPnl != null ? pnlColor : 'text-zinc-600'}`}>
-                  {isClose && item.realizedPnl != null
-                    ? `${item.realizedPnl >= 0 ? '+' : ''}₩${item.realizedPnl.toLocaleString()}`
-                    : '—'}
-                </span>
+                <div className="flex flex-col items-end gap-1">
+                  {isClose && item.realizedPnl != null && <PnlBadge pnl={item.realizedPnl} />}
+                  <span className={`text-right text-xs font-semibold ${isClose && item.realizedPnl != null ? pnlColor : 'text-zinc-600'}`}>
+                    {isClose && item.realizedPnl != null
+                      ? `${item.realizedPnl >= 0 ? '+' : ''}₩${item.realizedPnl.toLocaleString()}`
+                      : '—'}
+                  </span>
+                </div>
 
                 {/* 상태 */}
                 <div className="flex justify-center">

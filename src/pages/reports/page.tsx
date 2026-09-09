@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import PageLayout from '../../components/PageLayout';
+import DatePicker from '../../components/DatePicker';
 import TradeDetailModal from './components/TradeDetailModal';
 import Pagination from '../../components/Pagination';
 import FilterButtonGroup from '../../components/FilterButtonGroup';
@@ -18,6 +19,8 @@ const MODE_FILTERS = [
 const ACTION_FILTERS = [
   { id: 'all',         label: '전체' },
   { id: 'BUY',         label: '매수' },
+  { id: 'ADD_LONG',    label: '추가매수' },
+  { id: 'SELL',        label: '매도' },
   { id: 'SELL_SHORT',  label: '공매도' },
   { id: 'CLOSE_LONG',  label: '청산(롱)' },
   { id: 'CLOSE_SHORT', label: '청산(숏)' },
@@ -170,23 +173,9 @@ export default function ReportsPage() {
             <div className="space-y-3">
               {/* 날짜 범위 */}
               <div className="flex items-center gap-2">
-                <div className="relative">
-                  <input
-                    type="date"
-                    value={dateFrom}
-                    onChange={e => { setDateFrom(e.target.value); setPage(1); }}
-                    className="bg-zinc-900 border border-zinc-700 text-zinc-200 text-sm rounded-xl px-3 py-2 cursor-pointer focus:outline-none focus:border-teal-500 [color-scheme:dark]"
-                  />
-                </div>
+                <DatePicker value={dateFrom} onChange={v => { setDateFrom(v); setPage(1); }} />
                 <span className="text-zinc-500 text-sm">~</span>
-                <div className="relative">
-                  <input
-                    type="date"
-                    value={dateTo}
-                    onChange={e => { setDateTo(e.target.value); setPage(1); }}
-                    className="bg-zinc-900 border border-zinc-700 text-zinc-200 text-sm rounded-xl px-3 py-2 cursor-pointer focus:outline-none focus:border-teal-500 [color-scheme:dark]"
-                  />
-                </div>
+                <DatePicker value={dateTo} onChange={v => { setDateTo(v); setPage(1); }} />
               </div>
 
               {/* 필터 버튼 */}

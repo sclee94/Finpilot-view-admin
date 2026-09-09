@@ -1,6 +1,6 @@
 import { useNavigate, type NavigateFunction } from "react-router-dom";
 import { useRoutes, useLocation, Navigate } from "react-router-dom";
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import routes from "./config";
 import { authStorage } from "../utils/auth";
 
@@ -45,5 +45,5 @@ export function AppRoutes() {
     return <Navigate to={target} replace />;
   }
 
-  return element;
+  return <Suspense fallback={null}>{element}</Suspense>;
 }

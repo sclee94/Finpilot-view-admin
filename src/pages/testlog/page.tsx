@@ -506,12 +506,18 @@ export default function TestLog() {
   const [portfolioRunMode, setPortfolioRunMode] = useState<'LIVE' | 'PAPER'>('PAPER');
   const [activeOnly, setActiveOnly] = useState(true);
   const [randomCategory, setRandomCategory] = useState<'KOSPI200' | 'NASDAQ100'>('KOSPI200');
-  const [randomApplyForceClose, setRandomApplyForceClose] = useState(true);
+  const [randomApplyForceClose, setRandomApplyForceClose] = useState(false);
+  const [runApplyForceClose, setRunApplyForceClose] = useState(false);
 
   const [running, setRunning] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [errorMessage, setErrorMessage] = useState('');
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const handleCancel = () => {
+    abortRef.current?.abort();
+  };
 
   const [results,           setResults]           = useState<BacktestResult[]>([]);
   const [resultsLoading,    setResultsLoading]    = useState(false);
@@ -606,6 +612,8 @@ export default function TestLog() {
     setRunning(true);
     setElapsed(0);
     timerRef.current = setInterval(() => setElapsed(prev => prev + 1), 1000);
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     try {
       const runRes = await apiClient.post<ApiResponse<BacktestResult>>(
@@ -614,7 +622,10 @@ export default function TestLog() {
           userUid,
           symbol:           runSymbol,
           strategyConfigId: selectedStrategyId,
+          applyForceClose:  runApplyForceClose,
         },
+        undefined,
+        controller.signal,
       );
 
       if (runRes.data) {
@@ -625,9 +636,10 @@ export default function TestLog() {
         setErrorMessage(runRes.message || '백테스트 실행에 실패했습니다.');
       }
     } catch {
-      setErrorMessage('서버 연결에 실패했습니다.');
+      setErrorMessage(controller.signal.aborted ? '백테스트를 취소했습니다.' : '서버 연결에 실패했습니다.');
     } finally {
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      abortRef.current = null;
       setRunning(false);
     }
   };
@@ -641,6 +653,8 @@ export default function TestLog() {
     setRunning(true);
     setElapsed(0);
     timerRef.current = setInterval(() => setElapsed(prev => prev + 1), 1000);
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     try {
       const runRes = await apiClient.post<ApiResponse<BacktestResult>>(
@@ -650,6 +664,8 @@ export default function TestLog() {
           mode:       portfolioRunMode,
           activeOnly,
         },
+        undefined,
+        controller.signal,
       );
 
       if (runRes.data) {
@@ -658,9 +674,10 @@ export default function TestLog() {
         setErrorMessage(runRes.message || '백테스트 실행에 실패했습니다.');
       }
     } catch {
-      setErrorMessage('서버 연결에 실패했습니다.');
+      setErrorMessage(controller.signal.aborted ? '백테스트를 취소했습니다.' : '서버 연결에 실패했습니다.');
     } finally {
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      abortRef.current = null;
       setRunning(false);
     }
   };
@@ -674,6 +691,8 @@ export default function TestLog() {
     setRunning(true);
     setElapsed(0);
     timerRef.current = setInterval(() => setElapsed(prev => prev + 1), 1000);
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     try {
       const runRes = await apiClient.post<ApiResponse<BacktestResult>>(
@@ -684,6 +703,8 @@ export default function TestLog() {
           strategyConfigId:  selectedStrategyId,
           applyForceClose:   randomApplyForceClose,
         },
+        undefined,
+        controller.signal,
       );
 
       if (runRes.data) {
@@ -692,9 +713,10 @@ export default function TestLog() {
         setErrorMessage(runRes.message || '백테스트 실행에 실패했습니다.');
       }
     } catch {
-      setErrorMessage('서버 연결에 실패했습니다.');
+      setErrorMessage(controller.signal.aborted ? '백테스트를 취소했습니다.' : '서버 연결에 실패했습니다.');
     } finally {
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      abortRef.current = null;
       setRunning(false);
     }
   };
@@ -862,7 +884,7 @@ export default function TestLog() {
           </div>
 
           {backtestType === 'SYMBOL' ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
               <div>
                 <label className="block text-sm font-medium text-zinc-300 mb-1.5">종목</label>
                 <SymbolPicker value={runSymbol} onChange={setRunSymbol} disabled={running} />
@@ -882,6 +904,20 @@ export default function TestLog() {
                     </option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-300 mb-1.5">15:18 강제청산</label>
+                <button
+                  type="button"
+                  onClick={() => setRunApplyForceClose(v => !v)}
+                  disabled={running}
+                  className="w-full flex items-center justify-between bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 disabled:opacity-50 cursor-pointer"
+                >
+                  <span className="text-sm text-zinc-200">{runApplyForceClose ? '적용함' : '적용 안 함(이월)'}</span>
+                  <span className={`relative w-11 h-6 rounded-full transition-colors ${runApplyForceClose ? 'bg-teal-500' : 'bg-zinc-600'}`}>
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${runApplyForceClose ? 'translate-x-5' : 'translate-x-0'}`} />
+                  </span>
+                </button>
               </div>
             </div>
           ) : backtestType === 'PORTFOLIO' ? (
@@ -995,6 +1031,12 @@ export default function TestLog() {
                 </div>
               </div>
               <span className="text-sm text-zinc-400 font-mono shrink-0">{formatElapsed(elapsed)}</span>
+              <button
+                onClick={handleCancel}
+                className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-700 hover:bg-rose-500/20 hover:text-rose-400 text-zinc-300 transition-colors cursor-pointer"
+              >
+                취소
+              </button>
             </div>
           )}
 

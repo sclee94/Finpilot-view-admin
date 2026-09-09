@@ -1202,7 +1202,7 @@ export default function Live() {
                         </span>
                       )}
                       <span className="text-sm font-semibold text-zinc-200">
-                        {getSymbolName(session.symbol)}
+                        {session.symbolName ?? getSymbolName(session.symbol)}
                         <span className="ml-1 text-xs text-zinc-500">({session.symbol})</span>
                       </span>
                       {session.strategyConfig ? (

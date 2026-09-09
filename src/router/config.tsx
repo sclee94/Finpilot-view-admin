@@ -1,17 +1,19 @@
+import { lazy } from "react";
 import type { RouteObject } from "react-router-dom";
-import NotFound from "../pages/NotFound";
 import Home from "../pages/home/page";
-import Dashboard from "../pages/dashboard/page";
-import Users from "../pages/users/page";
-import Stocks from "../pages/stocks/page";
-import Reports from "../pages/reports/page";
-import Settings from "../pages/settings/page";
-import Strategy from "../pages/strategy/page";
-import StrategyMenu from "../pages/strategyMenu/page";
-import Logs from "../pages/logs/page";
-import TestLog from "../pages/testlog/page";
-import Live from "../pages/live/page";
-import Blocked from "../pages/blocked/page";
+
+const NotFound = lazy(() => import("../pages/NotFound"));
+const Dashboard = lazy(() => import("../pages/dashboard/page"));
+const Users = lazy(() => import("../pages/users/page"));
+const Stocks = lazy(() => import("../pages/stocks/page"));
+const Reports = lazy(() => import("../pages/reports/page"));
+const Settings = lazy(() => import("../pages/settings/page"));
+const Strategy = lazy(() => import("../pages/strategy/page"));
+const StrategyMenu = lazy(() => import("../pages/strategyMenu/page"));
+const Logs = lazy(() => import("../pages/logs/page"));
+const TestLog = lazy(() => import("../pages/testlog/page"));
+const Live = lazy(() => import("../pages/live/page"));
+const Blocked = lazy(() => import("../pages/blocked/page"));
 
 const routes: RouteObject[] = [
   {

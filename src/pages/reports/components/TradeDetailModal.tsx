@@ -8,6 +8,7 @@ interface Props {
 const ACTION_STYLE: Record<string, string> = {
   BUY:         'bg-teal-500/20 text-teal-300',
   ADD_LONG:    'bg-blue-500/20 text-blue-300',
+  SELL:        'bg-sky-500/20 text-sky-300',
   SELL_SHORT:  'bg-rose-500/20 text-rose-300',
   CLOSE_LONG:  'bg-sky-500/20 text-sky-300',
   CLOSE_SHORT: 'bg-orange-500/20 text-orange-300',
@@ -15,6 +16,7 @@ const ACTION_STYLE: Record<string, string> = {
 const ACTION_LABEL: Record<string, string> = {
   BUY:         '매수 (BUY)',
   ADD_LONG:    '추가매수 (ADD_LONG)',
+  SELL:        '매도 (SELL)',
   SELL_SHORT:  '공매도 (SELL_SHORT)',
   CLOSE_LONG:  '청산 롱 (CLOSE_LONG)',
   CLOSE_SHORT: '청산 숏 (CLOSE_SHORT)',
@@ -50,8 +52,9 @@ function Dt({ value }: { value: string | null }) {
 export default function TradeDetailModal({ trade, onClose }: Props) {
   if (!trade) return null;
 
-  const isClose = trade.action === 'CLOSE_LONG' || trade.action === 'CLOSE_SHORT';
-  const pnlColor = trade.realizedPnl != null && trade.realizedPnl >= 0 ? 'text-sky-400' : 'text-rose-400';
+  const isClose = trade.action === 'SELL' || trade.action === 'CLOSE_LONG' || trade.action === 'CLOSE_SHORT';
+  const isProfit = trade.realizedPnl != null && trade.realizedPnl >= 0;
+  const pnlColor = isProfit ? 'text-sky-400' : 'text-rose-400';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
@@ -131,11 +134,20 @@ export default function TradeDetailModal({ trade, onClose }: Props) {
           {isClose && (
             <div className="bg-zinc-800/50 rounded-xl px-5 py-4 grid grid-cols-3 gap-4">
               <Field label="실현 손익">
-                <p className={`text-sm font-bold ${pnlColor}`}>
-                  {trade.realizedPnl != null
-                    ? `${trade.realizedPnl >= 0 ? '+' : ''}₩${trade.realizedPnl.toLocaleString()}`
-                    : '—'}
-                </p>
+                <div className="flex items-center gap-1.5">
+                  {trade.realizedPnl != null && (
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                      isProfit ? 'bg-teal-500/20 text-teal-400' : 'bg-red-500/20 text-red-400'
+                    }`}>
+                      {isProfit ? '익절' : '손절'}
+                    </span>
+                  )}
+                  <p className={`text-sm font-bold ${pnlColor}`}>
+                    {trade.realizedPnl != null
+                      ? `${trade.realizedPnl >= 0 ? '+' : ''}₩${trade.realizedPnl.toLocaleString()}`
+                      : '—'}
+                  </p>
+                </div>
               </Field>
               <Field label="보유 봉 수">
                 <p className="text-sm font-bold text-zinc-100">

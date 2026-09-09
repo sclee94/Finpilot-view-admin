@@ -175,7 +175,7 @@ export default function Home() {
         {/* Logo */}
         <div className="text-center mb-5">
           <img
-            src="https://public.readdy.ai/ai/img_res/1e74d93b-2151-4e20-b57f-a5c03641098e.png"
+            src="/finpilot/static/admin/images/finpilot-logo.png"
             alt="Logo"
             className="h-12 sm:h-16 w-auto mx-auto mb-3 object-contain"
           />

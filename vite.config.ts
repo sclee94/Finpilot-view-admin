@@ -98,6 +98,10 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      '/finpilot/static': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
     },
   },
 });

@@ -34,6 +34,9 @@ interface FormState {
   riskPerTradePct:           NumVal;
   gradeCutoffBullish:        NumVal;
   gradeCutoffPullback:       NumVal;
+  enableDayLowBuy:           0 | 1;
+  dayLowBufferPct:           NumVal;
+  dayLowRequireRsiOversold:  0 | 1;
 }
 
 const EMPTY_FORM: FormState = {
@@ -60,6 +63,9 @@ const EMPTY_FORM: FormState = {
   riskPerTradePct:           '',
   gradeCutoffBullish:        '',
   gradeCutoffPullback:       '',
+  enableDayLowBuy:           0,
+  dayLowBufferPct:           0, // 기본값 0=당일 저가와 정확히 같을 때만 인정 — OFF일 땐 미사용이지만 isFormValid 통과를 위해 항상 채워둠
+  dayLowRequireRsiOversold:  0,
 };
 
 function dtoToForm(dto: StrategyConfigDTO): FormState {
@@ -87,6 +93,9 @@ function dtoToForm(dto: StrategyConfigDTO): FormState {
     riskPerTradePct:           dto.riskPerTradePct           ?? '',
     gradeCutoffBullish:        dto.gradeCutoffBullish        ?? '',
     gradeCutoffPullback:       dto.gradeCutoffPullback       ?? '',
+    enableDayLowBuy:           dto.enableDayLowBuy === 1 ? 1 : 0,
+    dayLowBufferPct:           dto.dayLowBufferPct           ?? 0,
+    dayLowRequireRsiOversold:  dto.dayLowRequireRsiOversold === 1 ? 1 : 0,
   };
 }
 
@@ -303,6 +312,9 @@ export default function Strategy() {
         riskPerTradePct:           form.riskPerTradePct           as number,
         gradeCutoffBullish:        form.gradeCutoffBullish        as number,
         gradeCutoffPullback:       form.gradeCutoffPullback       as number,
+        enableDayLowBuy:           form.enableDayLowBuy,
+        dayLowBufferPct:           form.dayLowBufferPct           as number,
+        dayLowRequireRsiOversold:  form.dayLowRequireRsiOversold,
       };
       if (creating) {
         const res = await apiClient.post<ApiResponse<StrategyConfigDTO>>('/strategy/insertStrategyConfig', payload);
@@ -515,6 +527,62 @@ export default function Strategy() {
                     value={form.gradeCutoffPullback} step={1} disabled={!canEdit} category="buy"
                     onChange={v => set('gradeCutoffPullback', v)}
                   />
+                </div>
+              </Section>
+
+              <Section title="당일 저점 매수" icon="ri-arrow-down-circle-line">
+                <div className="bg-zinc-800/60 border border-zinc-700/50 rounded-lg px-3 py-2.5 mb-4 text-xs text-zinc-400 leading-relaxed space-y-1">
+                  <p>ON이면 기존 불타기/눌림목과 함께 평가됩니다(매수 조건 추가). 다만 같은 틱에 불타기/눌림목이 먼저 진입하면 당일저점은 취소됩니다(우선순위: 불타기&gt;눌림목&gt;당일저점). 13:00 이전이거나 시장 전체가 나쁜 날(시장점수 3점 이하)에는 자동으로 차단됩니다.</p>
+                </div>
+                <div className="flex items-center gap-3 mb-4">
+                  <button
+                    type="button"
+                    disabled={!canEdit}
+                    onClick={() => set('enableDayLowBuy', form.enableDayLowBuy === 1 ? 0 : 1)}
+                    className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
+                      form.enableDayLowBuy === 1 ? 'bg-teal-500' : 'bg-zinc-600'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                        form.enableDayLowBuy === 1 ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                  <span className="text-sm font-medium text-zinc-300">
+                    당일 저점 매수 {form.enableDayLowBuy === 1 ? 'ON' : 'OFF'}
+                  </span>
+                  <CategoryBadge category="buy" />
+                </div>
+                <div className="grid grid-cols-1 gap-4">
+                  <NumInput
+                    label="당일 저가 대비 허용 오차"
+                    desc="현재가가 당일 누적 최저가 대비 이 비율 이내면 매수 (0=정확히 같을 때만 인정)"
+                    value={form.dayLowBufferPct} step={0.1} suffix="%"
+                    disabled={!canEdit || form.enableDayLowBuy !== 1} category="buy"
+                    onChange={v => set('dayLowBufferPct', v)}
+                  />
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      disabled={!canEdit || form.enableDayLowBuy !== 1}
+                      onClick={() => set('dayLowRequireRsiOversold', form.dayLowRequireRsiOversold === 1 ? 0 : 1)}
+                      className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
+                        form.dayLowRequireRsiOversold === 1 ? 'bg-teal-500' : 'bg-zinc-600'
+                      }`}
+                    >
+                      <span
+                        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                          form.dayLowRequireRsiOversold === 1 ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                    <span className="text-sm font-medium text-zinc-300">
+                      RSI 과매도 조건 추가 요구 {form.dayLowRequireRsiOversold === 1 ? 'ON' : 'OFF'}
+                    </span>
+                    <CategoryBadge category="buy" />
+                  </div>
+                  <p className="text-xs text-zinc-600 -mt-2">ON이면 위 "눌림목 과매도 기준 (RSI)" 값 미만일 때만 당일저점 매수를 인정합니다 — 실측 검증 안 된 선택 옵션이라 직접 A/B 테스트해보시라고 추가했습니다.</p>
                 </div>
               </Section>
 
