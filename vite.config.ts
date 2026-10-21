@@ -70,6 +70,11 @@ export default defineConfig({
   build: {
     sourcemap: false,
     outDir: "out",
+    // esbuild(vite 기본 CSS minifier)가 Tailwind가 만드는 다수의 동일 min-width @media
+    // 블록(파일 곳곳에 흩어져 나타남)을 병합하지 않고 통째로 드랍하는 버그가 있어(반응형
+    // 브레이크포인트가 프로덕션 빌드에서만 전부 사라짐 - 2026-09-25 실측 확인),
+    // lightningcss로 교체해서 회피한다.
+    cssMinify: "lightningcss",
     rollupOptions: {
       output: {
         entryFileNames: "assets/JS/[name]-[hash].js",

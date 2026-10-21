@@ -29,6 +29,16 @@ const STATUS_STYLE: Record<string, string> = {
   SUCCESS: 'bg-emerald-500/20 text-emerald-300',
   FAILED:  'bg-rose-500/20 text-rose-400',
 };
+const CATEGORY_STYLE: Record<string, string> = {
+  KOSPI200:  'bg-indigo-500/20 text-indigo-300',
+  KOSDAQ150: 'bg-fuchsia-500/20 text-fuchsia-300',
+  NASDAQ100: 'bg-cyan-500/20 text-cyan-300',
+};
+const CATEGORY_LABEL: Record<string, string> = {
+  KOSPI200:  '코스피200',
+  KOSDAQ150: '코스닥150',
+  NASDAQ100: '나스닥100',
+};
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -53,6 +63,7 @@ export default function TradeDetailModal({ trade, onClose }: Props) {
   if (!trade) return null;
 
   const isClose = trade.action === 'SELL' || trade.action === 'CLOSE_LONG' || trade.action === 'CLOSE_SHORT';
+  const isFailed = trade.orderStatus === 'FAILED';
   const isProfit = trade.realizedPnl != null && trade.realizedPnl >= 0;
   const pnlColor = isProfit ? 'text-sky-400' : 'text-rose-400';
 
@@ -78,7 +89,16 @@ export default function TradeDetailModal({ trade, onClose }: Props) {
 
         <div className="px-6 py-5 space-y-4">
           {/* 기본 정보 */}
-          <div className="bg-zinc-800/50 rounded-xl px-5 py-4 grid grid-cols-3 gap-4">
+          <div className="bg-zinc-800/50 rounded-xl px-5 py-4 grid grid-cols-4 gap-4">
+            <Field label="구분">
+              {trade.category ? (
+                <span className={`inline-block px-2.5 py-1 text-xs font-semibold rounded-full ${CATEGORY_STYLE[trade.category] ?? 'bg-zinc-700 text-zinc-400'}`}>
+                  {CATEGORY_LABEL[trade.category] ?? trade.category}
+                </span>
+              ) : (
+                <span className="text-xs text-zinc-600">—</span>
+              )}
+            </Field>
             <Field label="모드">
               <span className={`inline-block px-2.5 py-1 text-xs font-semibold rounded-full ${MODE_STYLE[trade.mode]}`}>
                 {trade.mode === 'LIVE' ? '실전' : '모의'}
@@ -184,16 +204,17 @@ export default function TradeDetailModal({ trade, onClose }: Props) {
             </Field>
           </div>
 
-          {/* 수익률 현황 — currentEquity/peakEquity는 1.0을 시작값으로 하는 자산 비율이라 %로 환산해서 표시 */}
+          {/* 수익률 현황 — currentEquity/peakEquity는 1.0을 시작값으로 하는 자산 비율이라 %로 환산해서 표시.
+              실패 건은 체결이 없어 이 값이 세션의 기존 자산 비율 스냅샷일 뿐이라 '—'로 표시 */}
           <div className="bg-zinc-800/50 rounded-xl px-5 py-4 grid grid-cols-2 gap-4">
             <Field label="수익률">
               <p className="text-sm text-zinc-200">
-                {trade.currentEquity != null ? `${((trade.currentEquity - 1) * 100).toFixed(2)}%` : '—'}
+                {!isFailed && trade.currentEquity != null ? `${((trade.currentEquity - 1) * 100).toFixed(2)}%` : '—'}
               </p>
             </Field>
             <Field label="최대 수익률 (Peak)">
               <p className="text-sm text-zinc-200">
-                {trade.peakEquity != null ? `${((trade.peakEquity - 1) * 100).toFixed(2)}%` : '—'}
+                {!isFailed && trade.peakEquity != null ? `${((trade.peakEquity - 1) * 100).toFixed(2)}%` : '—'}
               </p>
             </Field>
           </div>

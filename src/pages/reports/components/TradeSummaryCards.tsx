@@ -21,8 +21,10 @@ export default function TradeSummaryCards({ list, assetInfo }: Props) {
   const total        = list.length;
   const success      = list.filter(t => t.orderStatus === 'SUCCESS').length;
   const failed       = list.filter(t => t.orderStatus === 'FAILED').length;
-  const closeList    = list.filter(t => t.action === 'SELL' || t.action === 'CLOSE_LONG' || t.action === 'CLOSE_SHORT');
-  const buyList      = list.filter(t => t.action === 'BUY' || t.action === 'ADD_LONG');
+  // 손익/금액 집계는 실제 체결(SUCCESS)만 — 실패 주문은 체결된 적 없어 합산하면 손익·거래대금이 왜곡된다
+  const filled       = list.filter(t => t.orderStatus === 'SUCCESS');
+  const closeList    = filled.filter(t => t.action === 'SELL' || t.action === 'CLOSE_LONG' || t.action === 'CLOSE_SHORT');
+  const buyList      = filled.filter(t => t.action === 'BUY' || t.action === 'ADD_LONG');
   const totalPnl     = closeList.reduce((s, t) => s + (t.realizedPnl ?? 0), 0);
   const buyCount     = buyList.length;
   const closeCount   = closeList.length;

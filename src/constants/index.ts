@@ -6,6 +6,7 @@ export const MENU_ITEMS = [
   { path: '/strategy-menu', icon: 'ri-list-check-2',    label: '전략 메뉴판', adminOnly: false },
   { path: '/testlog',   icon: 'ri-test-tube-line',    label: '백테스트',  adminOnly: false },
   { path: '/live',      icon: 'ri-line-chart-line',    label: '실전투자',  adminOnly: false },
+  { path: '/briefing',  icon: 'ri-newspaper-line',     label: '브리핑',    adminOnly: false },
   { path: '/logs',      icon: 'ri-file-list-line',     label: '로그',      adminOnly: true  },
 ];
 
@@ -44,85 +45,6 @@ export const STATUS = {
   INACTIVE: 0,
   BLOCKED: -1,
 } as const;
-
-const now = new Date();
-const thisMonth = `${now.getMonth() + 1}월`;
-
-export const STATS_DATA = [
-  {
-    title: '총 사용자',
-    value: '1,234',
-    icon: 'ri-user-line',
-    trend: '+12.5%',
-    trendUp: true,
-    dateLabel: thisMonth,
-  },
-  {
-    title: '활성 거래',
-    value: '856',
-    icon: 'ri-stock-line',
-    trend: '+8.2%',
-    trendUp: true,
-    dateLabel: thisMonth,
-  },
-  {
-    title: '총 거래량',
-    value: '2,400개',
-    icon: 'ri-line-chart-line',
-    trend: '-3.1%',
-    trendUp: false,
-    dateLabel: thisMonth,
-    subValues: [
-      { label: '월간', value: '₩284,000,000' },
-      { label: '달러', value: '$2,400,000' },
-    ],
-  },
-  {
-    title: '시스템 상태',
-    value: '정상',
-    icon: 'ri-shield-check-line',
-    trend: '100%',
-    trendUp: true,
-  },
-];
-
-export const RECENT_ACTIVITIES = [
-  {
-    id: 1,
-    user: '김철수',
-    action: '새로운 거래 생성',
-    time: '5분 전',
-    type: 'success' as const,
-  },
-  {
-    id: 2,
-    user: '이영희',
-    action: '프로필 업데이트',
-    time: '15분 전',
-    type: 'info' as const,
-  },
-  {
-    id: 3,
-    user: '박민수',
-    action: '거래 취소',
-    time: '30분 전',
-    type: 'warning' as const,
-  },
-  {
-    id: 4,
-    user: '정수진',
-    action: '새로운 거래 생성',
-    time: '1시간 전',
-    type: 'success' as const,
-  },
-  {
-    id: 5,
-    user: '최동욱',
-    action: '계정 설정 변경',
-    time: '2시간 전',
-    type: 'info' as const,
-  },
-];
 
 export const NOTIFICATION_SETTINGS = [
   { id: 'email', label: '이메일 알림', checked: true },

@@ -11,12 +11,12 @@ function formatMarketCap(marketCap: number): string {
 
 interface SymbolPickerProps {
   value: string;
-  onChange: (symbol: string) => void;
+  onChange: (symbol: string, category?: SymbolCategory) => void;
   disabled?: boolean;
   defaultCategory?: SymbolCategory;
 }
 
-/** 카테고리(코스피200/나스닥100/지수) → 종목 2단계 선택 — DB 기반, 현재가 내림차순 정렬 */
+/** 카테고리(코스피200/코스닥/나스닥100) → 종목 2단계 선택 — DB 기반, 현재가 내림차순 정렬 */
 export default function SymbolPicker({ value, onChange, disabled = false, defaultCategory = 'KOSPI200' }: SymbolPickerProps) {
   const [category, setCategory] = useState<SymbolCategory>(defaultCategory);
   const [symbols, setSymbols]   = useState<SymbolUniverse[]>([]);
@@ -51,7 +51,7 @@ export default function SymbolPicker({ value, onChange, disabled = false, defaul
       </div>
       <select
         value={value}
-        onChange={e => onChange(e.target.value)}
+        onChange={e => onChange(e.target.value, category)}
         disabled={disabled || loading}
         className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-teal-500 transition-colors disabled:opacity-50"
       >

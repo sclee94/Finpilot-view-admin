@@ -2,14 +2,14 @@ import { useState, useEffect, useCallback } from 'react';
 import PageLayout from '../../components/PageLayout';
 import { authStorage } from '../../utils/auth';
 import { PERMISSIONS } from '../../constants';
-import type { ApiResponse, TradingSession, TradeHistory } from '../../types/index';
+import type { ApiResponse, PageResponse, TradingSession, TradeHistory, RecommendSymbol } from '../../types/index';
+import { categoryLabel, getTodayRecommendSymbols } from '../../api/symbolApi';
 import type { StrategyConfigDTO } from '../strategy/strategyTypes';
-import type { ScreenerResult, ScreenerRecommendation } from './screenerTypes';
 import { getSymbolName } from '../../constants/symbolNames';
 import { apiClient } from '../../api/apiClient';
 import { useEnterConfirm } from '../../hooks/useEnterConfirm';
 import SymbolPicker from '../../components/SymbolPicker';
-import { recommendScreener } from '../../api/screenerApi';
+import { getUser, userUpdate } from '../../api/userApi';
 import {
   getExecuteOnOff,
   setExecuteOnOff,
@@ -33,6 +33,25 @@ function positionBadge(pos: TradingSession['currentPosition']) {
   return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-zinc-700 text-zinc-400">NONE</span>;
 }
 
+const CATEGORY_STYLE: Record<string, string> = {
+  KOSPI200:  'bg-indigo-500/20 text-indigo-300',
+  KOSDAQ150: 'bg-fuchsia-500/20 text-fuchsia-300',
+  NASDAQ100: 'bg-cyan-500/20 text-cyan-300',
+};
+const CATEGORY_LABEL: Record<string, string> = {
+  KOSPI200:  '코스피',
+  KOSDAQ150: '코스닥',
+  NASDAQ100: '나스닥',
+};
+function categoryBadge(category?: string | null) {
+  if (!category) return null;
+  return (
+    <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${CATEGORY_STYLE[category] ?? 'bg-zinc-700 text-zinc-400'}`}>
+      {CATEGORY_LABEL[category] ?? category}
+    </span>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function Live() {
@@ -42,18 +61,27 @@ export default function Live() {
   const [investSymbol,       setInvestSymbol]       = useState('');
   const [investSymbolMode,   setInvestSymbolMode]   = useState<'dropdown' | 'direct'>('dropdown');
   const [investDropdown,     setInvestDropdown]     = useState('');
+  const [investCategory,     setInvestCategory]     = useState<string | undefined>(undefined);
   const [investing,          setInvesting]          = useState(false);
   const [sessionList, setSessionList]   = useState<TradingSession[]>([]);
   const [statusLoading, setStatusLoading] = useState(false);
   const [errorMessage, setErrorMessage]   = useState('');
 
-  // 종목 추천받기(스크리너) — 자동매매와 분리된 읽기전용, 추천 클릭 시에만 세션 생성
-  const [screenerLimit, setScreenerLimit]   = useState(20);
-  const [screenerLoading, setScreenerLoading] = useState(false);
-  const [screenerError, setScreenerError]   = useState('');
-  const [screenerResult, setScreenerResult] = useState<ScreenerResult | null>(null);
-  const [addingSymbol, setAddingSymbol]     = useState<string | null>(null);
-  const [addedSymbols, setAddedSymbols]     = useState<Set<string>>(new Set());
+  // 추천세션 받기 — 매일 아침 뉴스브리핑 추천 종목으로 자동 세션 생성(토글+전략 지정)
+  const [strategies, setStrategies] = useState<StrategyConfigDTO[]>([]);
+  const [enableRecommendedLive, setEnableRecommendedLive] = useState(false);
+  const [enableRecommendedPaper, setEnableRecommendedPaper] = useState(false);
+  const [recommendedStrategyConfigId, setRecommendedStrategyConfigId] = useState<number | ''>('');
+  const [recommendSaving, setRecommendSaving] = useState(false);
+  const [recommendMsg, setRecommendMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  // 저장된(서버 기준) 추천세션 토글 상태 — 편집 중인 토글값과 구분해서 "받기 꺼짐" 안내에 사용
+  const [savedRecommendLive, setSavedRecommendLive] = useState(false);
+  const [savedRecommendPaper, setSavedRecommendPaper] = useState(false);
+  // 오늘의 추천 종목(토글 무관) — null=로딩 중, 'error'=조회 실패, 배열(빈 배열이면 "추천 없음")
+  const [recommendSymbols, setRecommendSymbols] = useState<RecommendSymbol[] | null | 'error'>(null);
+  // 방향 필드가 없는 응답(구버전 서버)은 상승(UP)으로 취급
+  const upRecommendSymbols   = Array.isArray(recommendSymbols) ? recommendSymbols.filter(r => r.direction !== 'DOWN') : [];
+  const downRecommendSymbols = Array.isArray(recommendSymbols) ? recommendSymbols.filter(r => r.direction === 'DOWN') : [];
 
   // 투자 모드 (기본값 없음)
   const [investMode, setInvestMode] = useState<'LIVE' | 'PAPER' | null>(null);
@@ -187,7 +215,7 @@ export default function Live() {
   };
 
   // 거래 리스트 팝업
-  const [tradePopup, setTradePopup] = useState<{ symbol: string; symbolName: string; userUid: string; mode: 'LIVE' | 'PAPER' } | null>(null);
+  const [tradePopup, setTradePopup] = useState<{ symbol: string; symbolName: string; userUid: string; mode: 'LIVE' | 'PAPER'; category?: string | null } | null>(null);
   const [tradePopupList, setTradePopupList] = useState<TradeHistory[]>([]);
   const [tradePopupLoading, setTradePopupLoading] = useState(false);
   const [tradePopupDetail, setTradePopupDetail] = useState<TradeHistory | null>(null);
@@ -266,12 +294,14 @@ export default function Live() {
         symbol: investSymbol.trim().toUpperCase(),
         mode:   investMode,
         strategyConfigId,
+        category: investSymbolMode === 'dropdown' ? investCategory : undefined,
       });
       if (res.data) {
         // 생성 응답엔 strategyConfig/symbolName 조인 정보가 없어 조용히 재조회해서 정확한 값으로 채움
         await fetchSessionList(true);
         setInvestSymbol('');
         setInvestDropdown('');
+        setInvestCategory(undefined);
       } else {
         setErrorMessage(res.message || '세션 생성에 실패했습니다.');
       }
@@ -282,75 +312,53 @@ export default function Live() {
     }
   };
 
-  // 종목 추천받기 — 그 시점 코스피200을 스캔해 BUY 후보만 보여줌(세션/주문 생성 없음)
-  const handleFetchRecommendations = async () => {
-    if (!investMode || screenerLoading) return;
+  // 추천세션 받기 — 현재 유저의 토글/전략 설정 + 쓸 수 있는 전략 목록 조회
+  useEffect(() => {
     const userUid = authStorage.get()?.userUid;
     if (!userUid) return;
-
-    setScreenerLoading(true);
-    setScreenerError('');
-    setScreenerResult(null);
-    try {
-      const strategyRes = await apiClient.post<ApiResponse<import('../../types').PageResponse<StrategyConfigDTO>>>(
-        '/strategy/getStrategyConfigList',
-        {},
-      );
-      const strategyConfigId = strategyRes.data?.content?.[0]?.id ?? null;
-      if (!strategyConfigId) {
-        setScreenerError('적용 가능한 전략 설정을 찾을 수 없습니다.');
-        return;
-      }
-
-      const res = await recommendScreener({
-        userUid,
-        category: 'KOSPI200',
-        strategyConfigId,
-        isLive: investMode === 'LIVE',
-        limit: screenerLimit,
-      });
+    getUser({ userUid }).then((res) => {
       if (res.data) {
-        setScreenerResult(res.data);
-        setAddedSymbols(new Set());
-      } else {
-        setScreenerError(res.message || '추천 조회에 실패했습니다.');
+        setEnableRecommendedLive(res.data.enableRecommendedSessionsLive === 1);
+        setEnableRecommendedPaper(res.data.enableRecommendedSessionsPaper === 1);
+        setSavedRecommendLive(res.data.enableRecommendedSessionsLive === 1);
+        setSavedRecommendPaper(res.data.enableRecommendedSessionsPaper === 1);
+        setRecommendedStrategyConfigId(res.data.recommendedStrategyConfigId ?? '');
       }
-    } catch {
-      setScreenerError('서버 연결에 실패했습니다. 스캔 종목 수를 줄여서 다시 시도해보세요.');
-    } finally {
-      setScreenerLoading(false);
-    }
-  };
+    }).catch(() => {});
+    apiClient.post<ApiResponse<PageResponse<StrategyConfigDTO>>>(
+      '/strategy/getStrategyConfigList',
+      { userUid },
+    ).then((res) => {
+      setStrategies(res.data?.content ?? []);
+    }).catch(() => {});
+    getTodayRecommendSymbols()
+      .then((res) => setRecommendSymbols(res.status < 400 ? (res.data ?? []) : 'error'))
+      .catch(() => setRecommendSymbols('error'));
+  }, []);
 
-  // 추천 종목을 세션으로 추가 — 사용자가 직접 눌러야만 생성됨(자동 실행 아님).
-  // strategyConfigId는 백엔드가 방향별로 이미 정해서 내려준 값을 그대로 쓴다(평균회귀는
-  // 전용 TP0.6/SL1.5 전략에 반드시 연결돼야 신호가 검증된 그대로 동작함 — 재조회해서
-  // 임의의 기본전략으로 덮어쓰면 안 됨).
-  const handleAddRecommendation = async (rec: ScreenerRecommendation) => {
-    if (!investMode || addingSymbol) return;
+  const handleRecommendSave = async () => {
     const userUid = authStorage.get()?.userUid;
     if (!userUid) return;
-
-    const key = `${rec.symbol}:${rec.direction}`;
-    setAddingSymbol(key);
-    setErrorMessage('');
+    setRecommendSaving(true);
+    setRecommendMsg(null);
     try {
-      const res = await insertTradingSession({
+      const res = await userUpdate({
         userUid,
-        symbol: rec.symbol,
-        mode: investMode,
-        strategyConfigId: rec.strategyConfigId,
+        enableRecommendedSessionsLive: enableRecommendedLive ? 1 : 0,
+        enableRecommendedSessionsPaper: enableRecommendedPaper ? 1 : 0,
+        ...(recommendedStrategyConfigId !== '' ? { recommendedStrategyConfigId } : {}),
       });
-      if (res.data) {
-        setAddedSymbols(prev => new Set(prev).add(key));
-        await fetchSessionList(true);
+      if (res.status < 400) {
+        setRecommendMsg({ type: 'success', text: '추천세션 설정이 저장되었습니다.' });
+        setSavedRecommendLive(enableRecommendedLive);
+        setSavedRecommendPaper(enableRecommendedPaper);
       } else {
-        setErrorMessage(res.message || '세션 추가에 실패했습니다.');
+        setRecommendMsg({ type: 'error', text: res.message || '저장에 실패했습니다.' });
       }
     } catch {
-      setErrorMessage('서버 연결에 실패했습니다.');
+      setRecommendMsg({ type: 'error', text: '서버 연결에 실패했습니다.' });
     } finally {
-      setAddingSymbol(null);
+      setRecommendSaving(false);
     }
   };
 
@@ -652,6 +660,7 @@ export default function Live() {
                   <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${tradePopup.mode === 'LIVE' ? 'bg-amber-500/20 text-amber-300' : 'bg-blue-500/20 text-blue-300'}`}>
                     {tradePopup.mode === 'LIVE' ? '실전' : '모의'}
                   </span>
+                  {categoryBadge(tradePopup.category)}
                 </div>
                 <p className="text-xs text-zinc-500 mt-0.5">{tradePopup.symbolName} · {tradePopup.symbol}</p>
               </div>
@@ -716,8 +725,8 @@ export default function Live() {
                         <div><p className="text-xs text-zinc-500 mb-1">익절가 (TP)</p><p className="text-sm text-zinc-200">{t.tpPrice != null ? `₩${t.tpPrice.toLocaleString()}` : '—'}</p></div>
                       </div>
                       <div className="bg-zinc-800/50 rounded-xl px-5 py-4 grid grid-cols-2 gap-4">
-                        <div><p className="text-xs text-zinc-500 mb-1">수익률</p><p className="text-sm text-zinc-200">{t.currentEquity != null ? `${((t.currentEquity - 1) * 100).toFixed(2)}%` : '—'}</p></div>
-                        <div><p className="text-xs text-zinc-500 mb-1">최대 수익률 (Peak)</p><p className="text-sm text-zinc-200">{t.peakEquity != null ? `${((t.peakEquity - 1) * 100).toFixed(2)}%` : '—'}</p></div>
+                        <div><p className="text-xs text-zinc-500 mb-1">수익률</p><p className="text-sm text-zinc-200">{t.orderStatus !== 'FAILED' && t.currentEquity != null ? `${((t.currentEquity - 1) * 100).toFixed(2)}%` : '—'}</p></div>
+                        <div><p className="text-xs text-zinc-500 mb-1">최대 수익률 (Peak)</p><p className="text-sm text-zinc-200">{t.orderStatus !== 'FAILED' && t.peakEquity != null ? `${((t.peakEquity - 1) * 100).toFixed(2)}%` : '—'}</p></div>
                       </div>
                       {t.orderStatus === 'FAILED' && t.errorMessage && (
                         <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl px-5 py-4">
@@ -768,8 +777,10 @@ export default function Live() {
                     const d = (t.createdAt ?? '').slice(0, 10);
                     return (!tradePopupDateFrom || d >= tradePopupDateFrom) && (!tradePopupDateTo || d <= tradePopupDateTo);
                   });
-                  const closeItems = filtered.filter(t => t.action === 'SELL' || t.action === 'CLOSE_LONG' || t.action === 'CLOSE_SHORT');
-                  const buyItems   = filtered.filter(t => t.action === 'BUY' || t.action === 'ADD_LONG');
+                  // 손익/금액 집계는 실제 체결(SUCCESS)만 — 실패 주문은 합산하지 않는다
+                  const filledItems = filtered.filter(t => t.orderStatus === 'SUCCESS');
+                  const closeItems = filledItems.filter(t => t.action === 'SELL' || t.action === 'CLOSE_LONG' || t.action === 'CLOSE_SHORT');
+                  const buyItems   = filledItems.filter(t => t.action === 'BUY' || t.action === 'ADD_LONG');
                   const totalPnl   = closeItems.reduce((s, t) => s + (t.realizedPnl ?? 0), 0);
                   const pnlColor   = totalPnl >= 0 ? 'text-sky-400' : 'text-rose-400';
                   return (
@@ -938,7 +949,7 @@ export default function Live() {
                 <div className="flex bg-zinc-800 rounded-md p-0.5 gap-0.5">
                   <button
                     type="button"
-                    onClick={() => { setInvestSymbolMode('dropdown'); setInvestDropdown(''); setInvestSymbol(''); }}
+                    onClick={() => { setInvestSymbolMode('dropdown'); setInvestDropdown(''); setInvestSymbol(''); setInvestCategory(undefined); }}
                     className={`px-3 py-1 text-xs rounded transition-colors cursor-pointer ${
                       investSymbolMode === 'dropdown' ? 'bg-teal-500 text-white' : 'text-zinc-400 hover:text-zinc-200'
                     }`}
@@ -947,7 +958,7 @@ export default function Live() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => { setInvestSymbolMode('direct'); setInvestSymbol(''); }}
+                    onClick={() => { setInvestSymbolMode('direct'); setInvestSymbol(''); setInvestCategory(undefined); }}
                     className={`px-3 py-1 text-xs rounded transition-colors cursor-pointer ${
                       investSymbolMode === 'direct' ? 'bg-teal-500 text-white' : 'text-zinc-400 hover:text-zinc-200'
                     }`}
@@ -959,7 +970,7 @@ export default function Live() {
               {investSymbolMode === 'dropdown' ? (
                 <SymbolPicker
                   value={investDropdown}
-                  onChange={v => { setInvestDropdown(v); setInvestSymbol(v); }}
+                  onChange={(v, cat) => { setInvestDropdown(v); setInvestSymbol(v); setInvestCategory(cat); }}
                 />
               ) : (
                 <input
@@ -1016,104 +1027,139 @@ export default function Live() {
           <p className="text-xs text-zinc-600 mt-3">전략은 시장 상황에 따라 자동으로 적용됩니다.</p>
         </div>}
 
-        {/* 종목 추천받기 카드 — 일반 사용자만 표시. 읽기전용 스캔 결과이며, "세션 추가"를
-            직접 눌러야만 세션이 생성됨(자동매매 스케줄러와 분리) */}
+        {/* 추천세션 받기 카드 — 일반 사용자만 표시. 매일 아침 뉴스브리핑 추천 종목으로
+            토글 켠 모드(실전/모의)에 자동 세션이 생성됨(자동매매 스케줄러가 이후 매매 진행) */}
         {!isAdmin && <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-zinc-200">종목 추천받기</h2>
-            <span className="text-xs text-zinc-600">코스피200 · 그 시점 시장 스캔</span>
+            <h2 className="text-lg font-semibold text-zinc-200">추천세션 받기</h2>
           </div>
+          <p className="text-xs text-zinc-500 mb-4">매일 아침 뉴스브리핑 추천 종목으로 자동 세션이 생성됩니다. 이미 같은 종목으로 직접 만든 세션이 있으면 그 세션을 그대로 씁니다.</p>
 
-          <div className="flex items-center gap-3 mb-5">
-            <span className="text-sm font-medium text-zinc-400">스캔 종목 수</span>
-            <input
-              type="number"
-              min={5}
-              max={100}
-              value={screenerLimit}
-              onChange={e => setScreenerLimit(Math.max(5, Math.min(100, Number(e.target.value) || 20)))}
-              className="w-20 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-zinc-100 focus:outline-none focus:border-teal-500 transition-colors"
-            />
-            <span className="text-xs text-zinc-600">시가총액 상위 순 · 많을수록 오래 걸려요(최대 100)</span>
-          </div>
-
-          <button
-            onClick={handleFetchRecommendations}
-            disabled={!investMode || screenerLoading}
-            className={`flex items-center gap-2 px-6 py-3 rounded-xl text-base font-semibold transition-colors ${
-              !investMode || screenerLoading
-                ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
-                : 'bg-teal-500 hover:bg-teal-400 text-white cursor-pointer'
-            }`}
-          >
-            {screenerLoading
-              ? <><i className="ri-loader-4-line animate-spin text-lg"></i>스캔 중... (최대 몇 분 걸릴 수 있어요)</>
-              : <><i className="ri-search-line text-lg"></i>추천받기</>
-            }
-          </button>
-          {!investMode && <p className="text-xs text-amber-500 mt-2">위 "세션 생성" 카드에서 거래 모드(실전/모의)를 먼저 선택해주세요.</p>}
-          {screenerError && <p className="text-xs text-red-400 mt-2">{screenerError}</p>}
-
-          {screenerResult && (
-            <div className="mt-5 space-y-2">
-              <p className="text-xs text-zinc-500 mb-3">
-                {screenerResult.scannedCount}종목 스캔 · {screenerResult.recommendations.length}건 추천
-                {screenerResult.skippedNoDataCount > 0 && ` · ${screenerResult.skippedNoDataCount}건 데이터 부족 제외`}
-              </p>
-              {screenerResult.recommendations.length === 0 ? (
-                <p className="text-sm text-zinc-500 py-6 text-center">지금 조건을 만족하는 종목이 없습니다.</p>
-              ) : (
-                [...screenerResult.recommendations]
-                  .sort((a, b) => Number(b.validated) - Number(a.validated))  // 검증된 평균회귀를 위로
-                  .map(rec => {
-                  const added = addedSymbols.has(`${rec.symbol}:${rec.direction}`);
-                  const dirLabel = rec.direction === 'BULLISH' ? '불타기' : rec.direction === 'PULLBACK' ? '눌림목' : '평균회귀';
-                  return (
-                    <div key={`${rec.symbol}:${rec.direction}`} className="flex items-center justify-between bg-zinc-800/60 border border-zinc-700 rounded-xl px-4 py-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="shrink-0 flex flex-col items-center gap-1">
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                            rec.direction === 'BULLISH' ? 'bg-teal-500/20 text-teal-300'
-                              : rec.direction === 'PULLBACK' ? 'bg-sky-500/20 text-sky-300'
-                              : 'bg-amber-500/20 text-amber-300'
-                          }`}>
-                            {dirLabel}
+          {/* 오늘의 추천 종목 — recommend_symbol 기준이라 추천세션 토글과 무관하게 항상 보인다.
+              같은 종목의 내 세션이 있으면(추천으로 생성됐든 직접 만들었든) 모드/보유 상태를 옆에 표시 */}
+          <div className="mb-4 p-4 bg-zinc-800/50 border border-zinc-800 rounded-xl">
+            <p className="text-sm font-medium text-zinc-300 mb-3">
+              오늘의 추천 종목 <span className="text-xs text-zinc-500">(상승 예상)</span>
+              {upRecommendSymbols.length > 0 && (
+                <span className="ml-2 text-xs text-teal-400">{upRecommendSymbols.length}개</span>
+              )}
+            </p>
+            {recommendSymbols === null ? (
+              <p className="text-sm text-zinc-500">불러오는 중...</p>
+            ) : recommendSymbols === 'error' ? (
+              <p className="text-sm text-red-400">추천 종목을 불러오지 못했습니다.</p>
+            ) : upRecommendSymbols.length === 0 ? (
+              <p className="text-sm text-zinc-500">오늘 추천된 종목이 없습니다.</p>
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-2">
+                  {upRecommendSymbols.map((r) => {
+                    const mySessions = sessionList.filter(s => s.symbol === r.symbol);
+                    return (
+                      <div key={r.symbol} className="px-3 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg">
+                        <span className="text-sm text-zinc-200">{r.symbolName ?? getSymbolName(r.symbol)}</span>
+                        <span className="ml-1.5 text-xs text-zinc-500">{r.symbol}</span>
+                        {r.category && <span className="ml-1.5 text-xs text-teal-400">{categoryLabel(r.category)}</span>}
+                        {mySessions.map(s => (
+                          <span key={s.id} className={`ml-1.5 text-xs ${s.mode === 'LIVE' ? 'text-rose-400' : 'text-sky-400'}`}>
+                            {s.mode === 'LIVE' ? '실전' : '모의'}{s.currentPosition === 'LONG' ? ' 보유중' : ''}
                           </span>
-                          <span className={`text-[10px] font-semibold ${rec.validated ? 'text-amber-400' : 'text-zinc-600'}`}>
-                            {rec.validated ? '검증됨' : '참고용'}
-                          </span>
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-zinc-100 truncate">{rec.symbolName ?? rec.symbol}</p>
-                          <p className="text-xs text-zinc-500 truncate">
-                            {rec.symbol} · {rec.currentPrice.toLocaleString()}원
-                            {rec.marketGrade != null && ` · 상대강도 ${rec.marketGrade}등급`}
-                          </p>
-                        </div>
+                        ))}
                       </div>
-                      <button
-                        onClick={() => handleAddRecommendation(rec)}
-                        disabled={added || addingSymbol === `${rec.symbol}:${rec.direction}` || rec.strategyConfigId == null}
-                        title={rec.strategyConfigId == null ? '연결할 전략을 찾지 못했습니다' : undefined}
-                        className={`shrink-0 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                          added || rec.strategyConfigId == null
-                            ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
-                            : 'bg-teal-500 hover:bg-teal-400 text-white cursor-pointer'
-                        }`}
-                      >
-                        {added
-                          ? <><i className="ri-check-line mr-1"></i>추가됨</>
-                          : addingSymbol === `${rec.symbol}:${rec.direction}`
-                            ? <i className="ri-loader-4-line animate-spin"></i>
-                            : <><i className="ri-add-line mr-1"></i>세션 추가</>
-                        }
-                      </button>
+                    );
+                  })}
+                </div>
+                {!savedRecommendLive && !savedRecommendPaper && (
+                  <p className="mt-3 text-xs text-zinc-500">추천세션 받기가 꺼져 있어 이 종목들로 자동매매 세션은 만들어지지 않습니다.</p>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* 하락 예상 종목 — 추천세션은 만들지 않고, 오늘 하루 모든 세션(추천/직접 생성, 보유 여부 무관)에서
+              신규매수·추가매수를 막는다. 이미 보유 중이면 매도는 기존 익절/손절 규칙 그대로(강제 매도 아님). */}
+          {downRecommendSymbols.length > 0 && (
+            <div className="mb-4 p-4 bg-rose-500/5 border border-rose-500/20 rounded-xl">
+              <p className="text-sm font-medium text-zinc-300 mb-1">
+                하락 예상 종목
+                <span className="ml-2 text-xs text-rose-400">{downRecommendSymbols.length}개</span>
+              </p>
+              <p className="text-xs text-zinc-500 mb-3">오늘은 이 종목들의 신규 매수와 추가 매수를 모든 세션에서 하지 않습니다. 보유 중인 종목의 매도는 평소 규칙대로 진행됩니다.</p>
+              <div className="flex flex-wrap gap-2">
+                {downRecommendSymbols.map((r) => {
+                  const mySessions = sessionList.filter(s => s.symbol === r.symbol);
+                  return (
+                    <div key={r.symbol} className="px-3 py-1.5 bg-zinc-900 border border-rose-500/30 rounded-lg">
+                      <span className="text-sm text-zinc-200">{r.symbolName ?? getSymbolName(r.symbol)}</span>
+                      <span className="ml-1.5 text-xs text-zinc-500">{r.symbol}</span>
+                      {r.category && <span className="ml-1.5 text-xs text-teal-400">{categoryLabel(r.category)}</span>}
+                      <span className="ml-1.5 text-xs text-rose-400">매수 차단</span>
+                      {mySessions.map(s => (
+                        <span key={s.id} className={`ml-1.5 text-xs ${s.mode === 'LIVE' ? 'text-rose-400' : 'text-sky-400'}`}>
+                          {s.mode === 'LIVE' ? '실전' : '모의'}{s.currentPosition === 'LONG' ? ' 보유중' : ''}
+                        </span>
+                      ))}
                     </div>
                   );
-                })
-              )}
+                })}
+              </div>
             </div>
           )}
+
+          <div className="flex items-center justify-between py-2">
+            <span className="text-sm text-zinc-300">실전투자에 적용</span>
+            <button
+              type="button"
+              onClick={() => setEnableRecommendedLive(v => !v)}
+              className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${enableRecommendedLive ? 'bg-teal-500' : 'bg-zinc-700'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${enableRecommendedLive ? 'translate-x-5' : 'translate-x-0'}`} />
+            </button>
+          </div>
+          <div className="flex items-center justify-between py-2">
+            <span className="text-sm text-zinc-300">모의투자에 적용</span>
+            <button
+              type="button"
+              onClick={() => setEnableRecommendedPaper(v => !v)}
+              className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer ${enableRecommendedPaper ? 'bg-teal-500' : 'bg-zinc-700'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${enableRecommendedPaper ? 'translate-x-5' : 'translate-x-0'}`} />
+            </button>
+          </div>
+
+          <div className="mt-3">
+            <label className="text-sm text-zinc-400 mb-1.5 block font-medium">추천세션에 쓸 전략</label>
+            <select
+              value={recommendedStrategyConfigId}
+              onChange={(e) => setRecommendedStrategyConfigId(e.target.value ? Number(e.target.value) : '')}
+              className="w-full px-4 py-2.5 text-sm bg-zinc-800 border border-zinc-700 text-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
+            >
+              <option value="">전략을 선택하세요</option>
+              {strategies.map((s) => (
+                <option key={s.id} value={s.id}>{s.name || `전략 #${s.id}`}</option>
+              ))}
+            </select>
+            {(enableRecommendedLive || enableRecommendedPaper) && recommendedStrategyConfigId === '' && (
+              <p className="mt-1.5 text-xs text-amber-400">전략을 지정하지 않으면 추천세션이 생성되지 않습니다.</p>
+            )}
+          </div>
+
+          {recommendMsg && (
+            <p className={`mt-3 text-sm ${recommendMsg.type === 'success' ? 'text-teal-400' : 'text-red-400'}`}>
+              {recommendMsg.text}
+            </p>
+          )}
+
+          <button
+            onClick={handleRecommendSave}
+            disabled={recommendSaving}
+            className="mt-4 flex items-center gap-2 px-6 py-3 rounded-xl text-base font-semibold bg-teal-500 hover:bg-teal-400 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {recommendSaving
+              ? <><i className="ri-loader-4-line animate-spin text-lg"></i>저장 중...</>
+              : <><i className="ri-save-line text-lg"></i>추천세션 설정 저장</>
+            }
+          </button>
         </div>}
 
         {/* 진행 섹션 */}
@@ -1205,6 +1251,7 @@ export default function Live() {
                         {session.symbolName ?? getSymbolName(session.symbol)}
                         <span className="ml-1 text-xs text-zinc-500">({session.symbol})</span>
                       </span>
+                      {categoryBadge(session.category)}
                       {session.strategyConfig ? (
                         <span
                           className="text-xs text-teal-300 bg-teal-500/10 px-2 py-0.5 rounded-md cursor-pointer hover:bg-teal-500/20 transition-colors"
@@ -1301,6 +1348,7 @@ export default function Live() {
                       symbolName: session.symbolName ?? getSymbolName(session.symbol),
                       userUid: session.userUid,
                       mode: session.mode,
+                      category: session.category,
                     })}
                   >
                     <div className="bg-zinc-800 group-hover/data:bg-zinc-700/70 rounded-lg px-3 py-2 transition-colors">

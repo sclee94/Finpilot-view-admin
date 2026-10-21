@@ -37,6 +37,9 @@ interface FormState {
   enableDayLowBuy:           0 | 1;
   dayLowBufferPct:           NumVal;
   dayLowRequireRsiOversold:  0 | 1;
+  enableImmediateStopLoss5Min: 0 | 1;
+  enableGapDownExit:         0 | 1;
+  gapDownExitPct:            NumVal;
 }
 
 const EMPTY_FORM: FormState = {
@@ -66,6 +69,9 @@ const EMPTY_FORM: FormState = {
   enableDayLowBuy:           0,
   dayLowBufferPct:           0, // 기본값 0=당일 저가와 정확히 같을 때만 인정 — OFF일 땐 미사용이지만 isFormValid 통과를 위해 항상 채워둠
   dayLowRequireRsiOversold:  0,
+  enableImmediateStopLoss5Min: 0,
+  enableGapDownExit:         0,
+  gapDownExitPct:            1,
 };
 
 function dtoToForm(dto: StrategyConfigDTO): FormState {
@@ -96,6 +102,9 @@ function dtoToForm(dto: StrategyConfigDTO): FormState {
     enableDayLowBuy:           dto.enableDayLowBuy === 1 ? 1 : 0,
     dayLowBufferPct:           dto.dayLowBufferPct           ?? 0,
     dayLowRequireRsiOversold:  dto.dayLowRequireRsiOversold === 1 ? 1 : 0,
+    enableImmediateStopLoss5Min: dto.enableImmediateStopLoss5Min === 1 ? 1 : 0,
+    enableGapDownExit:         dto.enableGapDownExit === 1 ? 1 : 0,
+    gapDownExitPct:            dto.gapDownExitPct ?? 1,
   };
 }
 
@@ -315,6 +324,9 @@ export default function Strategy() {
         enableDayLowBuy:           form.enableDayLowBuy,
         dayLowBufferPct:           form.dayLowBufferPct           as number,
         dayLowRequireRsiOversold:  form.dayLowRequireRsiOversold,
+        enableImmediateStopLoss5Min: form.enableImmediateStopLoss5Min,
+        enableGapDownExit:         form.enableGapDownExit,
+        gapDownExitPct:            form.gapDownExitPct            as number,
       };
       if (creating) {
         const res = await apiClient.post<ApiResponse<StrategyConfigDTO>>('/strategy/insertStrategyConfig', payload);
@@ -583,6 +595,66 @@ export default function Strategy() {
                     <CategoryBadge category="buy" />
                   </div>
                   <p className="text-xs text-zinc-600 -mt-2">ON이면 위 "눌림목 과매도 기준 (RSI)" 값 미만일 때만 당일저점 매수를 인정합니다 — 실측 검증 안 된 선택 옵션이라 직접 A/B 테스트해보시라고 추가했습니다.</p>
+                </div>
+              </Section>
+
+              <Section title="5분 즉시손절 안전망" icon="ri-shield-flash-line">
+                <div className="bg-zinc-800/60 border border-zinc-700/50 rounded-lg px-3 py-2.5 mb-4 text-xs text-zinc-400 leading-relaxed space-y-1">
+                  <p>매매 주기가 15분 등으로 긴 세션도, ON이면 그 사이 5분마다 위 "즉시 손절 기준" 하나만 값싸게 재확인합니다(변동성 배수 미적용, 스코어링손절·익절·RSI 등은 보지 않음 — 그건 원래 주기대로 평가). 급락 시 최대 대기시간을 줄이는 안전망이지만, 정상 변동폭에서도 조기 손절될 수 있어 실측상 성과가 오히려 나빠지는 경우가 있었습니다 — 기본 OFF, 직접 A/B 테스트해보시라고 추가했습니다.</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    disabled={!canEdit}
+                    onClick={() => set('enableImmediateStopLoss5Min', form.enableImmediateStopLoss5Min === 1 ? 0 : 1)}
+                    className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
+                      form.enableImmediateStopLoss5Min === 1 ? 'bg-teal-500' : 'bg-zinc-600'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                        form.enableImmediateStopLoss5Min === 1 ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                  <span className="text-sm font-medium text-zinc-300">
+                    5분 즉시손절 안전망 {form.enableImmediateStopLoss5Min === 1 ? 'ON' : 'OFF'}
+                  </span>
+                  <CategoryBadge category="sell" />
+                </div>
+              </Section>
+
+              <Section title="갭하락 시가 매도" icon="ri-arrow-down-circle-line">
+                <div className="bg-zinc-800/60 border border-zinc-700/50 rounded-lg px-3 py-2.5 mb-4 text-xs text-zinc-400 leading-relaxed space-y-1">
+                  <p>전날부터 들고 온 보유 종목(강제청산 OFF 세션 등)의 시가가 전일 종가보다 아래 기준 % 이상 낮게 시작하면, 장 시작 직후(09:00:30) 시장가로 전량 매도합니다. 매도 후 3시간 동안 같은 세션은 신규 매수하지 않습니다. 당일 진입한 포지션에는 적용되지 않으며, 실측 검증 전이라 기본 OFF입니다.</p>
+                </div>
+                <div className="flex items-center gap-3 mb-4">
+                  <button
+                    type="button"
+                    disabled={!canEdit}
+                    onClick={() => set('enableGapDownExit', form.enableGapDownExit === 1 ? 0 : 1)}
+                    className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
+                      form.enableGapDownExit === 1 ? 'bg-teal-500' : 'bg-zinc-600'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                        form.enableGapDownExit === 1 ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                  <span className="text-sm font-medium text-zinc-300">
+                    갭하락 시가 매도 {form.enableGapDownExit === 1 ? 'ON' : 'OFF'}
+                  </span>
+                  <CategoryBadge category="sell" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <NumInput
+                    label="갭하락 매도 기준 (%)"
+                    desc="시가가 전일 종가 대비 이 % 이상 낮으면 매도 (기본 1.0)"
+                    value={form.gapDownExitPct} step={0.1} prefix="-" disabled={!canEdit || form.enableGapDownExit !== 1} category="sell"
+                    onChange={v => set('gapDownExitPct', v)}
+                  />
                 </div>
               </Section>
 

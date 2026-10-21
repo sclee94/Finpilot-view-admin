@@ -45,13 +45,31 @@ const MODE_STYLE: Record<string, string> = {
   LIVE:  'bg-amber-500/20 text-amber-300',
   PAPER: 'bg-blue-500/20 text-blue-300',
 };
+const CATEGORY_STYLE: Record<string, string> = {
+  KOSPI200:  'bg-indigo-500/20 text-indigo-300',
+  KOSDAQ150: 'bg-fuchsia-500/20 text-fuchsia-300',
+  NASDAQ100: 'bg-cyan-500/20 text-cyan-300',
+};
+const CATEGORY_LABEL: Record<string, string> = {
+  KOSPI200:  '코스피',
+  KOSDAQ150: '코스닥',
+  NASDAQ100: '나스닥',
+};
+function CategoryBadge({ category }: { category?: string | null }) {
+  if (!category) return <span className="text-zinc-700 text-xs">—</span>;
+  return (
+    <span className={`px-2 py-0.5 text-xs font-semibold rounded-full whitespace-nowrap ${CATEGORY_STYLE[category] ?? 'bg-zinc-700 text-zinc-400'}`}>
+      {CATEGORY_LABEL[category] ?? category}
+    </span>
+  );
+}
 const STATUS_STYLE: Record<string, string> = {
   SUCCESS: 'bg-emerald-500/20 text-emerald-300',
   FAILED:  'bg-rose-500/20 text-rose-400',
 };
 
-// 번호/종목코드/종목명/사용자명/모드/액션/수량/진입가/진입시각/청산가/청산시각/실현손익/상태/생성일시
-const COL = 'grid-cols-[36px_80px_110px_100px_68px_90px_70px_95px_115px_95px_115px_105px_70px_115px]';
+// 번호/종목코드/종목명/구분/사용자명/모드/액션/수량/진입가/진입시각/청산가/청산시각/실현손익/상태/생성일시
+const COL = 'grid-cols-[36px_80px_110px_70px_100px_68px_90px_70px_95px_115px_95px_115px_105px_70px_115px]';
 
 function SortIcon({ field, active, dir }: { field: SortField; active: SortField; dir: SortDir }) {
   return (
@@ -76,10 +94,11 @@ export default function TradeTable({ paginated, sortField, sortDir, onSort, onRo
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden overflow-x-auto">
       {/* 헤더 */}
-      <div className={`grid ${COL} text-xs font-semibold text-zinc-500 uppercase tracking-wide px-3 py-3 border-b border-zinc-800 bg-zinc-800/40 min-w-[1280px]`}>
+      <div className={`grid ${COL} text-xs font-semibold text-zinc-500 uppercase tracking-wide px-3 py-3 border-b border-zinc-800 bg-zinc-800/40 min-w-[1350px]`}>
         <span className="text-center">#</span>
         <span>종목코드</span>
         <span>종목명</span>
+        <span className="text-center">구분</span>
         <span>사용자명</span>
         <span className="text-center">모드</span>
         <span className="text-center">액션</span>
@@ -102,12 +121,12 @@ export default function TradeTable({ paginated, sortField, sortDir, onSort, onRo
       </div>
 
       {paginated.length === 0 ? (
-        <div className="py-16 text-center text-zinc-600 text-sm min-w-[1280px]">
+        <div className="py-16 text-center text-zinc-600 text-sm min-w-[1350px]">
           <i className="ri-inbox-line text-3xl mb-2 block"></i>
           검색 결과가 없습니다
         </div>
       ) : (
-        <div className="min-w-[1280px]">
+        <div className="min-w-[1350px]">
           {paginated.map((item, idx) => {
             const isClose = item.action === 'SELL' || item.action === 'CLOSE_LONG' || item.action === 'CLOSE_SHORT';
             const pnlColor = item.realizedPnl != null && item.realizedPnl >= 0 ? 'text-sky-400' : 'text-rose-400';
@@ -130,6 +149,11 @@ export default function TradeTable({ paginated, sortField, sortDir, onSort, onRo
                 <span className="text-sm font-medium text-zinc-100 truncate pr-2 hover:text-teal-400 transition-colors">
                   {item.symbolName ?? item.symbol}
                 </span>
+
+                {/* 구분 */}
+                <div className="flex justify-center">
+                  <CategoryBadge category={item.category} />
+                </div>
 
                 {/* 사용자명 */}
                 <div className="flex items-center gap-1.5 pr-2">

@@ -29,6 +29,9 @@ export interface StrategyConfigDTO {
   enableDayLowBuy?:           number; // 당일 저점 매수 ON/OFF (1=ON, 0/null=OFF) — 기존 불타기/눌림목과 병행 동작
   dayLowBufferPct?:           number; // 당일 저가 대비 허용 오차 % (0=정확히 같아야 인정)
   dayLowRequireRsiOversold?:  number; // 당일저점 매수에 RSI 과매도(rsiOversold 기준) 조건 추가 요구 여부 (1=요구)
+  enableImmediateStopLoss5Min?: number; // 5분마다 즉시손절 안전망 ON/OFF (1=ON, 0/null=OFF) — 변동성배수 미적용 순수 손절선만 5분마다 재확인
+  enableGapDownExit?: number; // 갭하락 시가 매도 ON/OFF (1=ON, 0/null=OFF) — 이월 포지션이 시가가 전일 종가 대비 gapDownExitPct% 이상 낮으면 09:00:30 매도
+  gapDownExitPct?:    number; // 갭하락 매도 기준 % (기본 1.0)
   createdAt?:           string;
 }
 

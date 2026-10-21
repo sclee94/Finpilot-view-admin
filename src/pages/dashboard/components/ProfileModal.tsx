@@ -28,6 +28,9 @@ export default function ProfileModal({ isOpen, onClose, user }: ProfileModalProp
   const [tradingIntervalMinutes, setTradingIntervalMinutes] = useState(15);
   const [intervalSaving, setIntervalSaving] = useState(false);
   const [intervalMsg, setIntervalMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [tradingStartHour, setTradingStartHour] = useState<number | null>(null);
+  const [startHourSaving, setStartHourSaving] = useState(false);
+  const [startHourMsg, setStartHourMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -50,8 +53,9 @@ export default function ProfileModal({ isOpen, onClose, user }: ProfileModalProp
         setKisPaperAccountNo(u.kisPaperAccountNo ?? '');
         setKisPaperAccountProduct(u.kisPaperAccountProduct ?? '01');
         setTradingIntervalMinutes(u.tradingIntervalMinutes ?? 15);
+        setTradingStartHour(u.tradingStartHour ?? null);
         const stored = authStorage.get();
-        if (stored) authStorage.save({ ...stored, kisAppKey: u.kisAppKey, kisAppSecret: u.kisAppSecret, kisAccountNo: u.kisAccountNo, kisAccountProduct: u.kisAccountProduct, kisPaperAppKey: u.kisPaperAppKey, kisPaperAppSecret: u.kisPaperAppSecret, kisPaperAccountNo: u.kisPaperAccountNo, kisPaperAccountProduct: u.kisPaperAccountProduct, tradingIntervalMinutes: u.tradingIntervalMinutes });
+        if (stored) authStorage.save({ ...stored, kisAppKey: u.kisAppKey, kisAppSecret: u.kisAppSecret, kisAccountNo: u.kisAccountNo, kisAccountProduct: u.kisAccountProduct, kisPaperAppKey: u.kisPaperAppKey, kisPaperAppSecret: u.kisPaperAppSecret, kisPaperAccountNo: u.kisPaperAccountNo, kisPaperAccountProduct: u.kisPaperAccountProduct, tradingIntervalMinutes: u.tradingIntervalMinutes, tradingStartHour: u.tradingStartHour });
       }
     }).catch(() => {
       setKisAppKey(user.kisAppKey ?? '');
@@ -63,6 +67,7 @@ export default function ProfileModal({ isOpen, onClose, user }: ProfileModalProp
       setKisPaperAccountNo(user.kisPaperAccountNo ?? '');
       setKisPaperAccountProduct(user.kisPaperAccountProduct ?? '01');
       setTradingIntervalMinutes(user.tradingIntervalMinutes ?? 15);
+      setTradingStartHour(user.tradingStartHour ?? null);
     });
   }, [isOpen, user?.userUid]);
 
@@ -115,6 +120,29 @@ export default function ProfileModal({ isOpen, onClose, user }: ProfileModalProp
       setIntervalMsg({ type: 'error', text: '서버 연결에 실패했습니다.' });
     } finally {
       setIntervalSaving(false);
+    }
+  };
+
+  const handleStartHourSave = async (value: number) => {
+    const previous = tradingStartHour;
+    setTradingStartHour(value);
+    setStartHourSaving(true);
+    setStartHourMsg(null);
+    try {
+      const res = await userUpdate({ userUid: user.userUid, tradingStartHour: value });
+      if (res.status < 400) {
+        setStartHourMsg({ type: 'success', text: '매매 시작 시각이 저장되었습니다.' });
+        const stored = authStorage.get();
+        if (stored) authStorage.save({ ...stored, tradingStartHour: value });
+      } else {
+        setTradingStartHour(previous);
+        setStartHourMsg({ type: 'error', text: res.message || '저장에 실패했습니다.' });
+      }
+    } catch {
+      setTradingStartHour(previous);
+      setStartHourMsg({ type: 'error', text: '서버 연결에 실패했습니다.' });
+    } finally {
+      setStartHourSaving(false);
     }
   };
 
@@ -260,6 +288,37 @@ export default function ProfileModal({ isOpen, onClose, user }: ProfileModalProp
               </p>
             )}
           </div>
+
+          {/* 자동매매 매매 시작 시각 */}
+          <div className="mt-6 pt-5 border-t border-zinc-800">
+            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">매매 시작 시각</p>
+            <p className="text-xs text-zinc-500 mb-4">
+              이 시각부터 신규 매수/추가매수를 시작합니다(손절은 장 시작부터 동작). 미설정 시 10:10. 백테스트에도 동일하게 적용됩니다.
+            </p>
+            <div className="grid grid-cols-4 gap-2">
+              {[9, 10, 11, 12].map((hour) => (
+                <button
+                  key={hour}
+                  type="button"
+                  disabled={startHourSaving}
+                  onClick={() => handleStartHourSave(hour)}
+                  className={`py-2.5 text-sm font-semibold rounded-xl border transition-colors cursor-pointer disabled:opacity-50 ${
+                    tradingStartHour === hour
+                      ? 'bg-teal-500/15 border-teal-500 text-teal-300'
+                      : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:border-zinc-600'
+                  }`}
+                >
+                  {hour}시
+                </button>
+              ))}
+            </div>
+            {startHourMsg && (
+              <p className={`mt-3 text-sm ${startHourMsg.type === 'success' ? 'text-teal-400' : 'text-red-400'}`}>
+                {startHourMsg.text}
+              </p>
+            )}
+          </div>
+
 
           {/* 카카오 알림 연동 섹션 */}
           <div className="mt-6 pt-5 border-t border-zinc-800">

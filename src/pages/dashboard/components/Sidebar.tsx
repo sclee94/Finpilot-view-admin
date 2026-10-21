@@ -73,7 +73,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                 className={`w-full flex items-center px-6 py-4 text-base font-medium transition-colors whitespace-nowrap ${
                   isRestricted
                     ? 'text-zinc-600 cursor-not-allowed'
-                    : location.pathname === item.path
+                    : location.pathname === item.path || location.pathname.startsWith(item.path + '/')
                       ? 'bg-teal-500/10 text-teal-400 border-r-4 border-teal-500 cursor-pointer'
                       : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 cursor-pointer'
                 }`}

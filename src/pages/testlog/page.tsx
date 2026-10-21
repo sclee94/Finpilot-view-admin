@@ -11,6 +11,8 @@ import { getSymbolName } from '../../constants/symbolNames';
 import FilterButtonGroup from '../../components/FilterButtonGroup';
 import { useEnterConfirm } from '../../hooks/useEnterConfirm';
 import SymbolPicker from '../../components/SymbolPicker';
+import { categoryLabel, getTodayRecommendSymbols } from '../../api/symbolApi';
+import type { RecommendSymbol } from '../../types/index';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,6 +60,7 @@ interface BacktestResult {
   userName?:        string;
   strategyConfigId: number | null;
   symbol:           string;
+  initialCapital?:  number | null;  // 시작 자본금(원) — 2026-10-21 이전 결과는 null
   periodStart:      string;
   periodEnd:        string;
   periodDays:       number;
@@ -83,6 +86,8 @@ const RESULT_LABELS: Record<string, string> = {
   SCORE_SL:        '손절(스코어)',
   RSI_OVERBOUGHT:  '익절(RSI 과매수)',
   EOD_FORCE_CLOSE: '강제청산',
+  GAP_DOWN_OPEN:   '갭하락 시가매도',
+  IMMEDIATE_SL_5MIN: '5분 즉시손절',
 };
 
 function resultLabel(result: string): string {
@@ -91,14 +96,14 @@ function resultLabel(result: string): string {
 
 function resultBadgeClass(result: string): string {
   if (result === 'TP_THRESHOLD' || result === 'SCORE_TP' || result === 'RSI_OVERBOUGHT') return 'bg-teal-500/20 text-teal-400';
-  if (result === 'SL_THRESHOLD' || result === 'SCORE_SL') return 'bg-red-500/20 text-red-400';
+  if (result === 'SL_THRESHOLD' || result === 'SCORE_SL' || result === 'GAP_DOWN_OPEN' || result === 'IMMEDIATE_SL_5MIN') return 'bg-red-500/20 text-red-400';
   return 'bg-zinc-700 text-zinc-400';
 }
 
-// 포트폴리오(세션 목록)/랜덤종목 백테스트 결과는 symbol 컬럼에 "PORTFOLIO(N종목)"/"RANDOM(카테고리,N종목)"
-// 요약 라벨이 저장됨 — 개별 종목이 아니므로 getSymbolName()으로 풀어쓰지 않고 그대로 보여준다.
+// 포트폴리오(세션 목록)/랜덤종목/추천종목 백테스트 결과는 symbol 컬럼에 "PORTFOLIO(N종목)"/"RANDOM(카테고리,N종목)"/
+// "RECOMMEND(N종목)" 요약 라벨이 저장됨 — 개별 종목이 아니므로 getSymbolName()으로 풀어쓰지 않고 그대로 보여준다.
 function isAggregateResult(symbol: string): boolean {
-  return symbol.startsWith('PORTFOLIO(') || symbol.startsWith('RANDOM(');
+  return symbol.startsWith('PORTFOLIO(') || symbol.startsWith('RANDOM(') || symbol.startsWith('RECOMMEND(');
 }
 
 function symbolDisplay(symbol: string): { name: string; code: string | null } {
@@ -107,6 +112,72 @@ function symbolDisplay(symbol: string): { name: string; code: string | null } {
 }
 
 const DASH = <span className="text-zinc-600">-</span>;
+
+// 진입 전략(direction)별 청산 결과 집계 — 상세 상단 "전략별 매매 요약" 표용.
+// 익절은 즉시익절/스코어익절/RSI과매수익절을 합산, 손절 계열은 종류별로 따로 센다.
+// 강제청산(EOD_FORCE_CLOSE)은 어느 열에도 안 들어가므로 전체 ≠ 열 합계일 수 있다.
+const STRATEGY_ROWS = [
+  { direction: 'BULLISH',  label: '불타기' },
+  { direction: 'PULLBACK', label: '눌림목' },
+  { direction: 'DAYLOW',   label: '당일저점매수' },
+] as const;
+
+const EXIT_COLUMNS = [
+  { key: 'tp',       label: '익절',            results: ['TP_THRESHOLD', 'SCORE_TP', 'RSI_OVERBOUGHT'], color: 'text-teal-400' },
+  { key: 'sl',       label: '손절',            results: ['SCORE_SL'],          color: 'text-red-400' },
+  { key: 'slNow',    label: '즉시손절',        results: ['SL_THRESHOLD'],      color: 'text-red-400' },
+  { key: 'gapDown',  label: '갭하락 시가매도', results: ['GAP_DOWN_OPEN'],     color: 'text-red-400' },
+  { key: 'sl5min',   label: '5분 즉시손절',    results: ['IMMEDIATE_SL_5MIN'], color: 'text-red-400' },
+] as const;
+
+const DEFAULT_BACKTEST_CAPITAL = 10_000_000; // Java DEFAULT_PORTFOLIO_BACKTEST_CAPITAL과 동일
+
+// 두 엔진이 거래 로그 returnPct를 다른 기준으로 남긴다:
+//  - 포트폴리오 엔진(세션/랜덤/추천 — symbol이 "PORTFOLIO(" 등 요약 라벨): 포지션 자체 수익률(투자비중 미반영)
+//  - 단일 엔진(특정 종목): 계좌 대비 기여(포지션 수익률 × 투자비중), equity = 거래 후 계좌 배율
+// 그래서 거래 수익률을 단순 합산하면 포트폴리오 결과에선 실제 수익률과 수 배 차이·부호 반전까지 생긴다
+// (2026-10-21 랜덤 결과로 확인) — 손익(원)을 엔진별로 정확히 구해 시작 자본금으로 나눈다.
+function isPortfolioEngine(symbol: string): boolean {
+  return isAggregateResult(symbol);
+}
+
+/** 시작 자본금 — 저장값 우선, 없으면 1,000만원 고정인 결과만 추정(세션종목은 당시 KIS 잔고라 알 수 없음 → null) */
+function startCapitalOf(result: BacktestResult): number | null {
+  if (result.initialCapital) return Number(result.initialCapital);
+  return result.symbol.startsWith('PORTFOLIO(') ? null : DEFAULT_BACKTEST_CAPITAL;
+}
+
+/** 거래 1건의 실현 손익(원) — 계산 불가(옛 데이터 등)면 null */
+function tradePnl(t: BacktestTrade, result: BacktestResult, capital: number | null): number | null {
+  const r = Number(t.returnPct) / 100;
+  if (isPortfolioEngine(result.symbol)) {
+    // 매수 시 현금 = 주식수 × 평균단가, 매도 시 + 주식수 × 평균단가 × (1 + r) → 손익 = 주식수 × 평균단가 × r
+    if (t.shares == null || t.entryPrice == null) return null;
+    return Number(t.shares) * Number(t.entryPrice) * r;
+  }
+  // 단일 엔진: equity_after = equity_before × (1 + r) → 이번 거래 손익 = 자본금 × equity_after × r / (1 + r)
+  if (capital == null || t.equity == null) return null;
+  return capital * Number(t.equity) * r / (1 + r);
+}
+
+function strategyExitStats(trades: BacktestTrade[], result: BacktestResult) {
+  const capital = startCapitalOf(result);
+  return STRATEGY_ROWS.map(row => {
+    const ofDirection = trades.filter(t => t.direction === row.direction);
+    const wins = ofDirection.filter(t => Number(t.returnPct) > 0).length;
+    const pnls = ofDirection.map(t => tradePnl(t, result, capital));
+    const pnl = pnls.some(p => p == null) ? null : pnls.reduce<number>((acc, p) => acc + (p as number), 0);
+    return {
+      ...row,
+      total: ofDirection.length,
+      // 승률 = 수익(>0) 거래 비율, 수익률 = 전략 손익 합계 ÷ 시작 자본금 (세 전략 합 ≈ 전체 수익률)
+      winRate: ofDirection.length > 0 ? (wins / ofDirection.length) * 100 : null,
+      pnl,
+      retPct:  pnl != null && capital ? (pnl / capital) * 100 : null,
+      counts: EXIT_COLUMNS.map(col => ofDirection.filter(t => (col.results as readonly string[]).includes(t.result)).length),
+    };
+  });
+}
 
 // 추가매수가 있던 거래는 매수/추가매수/청산을 각각 별도 행으로 쪼개서 보여준다.
 // 없는 거래는 기존처럼 한 줄(진입~청산)로 표시.
@@ -407,6 +478,57 @@ function TradeDetailModal({ result, compResults, compPage, compTotalPage, compTo
           )}
         </div>
 
+        {/* 전략별 매매 요약 — 진입 전략(불타기/눌림목/당일저점)별 전체 매매 수와 청산 결과 종류별 건수 */}
+        {allTrades.length > 0 && (
+          <div className="px-6 py-4 space-y-2 border-b border-zinc-800">
+            <h3 className="text-sm font-semibold text-zinc-300">전략별 매매 요약</h3>
+            <div className="overflow-x-auto rounded-xl border border-zinc-800">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-700 bg-zinc-800/50">
+                    <th className="text-left px-3 py-2 text-zinc-400 font-medium whitespace-nowrap">전략</th>
+                    <th className="text-right px-3 py-2 text-zinc-400 font-medium whitespace-nowrap">전체 매매</th>
+                    <th className="text-right px-3 py-2 text-zinc-400 font-medium whitespace-nowrap">승률</th>
+                    <th className="text-right px-3 py-2 text-zinc-400 font-medium whitespace-nowrap">수익률</th>
+                    <th className="text-right px-3 py-2 text-zinc-400 font-medium whitespace-nowrap">손익</th>
+                    {EXIT_COLUMNS.map(col => (
+                      <th key={col.key} className="text-right px-3 py-2 text-zinc-400 font-medium whitespace-nowrap">{col.label}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-800">
+                  {strategyExitStats(allTrades, result).map(s => (
+                    <tr key={s.direction} className={s.total === 0 ? 'text-zinc-600' : ''}>
+                      <td className={`px-3 py-2.5 font-medium whitespace-nowrap ${s.total === 0 ? '' : 'text-zinc-200'}`}>{s.label}</td>
+                      <td className={`px-3 py-2.5 text-right font-semibold ${s.total === 0 ? '' : 'text-zinc-100'}`}>{s.total}건</td>
+                      <td className={`px-3 py-2.5 text-right ${s.winRate == null ? '' : 'text-teal-400'}`}>
+                        {s.winRate == null ? '-' : `${s.winRate.toFixed(1)}%`}
+                      </td>
+                      <td className={`px-3 py-2.5 text-right font-medium ${s.total === 0 || s.retPct == null ? '' : s.retPct >= 0 ? 'text-teal-400' : 'text-red-400'}`}>
+                        {s.total === 0 || s.retPct == null ? '-' : `${s.retPct >= 0 ? '+' : ''}${s.retPct.toFixed(2)}%`}
+                      </td>
+                      <td className={`px-3 py-2.5 text-right whitespace-nowrap ${s.total === 0 || s.pnl == null ? '' : s.pnl >= 0 ? 'text-teal-400' : 'text-red-400'}`}>
+                        {s.total === 0 || s.pnl == null ? '-' : `${s.pnl >= 0 ? '+' : ''}${Math.round(s.pnl).toLocaleString()}원`}
+                      </td>
+                      {s.counts.map((n, i) => (
+                        <td key={EXIT_COLUMNS[i].key} className={`px-3 py-2.5 text-right ${n > 0 ? EXIT_COLUMNS[i].color : 'text-zinc-600'}`}>
+                          {n}건
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-zinc-500">
+              승률 = 수익이 난 거래 비율. 수익률 = 해당 전략 거래 손익 합계 ÷ 시작 자본금
+              {startCapitalOf(result) != null ? `(${startCapitalOf(result)!.toLocaleString()}원)` : '(이 결과는 시작 자본금 기록이 없어 손익만 표시)'}
+              으로, 세 전략 수익률을 더하면 전체 수익률과 거의 같습니다(마감 시 보유 중인 포지션 평가분만큼 차이).
+              익절 = 즉시 익절 + 익절(스코어) + 익절(RSI 과매수). 강제청산은 결과별 칸에 포함되지 않습니다.
+            </p>
+          </div>
+        )}
+
         {/* 종목별 요약 — 종목이 2개 이상 섞인 결과(포트폴리오 백테스트)에서만 표시 */}
         {symbolStats.length > 1 && (
           <div className="px-6 pt-4 space-y-2">
@@ -501,8 +623,12 @@ export default function TestLog() {
   const [selectedStrategyId, setSelectedStrategyId] = useState<number | null>(null);
   const [runSymbol,         setRunSymbol]          = useState('');
 
-  // 백테스트 실행 방식: 특정 종목 1개 vs 유저의 세션 목록 전체(포트폴리오) vs 카테고리 내 랜덤 20종목
-  const [backtestType, setBacktestType] = useState<'SYMBOL' | 'PORTFOLIO' | 'RANDOM'>('SYMBOL');
+  // 백테스트 실행 방식: 특정 종목 1개 vs 유저의 세션 목록 전체(포트폴리오) vs 카테고리 내 랜덤 20종목 vs 오늘 추천종목
+  const [backtestType, setBacktestType] = useState<'SYMBOL' | 'PORTFOLIO' | 'RANDOM' | 'RECOMMEND'>('SYMBOL');
+  const [recommendApplyForceClose, setRecommendApplyForceClose] = useState(false);
+  // 오늘 추천종목 미리보기 — 추천종목 방식을 처음 고를 때 1회 조회 (null=조회 전/중)
+  const [recommendSymbols, setRecommendSymbols] = useState<RecommendSymbol[] | null | 'error'>(null);
+  const upRecommendSymbols = Array.isArray(recommendSymbols) ? recommendSymbols.filter(r => r.direction !== 'DOWN') : [];
   const [portfolioRunMode, setPortfolioRunMode] = useState<'LIVE' | 'PAPER'>('PAPER');
   const [activeOnly, setActiveOnly] = useState(true);
   const [randomCategory, setRandomCategory] = useState<'KOSPI200' | 'NASDAQ100'>('KOSPI200');
@@ -550,6 +676,13 @@ export default function TestLog() {
   }, []);
 
   useEffect(() => { fetchStrategies(); }, [fetchStrategies]);
+
+  useEffect(() => {
+    if (backtestType !== 'RECOMMEND' || recommendSymbols !== null) return;
+    getTodayRecommendSymbols()
+      .then(res => setRecommendSymbols(res.status < 400 ? (res.data ?? []) : 'error'))
+      .catch(() => setRecommendSymbols('error'));
+  }, [backtestType, recommendSymbols]);
 
   // Timer cleanup on unmount
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
@@ -702,6 +835,44 @@ export default function TestLog() {
           category:          randomCategory,
           strategyConfigId:  selectedStrategyId,
           applyForceClose:   randomApplyForceClose,
+        },
+        undefined,
+        controller.signal,
+      );
+
+      if (runRes.data) {
+        refreshResults(userUid, 1);
+      } else {
+        setErrorMessage(runRes.message || '백테스트 실행에 실패했습니다.');
+      }
+    } catch {
+      setErrorMessage(controller.signal.aborted ? '백테스트를 취소했습니다.' : '서버 연결에 실패했습니다.');
+    } finally {
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+      abortRef.current = null;
+      setRunning(false);
+    }
+  };
+
+  // ── API: 실행 (추천종목 — 오늘 브리핑 추천종목(상승 예상)에 단일 전략 일괄적용, 오늘 하루만) ──
+  const handleRunRecommend = async () => {
+    if (!selectedStrategyId || running) return;
+    const userUid = authStorage.get()?.userUid;
+    if (!userUid) return;
+
+    setRunning(true);
+    setElapsed(0);
+    timerRef.current = setInterval(() => setElapsed(prev => prev + 1), 1000);
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    try {
+      const runRes = await apiClient.post<ApiResponse<BacktestResult>>(
+        '/finpilot/backtest/recommend/run',
+        {
+          userUid,
+          strategyConfigId:  selectedStrategyId,
+          applyForceClose:   recommendApplyForceClose,
         },
         undefined,
         controller.signal,
@@ -877,9 +1048,10 @@ export default function TestLog() {
                 { id: 'SYMBOL',    label: '특정 종목' },
                 { id: 'PORTFOLIO', label: '세션 종목 (포트폴리오)' },
                 { id: 'RANDOM',    label: '랜덤 종목' },
+                { id: 'RECOMMEND', label: '추천 종목' },
               ]}
               value={backtestType}
-              onChange={id => setBacktestType(id as 'SYMBOL' | 'PORTFOLIO' | 'RANDOM')}
+              onChange={id => setBacktestType(id as 'SYMBOL' | 'PORTFOLIO' | 'RANDOM' | 'RECOMMEND')}
             />
           </div>
 
@@ -956,6 +1128,74 @@ export default function TestLog() {
                     <span className="text-sm text-zinc-200">{activeOnly ? '활성(active) 세션만' : '전체 세션'}</span>
                     <span className={`relative w-11 h-6 rounded-full transition-colors ${activeOnly ? 'bg-teal-500' : 'bg-zinc-600'}`}>
                       <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${activeOnly ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : backtestType === 'RECOMMEND' ? (
+            <div className="mb-6 space-y-4">
+              <div className="text-xs text-zinc-500 space-y-1">
+                <p>
+                  오늘 아침 뉴스브리핑이 보내준 추천 종목 중 <span className="text-teal-400">상승 예상</span> 종목 전체에 선택한 전략을 동일하게 적용해,
+                  포트폴리오처럼 동시에 시뮬레이션합니다 (시드머니 1,000만원 가정).
+                </p>
+                <p>
+                  추천 종목은 매일 바뀌므로 <span className="text-zinc-300">오늘 하루(장 시작~현재/장 마감)만</span> 매매를 재현합니다.
+                  평균 거래량·등급 같은 판단 지표는 이전 데이터로 계산하고, 매수·매도는 오늘 시세로만 진행합니다.
+                </p>
+                <p>하락 예상 종목은 실전 추천세션과 동일하게 제외되며, 장 시작 전이나 휴장일에는 실행할 수 없습니다.</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-zinc-300 mb-1.5">오늘 추천 종목 (상승 예상)</label>
+                {recommendSymbols === null ? (
+                  <p className="text-sm text-zinc-500">불러오는 중...</p>
+                ) : recommendSymbols === 'error' ? (
+                  <p className="text-sm text-red-400">추천 종목을 불러오지 못했습니다.</p>
+                ) : upRecommendSymbols.length === 0 ? (
+                  <p className="text-sm text-zinc-500">오늘 추천된 종목이 없습니다.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {upRecommendSymbols.map(r => (
+                      <div key={r.symbol} className="px-3 py-1.5 bg-zinc-800 border border-zinc-700 rounded-lg">
+                        <span className="text-sm text-zinc-200">{r.symbolName ?? getSymbolName(r.symbol)}</span>
+                        <span className="ml-1.5 text-xs text-zinc-500">{r.symbol}</span>
+                        {r.category && <span className="ml-1.5 text-xs text-teal-400">{categoryLabel(r.category)}</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">전략 설정 (전 종목 일괄 적용)</label>
+                  <select
+                    value={selectedStrategyId ?? ''}
+                    onChange={e => setSelectedStrategyId(e.target.value ? Number(e.target.value) : null)}
+                    disabled={running || strategies.length === 0}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-teal-500 transition-colors disabled:opacity-50"
+                  >
+                    {strategies.length === 0 && <option value="">전략 설정이 없습니다</option>}
+                    {strategies.map(s => (
+                      <option key={s.id} value={s.id}>
+                        {s.name || `전략 #${s.id}`} (익절 +{s.takeProfitPct}% · 손절 -{s.stopLossPct}%)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">15:18 강제청산</label>
+                  <button
+                    type="button"
+                    onClick={() => setRecommendApplyForceClose(v => !v)}
+                    disabled={running}
+                    className="w-full flex items-center justify-between bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 disabled:opacity-50 cursor-pointer"
+                  >
+                    <span className="text-sm text-zinc-200">{recommendApplyForceClose ? '적용함' : '적용 안 함(장마감 평가액 기준)'}</span>
+                    <span className={`relative w-11 h-6 rounded-full transition-colors ${recommendApplyForceClose ? 'bg-teal-500' : 'bg-zinc-600'}`}>
+                      <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${recommendApplyForceClose ? 'translate-x-5' : 'translate-x-0'}`} />
                     </span>
                   </button>
                 </div>
@@ -1041,15 +1281,22 @@ export default function TestLog() {
           )}
 
           <button
-            onClick={backtestType === 'SYMBOL' ? handleRun : backtestType === 'PORTFOLIO' ? handleRunPortfolio : handleRunRandom}
+            onClick={
+              backtestType === 'SYMBOL' ? handleRun :
+              backtestType === 'PORTFOLIO' ? handleRunPortfolio :
+              backtestType === 'RECOMMEND' ? handleRunRecommend :
+              handleRunRandom
+            }
             disabled={
               backtestType === 'SYMBOL' ? (!runSymbol || !selectedStrategyId || running) :
               backtestType === 'RANDOM' ? (!selectedStrategyId || running) :
+              backtestType === 'RECOMMEND' ? (!selectedStrategyId || upRecommendSymbols.length === 0 || running) :
               running
             }
             className={`flex items-center gap-2 px-6 py-3 rounded-xl text-base font-semibold transition-colors ${
               (backtestType === 'SYMBOL' ? (!runSymbol || !selectedStrategyId || running) :
                backtestType === 'RANDOM' ? (!selectedStrategyId || running) :
+               backtestType === 'RECOMMEND' ? (!selectedStrategyId || upRecommendSymbols.length === 0 || running) :
                running)
                 ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
                 : 'bg-teal-500 hover:bg-teal-400 text-white cursor-pointer'

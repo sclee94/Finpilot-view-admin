@@ -14,6 +14,8 @@ const Logs = lazy(() => import("../pages/logs/page"));
 const TestLog = lazy(() => import("../pages/testlog/page"));
 const Live = lazy(() => import("../pages/live/page"));
 const Blocked = lazy(() => import("../pages/blocked/page"));
+const Briefing = lazy(() => import("../pages/briefing/page"));
+const BriefingDetail = lazy(() => import("../pages/briefing/detail"));
 
 const routes: RouteObject[] = [
   {
@@ -63,6 +65,14 @@ const routes: RouteObject[] = [
   {
     path: "/live",
     element: <Live />,
+  },
+  {
+    path: "/briefing",
+    element: <Briefing />,
+  },
+  {
+    path: "/briefing/:id",
+    element: <BriefingDetail />,
   },
   {
     path: "/blocked",
