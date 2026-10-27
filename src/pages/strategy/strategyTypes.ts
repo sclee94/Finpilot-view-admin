@@ -32,6 +32,8 @@ export interface StrategyConfigDTO {
   enableImmediateStopLoss5Min?: number; // 5분마다 즉시손절 안전망 ON/OFF (1=ON, 0/null=OFF) — 변동성배수 미적용 순수 손절선만 5분마다 재확인
   enableGapDownExit?: number; // 갭하락 시가 매도 ON/OFF (1=ON, 0/null=OFF) — 이월 포지션이 시가가 전일 종가 대비 gapDownExitPct% 이상 낮으면 09:00:30 매도
   gapDownExitPct?:    number; // 갭하락 매도 기준 % (기본 1.0)
+  enableLimitEntry?:  number; // 지정가 진입 ON/OFF (1=ON, 0/null=OFF) — 신규 매수를 신호가×(1-limitEntryPct%) 지정가로, 15:00 미체결 취소
+  limitEntryPct?:     number; // 지정가 진입 할인폭 % (기본 0.5)
   createdAt?:           string;
 }
 

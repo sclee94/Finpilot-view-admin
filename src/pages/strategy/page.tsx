@@ -5,6 +5,7 @@ import { authStorage } from '../../utils/auth';
 import { PERMISSIONS } from '../../constants';
 import type { ApiResponse, PageResponse } from '../../types/index';
 import type { StrategyConfigDTO } from './strategyTypes';
+import { strategyEffectWarnings } from './strategyCheck';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,6 +41,8 @@ interface FormState {
   enableImmediateStopLoss5Min: 0 | 1;
   enableGapDownExit:         0 | 1;
   gapDownExitPct:            NumVal;
+  enableLimitEntry:          0 | 1;
+  limitEntryPct:             NumVal;
 }
 
 const EMPTY_FORM: FormState = {
@@ -72,6 +75,8 @@ const EMPTY_FORM: FormState = {
   enableImmediateStopLoss5Min: 0,
   enableGapDownExit:         0,
   gapDownExitPct:            1,
+  enableLimitEntry:          0,
+  limitEntryPct:             0.5,
 };
 
 function dtoToForm(dto: StrategyConfigDTO): FormState {
@@ -105,6 +110,8 @@ function dtoToForm(dto: StrategyConfigDTO): FormState {
     enableImmediateStopLoss5Min: dto.enableImmediateStopLoss5Min === 1 ? 1 : 0,
     enableGapDownExit:         dto.enableGapDownExit === 1 ? 1 : 0,
     gapDownExitPct:            dto.gapDownExitPct ?? 1,
+    enableLimitEntry:          dto.enableLimitEntry === 1 ? 1 : 0,
+    limitEntryPct:             dto.limitEntryPct ?? 0.5,
   };
 }
 
@@ -327,6 +334,8 @@ export default function Strategy() {
         enableImmediateStopLoss5Min: form.enableImmediateStopLoss5Min,
         enableGapDownExit:         form.enableGapDownExit,
         gapDownExitPct:            form.gapDownExitPct            as number,
+        enableLimitEntry:          form.enableLimitEntry,
+        limitEntryPct:             form.limitEntryPct             as number,
       };
       if (creating) {
         const res = await apiClient.post<ApiResponse<StrategyConfigDTO>>('/strategy/insertStrategyConfig', payload);
@@ -466,6 +475,20 @@ export default function Strategy() {
                   className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-teal-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </Section>
+
+              {strategyEffectWarnings(form).length > 0 && (
+                <div className="bg-amber-500/5 border border-amber-500/30 rounded-xl px-4 py-3 space-y-1.5">
+                  <p className="text-sm font-semibold text-amber-300 flex items-center gap-1.5">
+                    <i className="ri-information-line"></i>설정 점검 — 실제로 작동하지 않거나 모순되는 값
+                  </p>
+                  {strategyEffectWarnings(form).map(w => (
+                    <p key={w.text} className={`text-xs leading-relaxed ${w.level === 'warn' ? 'text-red-300' : 'text-zinc-300'}`}>
+                      {w.level === 'warn' ? '⚠ ' : '• '}{w.text}
+                    </p>
+                  ))}
+                  <p className="text-xs text-zinc-500">의도한 설정(예: 일반 손절을 일부러 끈 경우)이라면 그대로 두셔도 됩니다. 값은 자동으로 바뀌지 않습니다.</p>
+                </div>
+              )}
 
               <Section title="1차 필터" icon="ri-filter-3-line">
                 <div className="bg-zinc-800/60 border border-zinc-700/50 rounded-lg px-3 py-2.5 mb-4 text-xs text-zinc-400 leading-relaxed space-y-1">
@@ -654,6 +677,41 @@ export default function Strategy() {
                     desc="시가가 전일 종가 대비 이 % 이상 낮으면 매도 (기본 1.0)"
                     value={form.gapDownExitPct} step={0.1} prefix="-" disabled={!canEdit || form.enableGapDownExit !== 1} category="sell"
                     onChange={v => set('gapDownExitPct', v)}
+                  />
+                </div>
+              </Section>
+
+              <Section title="지정가 진입" icon="ri-price-tag-3-line">
+                <div className="bg-zinc-800/60 border border-zinc-700/50 rounded-lg px-3 py-2.5 mb-4 text-xs text-zinc-400 leading-relaxed space-y-1">
+                  <p>ON이면 신규 매수 신호가 났을 때 시장가로 바로 사지 않고, 신호 시점 가격보다 아래 기준 %만큼 낮은 가격(호가 단위로 내림)에 지정가 매수 주문을 걸어둡니다. 장중에 그 가격까지 내려오면 체결되고, 15:00까지 체결되지 않으면 주문을 자동 취소합니다(그 종목은 그날 다시 신호가 나면 새로 주문). 일부만 체결되면 나머지는 취소하고 체결된 수량만 보유합니다.</p>
+                  <p>실전·모의 모두 적용되며 백테스트에도 같은 규칙으로 반영됩니다. 추가매수(불타기 추가)는 기존대로 시장가이고, 15:00 이후 신규 매수(강제청산 OFF 세션)도 시장가입니다. 백테스트에서 0.5%가 전 구간 일관되게 나았지만 엄격 검증 기준은 통과하지 못해 기본 OFF입니다 — 대신 신호 후 반등 없이 바로 오르는 종목은 놓치게 됩니다.</p>
+                </div>
+                <div className="flex items-center gap-3 mb-4">
+                  <button
+                    type="button"
+                    disabled={!canEdit}
+                    onClick={() => set('enableLimitEntry', form.enableLimitEntry === 1 ? 0 : 1)}
+                    className={`relative w-11 h-6 rounded-full transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
+                      form.enableLimitEntry === 1 ? 'bg-teal-500' : 'bg-zinc-600'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                        form.enableLimitEntry === 1 ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                  <span className="text-sm font-medium text-zinc-300">
+                    지정가 진입 {form.enableLimitEntry === 1 ? 'ON' : 'OFF'}
+                  </span>
+                  <CategoryBadge category="buy" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <NumInput
+                    label="지정가 할인폭 (%)"
+                    desc="신호 시점 가격 대비 이 %만큼 낮은 가격에 매수 주문 (기본 0.5)"
+                    value={form.limitEntryPct} step={0.1} prefix="-" disabled={!canEdit || form.enableLimitEntry !== 1} category="buy"
+                    onChange={v => set('limitEntryPct', v)}
                   />
                 </div>
               </Section>

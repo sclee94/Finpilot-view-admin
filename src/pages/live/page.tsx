@@ -3,7 +3,7 @@ import PageLayout from '../../components/PageLayout';
 import { authStorage } from '../../utils/auth';
 import { PERMISSIONS } from '../../constants';
 import type { ApiResponse, PageResponse, TradingSession, TradeHistory, RecommendSymbol } from '../../types/index';
-import { categoryLabel, getTodayRecommendSymbols } from '../../api/symbolApi';
+import { categoryLabel, getTodayRecommendSymbols, recommendStrengthInfo } from '../../api/symbolApi';
 import type { StrategyConfigDTO } from '../strategy/strategyTypes';
 import { getSymbolName } from '../../constants/symbolNames';
 import { apiClient } from '../../api/apiClient';
@@ -28,8 +28,17 @@ import {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function positionBadge(pos: TradingSession['currentPosition']) {
+function positionBadge(pos: TradingSession['currentPosition'], session?: TradingSession) {
   if (pos === 'LONG') return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-teal-500/20 text-teal-300">LONG</span>;
+  if (session?.pendingOrderNo) {
+    // 지정가 진입 주문이 체결 대기 중 — 15:00까지 미체결이면 자동 취소
+    return (
+      <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300"
+        title={`지정가 ${session.pendingOrderPrice?.toLocaleString() ?? '-'}원 × ${session.pendingOrderQty ?? '-'}주 체결 대기 (15:00 미체결 시 취소)`}>
+        지정가 대기
+      </span>
+    );
+  }
   return <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-zinc-700 text-zinc-400">NONE</span>;
 }
 
@@ -1060,6 +1069,10 @@ export default function Live() {
                         <span className="text-sm text-zinc-200">{r.symbolName ?? getSymbolName(r.symbol)}</span>
                         <span className="ml-1.5 text-xs text-zinc-500">{r.symbol}</span>
                         {r.category && <span className="ml-1.5 text-xs text-teal-400">{categoryLabel(r.category)}</span>}
+                        <span className="ml-1.5 text-xs text-amber-400">
+                          {recommendStrengthInfo(r.strength).label}
+                          {recommendStrengthInfo(r.strength).relaxPct > 0 && ` · ${recommendStrengthInfo(r.strength).relaxPct}% 완화`}
+                        </span>
                         {mySessions.map(s => (
                           <span key={s.id} className={`ml-1.5 text-xs ${s.mode === 'LIVE' ? 'text-rose-400' : 'text-sky-400'}`}>
                             {s.mode === 'LIVE' ? '실전' : '모의'}{s.currentPosition === 'LONG' ? ' 보유중' : ''}
@@ -1353,7 +1366,7 @@ export default function Live() {
                   >
                     <div className="bg-zinc-800 group-hover/data:bg-zinc-700/70 rounded-lg px-3 py-2 transition-colors">
                       <p className="text-xs text-zinc-400 mb-1.5">현재 포지션</p>
-                      {positionBadge(session.currentPosition)}
+                      {positionBadge(session.currentPosition, session)}
                     </div>
                     <div className="bg-zinc-800 group-hover/data:bg-zinc-700/70 rounded-lg px-3 py-2 transition-colors">
                       <p className="text-xs text-zinc-400 mb-1">보유 수량</p>

@@ -11,7 +11,7 @@ import { getSymbolName } from '../../constants/symbolNames';
 import FilterButtonGroup from '../../components/FilterButtonGroup';
 import { useEnterConfirm } from '../../hooks/useEnterConfirm';
 import SymbolPicker from '../../components/SymbolPicker';
-import { categoryLabel, getTodayRecommendSymbols } from '../../api/symbolApi';
+import { categoryLabel, getTodayRecommendSymbols, recommendStrengthInfo } from '../../api/symbolApi';
 import type { RecommendSymbol } from '../../types/index';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -302,6 +302,9 @@ function TradeDetailModal({ result, compResults, compPage, compTotalPage, compTo
   })();
 
   const trades = symbolFilter ? allTrades.filter(t => t.symbol === symbolFilter) : allTrades;
+  // 여러 종목 대상 백테스트(세션/랜덤/추천)는 실제 거래 종목이 1개뿐이어도 종목 열을 보여준다 —
+  // 제목이 "RECOMMEND(6종목)" 같은 요약 라벨이라 열이 없으면 어떤 종목 거래인지 알 수 없음
+  const showSymbolCol = symbolStats.length > 1 || isAggregateResult(result.symbol);
 
   const COMPARE_FIELDS: { label: string; getValue: (r: BacktestResult) => string; colorFn?: (r: BacktestResult) => string }[] = [
     { label: '총 거래', getValue: r => `${r.totalTrades}건` },
@@ -588,7 +591,7 @@ function TradeDetailModal({ result, compResults, compPage, compTotalPage, compTo
                 <thead>
                   <tr className="border-b border-zinc-700 bg-zinc-800/50">
                     <th className="text-left px-3 py-2.5 text-zinc-400 font-medium">No</th>
-                    {symbolStats.length > 1 && <th className="text-left px-3 py-2.5 text-zinc-400 font-medium">종목</th>}
+                    {showSymbolCol && <th className="text-left px-3 py-2.5 text-zinc-400 font-medium">종목</th>}
                     <th className="text-left px-3 py-2.5 text-zinc-400 font-medium">방향</th>
                     <th className="text-left px-3 py-2.5 text-zinc-400 font-medium">진입 시각</th>
                     <th className="text-left px-3 py-2.5 text-zinc-400 font-medium">청산 시각</th>
@@ -602,7 +605,7 @@ function TradeDetailModal({ result, compResults, compPage, compTotalPage, compTo
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800">
-                  {trades.flatMap(t => renderTradeRows(t, symbolStats.length > 1))}
+                  {trades.flatMap(t => renderTradeRows(t, showSymbolCol))}
                 </tbody>
               </table>
             </div>
@@ -1096,6 +1099,7 @@ export default function TestLog() {
             <div className="mb-6 space-y-4">
               <p className="text-xs text-zinc-500">
                 보유 중인 트레이딩 세션 종목 전체를 실전/모의투자와 동일한 방식(불타기 Top2 필터, 세션별 전략 설정, KIS 실잔고 기준 시드머니)으로 동시 시뮬레이션합니다.
+                추천세션은 그날 하루짜리라 제외되며, 추천 종목은 '추천 종목' 백테스트로 확인하세요.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -1144,6 +1148,13 @@ export default function TestLog() {
                   추천 종목은 매일 바뀌므로 <span className="text-zinc-300">오늘 하루(장 시작~현재/장 마감)만</span> 매매를 재현합니다.
                   평균 거래량·등급 같은 판단 지표는 이전 데이터로 계산하고, 매수·매도는 오늘 시세로만 진행합니다.
                 </p>
+                <p>
+                  실제 추천세션과 똑같이 <span className="text-zinc-300">09:00부터 신규 매수</span>하고(매매 시작 시각 설정과 무관), 매수 마감은 일반 종목과 같습니다(15:18 강제청산 적용 시 15:00까지, 미적용 시 장 마감까지).
+                </p>
+                <p>
+                  브리핑의 상승강도에 따라 종목마다 매수 조건을 자동 완화합니다 — 약 0% · 중 25% · 강 50% · 매우강 75%
+                  (거래량 기준·ADX 추세강도·눌림목 하락폭/RSI만 완화, 추격 방지·상승 패턴 확인·매도/손절은 그대로).
+                </p>
                 <p>하락 예상 종목은 실전 추천세션과 동일하게 제외되며, 장 시작 전이나 휴장일에는 실행할 수 없습니다.</p>
               </div>
 
@@ -1162,6 +1173,10 @@ export default function TestLog() {
                         <span className="text-sm text-zinc-200">{r.symbolName ?? getSymbolName(r.symbol)}</span>
                         <span className="ml-1.5 text-xs text-zinc-500">{r.symbol}</span>
                         {r.category && <span className="ml-1.5 text-xs text-teal-400">{categoryLabel(r.category)}</span>}
+                        <span className="ml-1.5 text-xs text-amber-400">
+                          상승 {recommendStrengthInfo(r.strength).label}
+                          {recommendStrengthInfo(r.strength).relaxPct > 0 && ` · 매수조건 ${recommendStrengthInfo(r.strength).relaxPct}% 완화`}
+                        </span>
                       </div>
                     ))}
                   </div>
