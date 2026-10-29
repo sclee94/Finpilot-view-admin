@@ -17,6 +17,26 @@ export const getSymbolsByCategory = (category: SymbolCategory) =>
 /** 오늘(KST) 뉴스브리핑 추천 종목 - GET /api/recommend/symbols (없으면 빈 배열, 토글 여부 무관) */
 export const getTodayRecommendSymbols = () =>
   apiClient.get<ApiResponse<RecommendSymbol[]>>('/recommend/symbols');
+/** 기간(KST, YYYY-MM-DD) 뉴스브리핑 추천 종목 - GET /api/recommend/symbols?from=&to= (날짜순, 추천종목 기간 백테스트 미리보기) */
+export const getRecommendSymbols = (from: string, to: string) =>
+  apiClient.get<ApiResponse<RecommendSymbol[]>>(`/recommend/symbols?from=${from}&to=${to}`);
+/** 지난 추천종목 복원 결과(날짜별) — status: PREVIEW(미리보기) | INSERTED(저장) | SKIPPED_EXISTING(기록 있음) | NO_SYMBOLS */
+export interface RecommendBackfillDay {
+  date: string;
+  briefingId: number;
+  title: string;
+  status: 'PREVIEW' | 'INSERTED' | 'SKIPPED_EXISTING' | 'NO_SYMBOLS';
+  symbols?: { symbol: string; name: string | null; direction: 'UP' | 'DOWN'; strength: string | null; score: number | null }[];
+  unresolved?: string[];
+}
+export interface RecommendBackfillResult {
+  from: string; to: string; apply: boolean; inserted: number; days: RecommendBackfillDay[]; error?: string;
+}
+/** 지난 추천종목을 아침 브리핑 본문 표에서 복원 - POST /api/recommend/backfill-from-briefing (apply=false면 미리보기) */
+export const backfillRecommendFromBriefing = (from: string, to: string, apply: boolean) =>
+  apiClient.post<RecommendBackfillResult>('/recommend/backfill-from-briefing', { from, to, apply }, 120_000);
+/** 오늘 날짜(KST) "YYYY-MM-DD" */
+export const kstToday = () => new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
 /** 추천 예상 강도 → 표시 라벨 + 추천세션 매수조건 완화율(서버 RecommendBuyRelaxer와 동일, 미전송=약) */
 const STRENGTH_INFO: Record<string, { label: string; relaxPct: number }> = {
   WEAK:        { label: '약',     relaxPct: 0 },

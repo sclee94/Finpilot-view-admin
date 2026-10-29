@@ -11,7 +11,8 @@ import { getSymbolName } from '../../constants/symbolNames';
 import FilterButtonGroup from '../../components/FilterButtonGroup';
 import { useEnterConfirm } from '../../hooks/useEnterConfirm';
 import SymbolPicker from '../../components/SymbolPicker';
-import { categoryLabel, getTodayRecommendSymbols, recommendStrengthInfo } from '../../api/symbolApi';
+import { backfillRecommendFromBriefing, categoryLabel, getRecommendSymbols, kstToday, recommendStrengthInfo } from '../../api/symbolApi';
+import type { RecommendBackfillResult } from '../../api/symbolApi';
 import type { RecommendSymbol } from '../../types/index';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -629,8 +630,17 @@ export default function TestLog() {
   // 백테스트 실행 방식: 특정 종목 1개 vs 유저의 세션 목록 전체(포트폴리오) vs 카테고리 내 랜덤 20종목 vs 오늘 추천종목
   const [backtestType, setBacktestType] = useState<'SYMBOL' | 'PORTFOLIO' | 'RANDOM' | 'RECOMMEND'>('SYMBOL');
   const [recommendApplyForceClose, setRecommendApplyForceClose] = useState(false);
-  // 오늘 추천종목 미리보기 — 추천종목 방식을 처음 고를 때 1회 조회 (null=조회 전/중)
+  // 추천종목 백테스트 기간(KST, 기본 오늘 하루) + 그 기간 추천종목 미리보기 (null=조회 중)
+  const [recommendFrom, setRecommendFrom] = useState(kstToday);
+  const [recommendTo, setRecommendTo] = useState(kstToday);
   const [recommendSymbols, setRecommendSymbols] = useState<RecommendSymbol[] | null | 'error'>(null);
+  const [recommendReload, setRecommendReload] = useState(0);   // 복원 저장 후 미리보기 다시 조회
+  // 지난 추천 복원(아침 브리핑 → recommend_symbol) — 미리보기 후 저장
+  const [backfillOpen, setBackfillOpen] = useState(false);
+  const [backfillFrom, setBackfillFrom] = useState('2026-09-01');
+  const [backfillTo, setBackfillTo] = useState(kstToday);
+  const [backfillBusy, setBackfillBusy] = useState(false);
+  const [backfillResult, setBackfillResult] = useState<RecommendBackfillResult | null>(null);
   const upRecommendSymbols = Array.isArray(recommendSymbols) ? recommendSymbols.filter(r => r.direction !== 'DOWN') : [];
   const [portfolioRunMode, setPortfolioRunMode] = useState<'LIVE' | 'PAPER'>('PAPER');
   const [activeOnly, setActiveOnly] = useState(true);
@@ -681,11 +691,34 @@ export default function TestLog() {
   useEffect(() => { fetchStrategies(); }, [fetchStrategies]);
 
   useEffect(() => {
-    if (backtestType !== 'RECOMMEND' || recommendSymbols !== null) return;
-    getTodayRecommendSymbols()
-      .then(res => setRecommendSymbols(res.status < 400 ? (res.data ?? []) : 'error'))
-      .catch(() => setRecommendSymbols('error'));
-  }, [backtestType, recommendSymbols]);
+    if (backtestType !== 'RECOMMEND' || !recommendFrom || !recommendTo || recommendFrom > recommendTo) return;
+    let cancelled = false;
+    setRecommendSymbols(null);
+    getRecommendSymbols(recommendFrom, recommendTo)
+      .then(res => { if (!cancelled) setRecommendSymbols(res.status < 400 ? (res.data ?? []) : 'error'); })
+      .catch(() => { if (!cancelled) setRecommendSymbols('error'); });
+    return () => { cancelled = true; };
+  }, [backtestType, recommendFrom, recommendTo, recommendReload]);
+
+  const runBackfill = async (apply: boolean) => {
+    if (backfillBusy || backfillFrom > backfillTo) return;
+    setBackfillBusy(true);
+    try {
+      const res = await backfillRecommendFromBriefing(backfillFrom, backfillTo, apply);
+      setBackfillResult(res);
+      if (apply && !res.error) setRecommendReload(n => n + 1);
+    } catch {
+      setBackfillResult({ from: backfillFrom, to: backfillTo, apply, inserted: 0, days: [], error: '서버 연결에 실패했습니다.' });
+    } finally {
+      setBackfillBusy(false);
+    }
+  };
+
+  // 미리보기를 추천일별로 묶음(상승 예상만)
+  const upRecommendByDate = upRecommendSymbols.reduce<Record<string, RecommendSymbol[]>>((acc, r) => {
+    (acc[r.recommendDate] ??= []).push(r);
+    return acc;
+  }, {});
 
   // Timer cleanup on unmount
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
@@ -857,7 +890,7 @@ export default function TestLog() {
     }
   };
 
-  // ── API: 실행 (추천종목 — 오늘 브리핑 추천종목(상승 예상)에 단일 전략 일괄적용, 오늘 하루만) ──
+  // ── API: 실행 (추천종목 — 기간 내 날짜별 브리핑 추천종목(상승 예상)에 단일 전략 일괄적용) ──
   const handleRunRecommend = async () => {
     if (!selectedStrategyId || running) return;
     const userUid = authStorage.get()?.userUid;
@@ -876,6 +909,8 @@ export default function TestLog() {
           userUid,
           strategyConfigId:  selectedStrategyId,
           applyForceClose:   recommendApplyForceClose,
+          startDate:         recommendFrom,
+          endDate:           recommendTo,
         },
         undefined,
         controller.signal,
@@ -1141,12 +1176,13 @@ export default function TestLog() {
             <div className="mb-6 space-y-4">
               <div className="text-xs text-zinc-500 space-y-1">
                 <p>
-                  오늘 아침 뉴스브리핑이 보내준 추천 종목 중 <span className="text-teal-400">상승 예상</span> 종목 전체에 선택한 전략을 동일하게 적용해,
+                  선택한 기간의 아침 뉴스브리핑 추천 종목 중 <span className="text-teal-400">상승 예상</span> 종목에 선택한 전략을 동일하게 적용해,
                   포트폴리오처럼 동시에 시뮬레이션합니다 (시드머니 1,000만원 가정).
                 </p>
                 <p>
-                  추천 종목은 매일 바뀌므로 <span className="text-zinc-300">오늘 하루(장 시작~현재/장 마감)만</span> 매매를 재현합니다.
-                  평균 거래량·등급 같은 판단 지표는 이전 데이터로 계산하고, 매수·매도는 오늘 시세로만 진행합니다.
+                  날짜마다 <span className="text-zinc-300">그날 추천된 종목만 신규 매수</span>하고, 장 마감 때 보유 중인 종목은 실제 추천세션처럼
+                  <span className="text-zinc-300"> 다음 날로 이어서</span> 익절·손절 규칙대로 운용합니다. 한 번 매도한 종목은 그날 다시 사지 않습니다(실제 추천세션은 청산 시 삭제).
+                  평균 거래량·등급 같은 판단 지표는 이전 데이터로 계산합니다.
                 </p>
                 <p>
                   실제 추천세션과 똑같이 <span className="text-zinc-300">09:00부터 신규 매수</span>하고(매매 시작 시각 설정과 무관), 매수 마감은 일반 종목과 같습니다(15:18 강제청산 적용 시 15:00까지, 미적용 시 장 마감까지).
@@ -1155,30 +1191,133 @@ export default function TestLog() {
                   브리핑의 상승강도에 따라 종목마다 매수 조건을 자동 완화합니다 — 약 0% · 중 25% · 강 50% · 매우강 75%
                   (거래량 기준·ADX 추세강도·눌림목 하락폭/RSI만 완화, 추격 방지·상승 패턴 확인·매도/손절은 그대로).
                 </p>
-                <p>하락 예상 종목은 실전 추천세션과 동일하게 제외되며, 장 시작 전이나 휴장일에는 실행할 수 없습니다.</p>
+                <p>
+                  하락 예상 종목은 실전 추천세션과 동일하게 제외됩니다. 추천 기록은 2026-10-28부터 날짜별로 쌓이며, 그 이전 날짜는
+                  아침 브리핑에서 복원된 날만 조회됩니다. 휴장일·장 시작 전 날짜는 매매 없이 건너뜁니다.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">시작일</label>
+                  <input
+                    type="date"
+                    value={recommendFrom}
+                    max={recommendTo || kstToday()}
+                    onChange={e => setRecommendFrom(e.target.value)}
+                    disabled={running}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-teal-500 transition-colors disabled:opacity-50 [color-scheme:dark]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">종료일</label>
+                  <input
+                    type="date"
+                    value={recommendTo}
+                    min={recommendFrom}
+                    max={kstToday()}
+                    onChange={e => setRecommendTo(e.target.value)}
+                    disabled={running}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-teal-500 transition-colors disabled:opacity-50 [color-scheme:dark]"
+                  />
+                </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-zinc-300 mb-1.5">오늘 추천 종목 (상승 예상)</label>
-                {recommendSymbols === null ? (
+                <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                  기간 내 추천 종목 (상승 예상)
+                  {Object.keys(upRecommendByDate).length > 0 && (
+                    <span className="ml-2 text-xs font-normal text-zinc-500">
+                      {Object.keys(upRecommendByDate).length}일 · {upRecommendSymbols.length}건
+                    </span>
+                  )}
+                </label>
+                {recommendFrom > recommendTo ? (
+                  <p className="text-sm text-red-400">시작일이 종료일보다 늦습니다.</p>
+                ) : recommendSymbols === null ? (
                   <p className="text-sm text-zinc-500">불러오는 중...</p>
                 ) : recommendSymbols === 'error' ? (
                   <p className="text-sm text-red-400">추천 종목을 불러오지 못했습니다.</p>
                 ) : upRecommendSymbols.length === 0 ? (
-                  <p className="text-sm text-zinc-500">오늘 추천된 종목이 없습니다.</p>
+                  <p className="text-sm text-zinc-500">선택한 기간에 추천된 종목이 없습니다.</p>
                 ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {upRecommendSymbols.map(r => (
-                      <div key={r.symbol} className="px-3 py-1.5 bg-zinc-800 border border-zinc-700 rounded-lg">
-                        <span className="text-sm text-zinc-200">{r.symbolName ?? getSymbolName(r.symbol)}</span>
-                        <span className="ml-1.5 text-xs text-zinc-500">{r.symbol}</span>
-                        {r.category && <span className="ml-1.5 text-xs text-teal-400">{categoryLabel(r.category)}</span>}
-                        <span className="ml-1.5 text-xs text-amber-400">
-                          상승 {recommendStrengthInfo(r.strength).label}
-                          {recommendStrengthInfo(r.strength).relaxPct > 0 && ` · 매수조건 ${recommendStrengthInfo(r.strength).relaxPct}% 완화`}
-                        </span>
+                  <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                    {Object.entries(upRecommendByDate).map(([date, list]) => (
+                      <div key={date} className="flex flex-col sm:flex-row sm:items-start gap-1.5 sm:gap-3">
+                        <span className="shrink-0 text-xs text-zinc-400 sm:w-20 sm:pt-1.5">{date}</span>
+                        <div className="flex flex-wrap gap-2">
+                          {list.map(r => (
+                            <div key={`${date}-${r.symbol}`} className="px-3 py-1.5 bg-zinc-800 border border-zinc-700 rounded-lg">
+                              <span className="text-sm text-zinc-200">{r.symbolName ?? getSymbolName(r.symbol)}</span>
+                              {r.category && <span className="ml-1.5 text-xs text-teal-400">{categoryLabel(r.category)}</span>}
+                              <span className="ml-1.5 text-xs text-amber-400">
+                                상승 {recommendStrengthInfo(r.strength).label}
+                                {recommendStrengthInfo(r.strength).relaxPct > 0 && ` · ${recommendStrengthInfo(r.strength).relaxPct}% 완화`}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="border border-zinc-800 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setBackfillOpen(v => !v)}
+                  className="w-full flex items-center justify-between px-3 py-2.5 text-sm text-zinc-300 cursor-pointer"
+                >
+                  <span>지난 추천 복원 (아침 브리핑에서)</span>
+                  <i className={backfillOpen ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} />
+                </button>
+                {backfillOpen && (
+                  <div className="px-3 pb-3 space-y-3">
+                    <p className="text-xs text-zinc-500">
+                      2026-10-28 이전 추천 기록은 지워졌기 때문에, 아침 브리핑 글의 표(종목명 · "상승 / 중 / 4" 형식)에서 종목·방향·강도를 뽑아 복원합니다.
+                      먼저 <span className="text-zinc-300">미리보기</span>로 결과를 확인한 뒤 저장하세요. 추천 기록이 이미 있는 날짜는 건드리지 않습니다.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <input type="date" value={backfillFrom} max={backfillTo} onChange={e => setBackfillFrom(e.target.value)} disabled={backfillBusy}
+                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-teal-500 disabled:opacity-50 [color-scheme:dark]" />
+                      <input type="date" value={backfillTo} min={backfillFrom} max={kstToday()} onChange={e => setBackfillTo(e.target.value)} disabled={backfillBusy}
+                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:border-teal-500 disabled:opacity-50 [color-scheme:dark]" />
+                    </div>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => runBackfill(false)} disabled={backfillBusy || backfillFrom > backfillTo}
+                        className="px-4 py-2 rounded-lg text-sm bg-zinc-700 hover:bg-zinc-600 text-zinc-100 disabled:opacity-50 cursor-pointer">
+                        {backfillBusy ? '처리 중...' : '미리보기'}
+                      </button>
+                      <button type="button" onClick={() => runBackfill(true)}
+                        disabled={backfillBusy || !backfillResult || backfillResult.apply || !backfillResult.days.some(d => d.status === 'PREVIEW')}
+                        className="px-4 py-2 rounded-lg text-sm bg-teal-600 hover:bg-teal-500 text-white disabled:opacity-40 cursor-pointer">
+                        저장
+                      </button>
+                    </div>
+                    {backfillResult && (
+                      backfillResult.error ? (
+                        <p className="text-sm text-red-400">{backfillResult.error}</p>
+                      ) : (
+                        <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1 text-xs">
+                          <p className="text-zinc-400">
+                            아침 브리핑 {backfillResult.days.length}건
+                            {backfillResult.apply ? ` · ${backfillResult.inserted}건 저장됨` : ' · 미리보기(저장 안 됨)'}
+                          </p>
+                          {backfillResult.days.map(d => (
+                            <div key={`${d.date}-${d.briefingId}`} className="text-zinc-400">
+                              <span className="text-zinc-300">{d.date}</span>{' '}
+                              {d.status === 'SKIPPED_EXISTING' ? <span className="text-zinc-500">기록 있음(건너뜀)</span>
+                                : d.status === 'NO_SYMBOLS' ? <span className="text-amber-400">표에서 종목을 찾지 못함</span>
+                                : (d.symbols ?? []).map(s => `${s.name ?? s.symbol}(${s.direction === 'UP' ? '상승' : '하락'} ${recommendStrengthInfo(s.strength).label})`).join(', ')}
+                              {d.unresolved && d.unresolved.length > 0 && (
+                                <span className="text-amber-400"> · 인식 못한 이름: {d.unresolved.join(', ')}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    )}
                   </div>
                 )}
               </div>
